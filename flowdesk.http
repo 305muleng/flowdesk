@@ -1,0 +1,802 @@
+### 注册用户
+POST http://localhost:8080/users/register
+Content-Type: application/json
+
+{
+  "username": "tom",
+  "password": "123456",
+  "realName": "Tom"
+}
+### 测试密码过短
+POST http://localhost:8080/users/register
+Content-Type: application/json
+
+{
+  "username": "jack",
+  "password": "123",
+  "realName": "Jack"
+}
+### 重复用户名
+POST http://localhost:8080/users/register
+Content-Type: application/json
+
+{
+  "username": "tom",
+  "password": "123456",
+  "realName": "Tom"
+}
+### 用户登录
+POST http://localhost:8080/users/login
+Content-Type: application/json
+
+{
+  "username": "tom",
+  "password": "123456"
+}
+### 密码错误
+POST http://localhost:8080/users/login
+Content-Type: application/json
+
+{
+  "username": "tom",
+  "password": "654321"
+}
+### 不带 Token
+GET http://localhost:8080/users/me
+### 假 Token
+GET http://localhost:8080/users/me
+Authorization: Bearer abc123
+### 正确 Token
+GET http://localhost:8080/users/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MjEyOTg0LCJleHAiOjE3ODkyMjAxODR9.kOFXLtog5-H1YK5t42VjHIKkmo-VC-PsITiL3pwmi5Q
+### 创建项目
+POST http://localhost:8080/projects
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MjEyMDA2LCJleHAiOjE3ODkyMTkyMDZ9.grSMXirIo-cIftf2BkggTRaMGArTE44CXcddeJuynpE
+
+{
+  "name": "FlowDesk 后端开发",
+  "description": "面向研发团队的项目与交付协作平台",
+  "goal": "完成 FlowDesk V1 核心后端功能",
+  "expectedEndTime": "2026-10-31T23:59:59"
+}
+### 查看项目详情
+GET http://localhost:8080/projects/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MjEyMDA2LCJleHAiOjE3ODkyMTkyMDZ9.grSMXirIo-cIftf2BkggTRaMGArTE44CXcddeJuynpE
+### 注册 Jack
+POST http://localhost:8080/users/register
+Content-Type: application/json
+
+{
+  "username": "jack",
+  "password": "123456",
+  "realName": "Jack"
+}
+### Jack 登录
+POST http://localhost:8080/users/login
+Content-Type: application/json
+
+{
+  "username": "jack",
+  "password": "123456"
+}
+### Jack 查看项目1
+GET http://localhost:8080/projects/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### Tom 邀请 Jack 加入项目1
+POST http://localhost:8080/projects/1/invitations
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mjc2NTkwLCJleHAiOjE3ODkyODM3OTB9.IyzGdwTuJdgiPp8piGfHhiFMyfYy7DXP8-qWKVLMimU",
+
+{
+  "username": "jack"
+}
+### 全部
+GET http://localhost:8080/invitations/my
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### 待处理
+GET http://localhost:8080/invitations/my?filter=PENDING
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### 已接受
+GET http://localhost:8080/invitations/my?filter=ACCEPTED
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### 已拒绝
+GET http://localhost:8080/invitations/my?filter=REJECTED
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### 已过期
+GET http://localhost:8080/invitations/my?filter=EXPIRED
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### 拒绝邀请
+POST http://localhost:8080/invitations/1/reject
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### 接受邀请
+POST http://localhost:8080/invitations/2/accept
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### 查看项目成员
+GET http://localhost:8080/projects/1/members
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+### Tom 给 Jack 创建任务
+POST http://localhost:8080/projects/1/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MjgyNjc1LCJleHAiOjE3ODkyODk4NzV9.Z1Gyuy5hd8WQdeN9VNGPxSMZ-XrCfKalYSkrmA8aRyI
+
+{
+  "title": "实现任务列表接口",
+  "description": "完成项目任务列表查询接口",
+  "goal": "支持项目成员查看项目中的任务",
+  "assigneeId": 2,
+  "priority": "HIGH",
+  "deadline": "2026-09-20T18:00:00"
+}
+### Jack 尝试创建正式任务
+POST http://localhost:8080/projects/1/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjc1NzM4LCJleHAiOjE3ODkyODI5Mzh9.joHKfvKrDPMhN5S49vS2DbQvRMIsT-ozNLfR9gh6APg
+
+{
+  "title": "Jack自己创建任务",
+  "description": "测试权限",
+  "goal": "验证DEVELOPER不能创建正式任务",
+  "assigneeId": 2,
+  "priority": "MEDIUM",
+  "deadline": "2026-09-20T18:00:00"
+}
+### Tom 给非项目成员分配任务
+POST http://localhost:8080/projects/1/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MjgyNjc1LCJleHAiOjE3ODkyODk4NzV9.Z1Gyuy5hd8WQdeN9VNGPxSMZ-XrCfKalYSkrmA8aRyI
+
+{
+  "title": "非法负责人测试",
+  "description": "测试负责人必须属于项目",
+  "goal": "验证成员关系检查",
+  "assigneeId": 999,
+  "priority": "LOW",
+  "deadline": "2026-09-20T18:00:00"
+}
+### 查看项目全部任务
+GET http://localhost:8080/projects/1/tasks?scope=ALL
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mjg0ODM3LCJleHAiOjE3ODkyOTIwMzd9.AMn7Uv97DPJ1m2wLonscNmbAJ3SLxxV8QlujE2Nw8nM
+### 查看我的任务
+GET http://localhost:8080/projects/1/tasks?scope=MINE
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+### Tom 启动项目1
+POST http://localhost:8080/projects/1/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mjg0ODM3LCJleHAiOjE3ODkyOTIwMzd9.AMn7Uv97DPJ1m2wLonscNmbAJ3SLxxV8QlujE2Nw8nM
+### Jack 尝试启动项目
+POST http://localhost:8080/projects/1/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjg2MDA0LCJleHAiOjE3ODkyOTMyMDR9.T2TGyrUAW7rUG3C397-GelauQtjuIoTOKAm24UTlzrw
+### Jack 开始任务1
+POST http://localhost:8080/tasks/1/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+### Tom 尝试开始 Jack 的任务
+POST http://localhost:8080/tasks/1/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mjk3MjY2LCJleHAiOjE3ODkzMDQ0NjZ9.i9WkTbvC-N1azT2jGQbBd8gHIjroUPms97tQEY-P-h4
+### Jack 提交任务1
+POST http://localhost:8080/tasks/2/submit
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+
+{
+  "completionNote": "已完成项目任务列表接口，并支持全部任务和我的任务筛选",
+  "resultUrl": "https://github.com/example/flowdesk/pull/1",
+  "testNote": "已测试 ALL 和 MINE 查询，结果正常"
+}
+### Tom 驳回任务1
+POST http://localhost:8080/tasks/1/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mjk3MjY2LCJleHAiOjE3ODkzMDQ0NjZ9.i9WkTbvC-N1azT2jGQbBd8gHIjroUPms97tQEY-P-h4
+
+{
+  "action": "REJECT",
+  "reviewNote": "请补充异常情况测试后重新提交"
+}
+### Tom 通过任务1
+POST http://localhost:8080/tasks/3/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzY2Nzg1LCJleHAiOjE3ODkzNzM5ODV9.aWVc35DUgacqEDC0hj3ngqoRvFOdpfY09Z2GkyyQerQ
+
+{
+  "action": "APPROVE",
+  "reviewNote": "修改正确，审核通过"
+}
+### Tom 查看待审核任务
+GET http://localhost:8080/projects/1/tasks?scope=ALL&status=REVIEW
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mjk3MjY2LCJleHAiOjE3ODkzMDQ0NjZ9.i9WkTbvC-N1azT2jGQbBd8gHIjroUPms97tQEY-P-h4
+### Jack 查看自己的进行中任务
+GET http://localhost:8080/projects/1/tasks?scope=MINE&status=IN_PROGRESS
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+### Jack 查看自己的已完成任务
+GET http://localhost:8080/projects/1/tasks?scope=MINE&status=DONE
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjk3MTM2LCJleHAiOjE3ODkzMDQzMzZ9.iY7eDSzveyrNMPM5wrXb4zioARVa8BUbI3BKpIrbS40
+### 查看任务1的提交历史
+GET http://localhost:8080/tasks/1/submissions
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjk3MTM2LCJleHAiOjE3ODkzMDQzMzZ9.iY7eDSzveyrNMPM5wrXb4zioARVa8BUbI3BKpIrbS40
+### Tom 创建未分配任务
+POST http://localhost:8080/projects/1/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mjk3MjY2LCJleHAiOjE3ODkzMDQ0NjZ9.i9WkTbvC-N1azT2jGQbBd8gHIjroUPms97tQEY-P-h4
+
+{
+  "title": "实现项目搜索功能",
+  "description": "支持按照项目名称搜索",
+  "goal": "完成项目搜索接口",
+  "priority": "MEDIUM",
+  "deadline": "2026-09-25T18:00:00"
+}
+### Tom 把任务2分配给Jack
+PATCH http://localhost:8080/tasks/2/assignee
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mjk3MjY2LCJleHAiOjE3ODkzMDQ0NjZ9.i9WkTbvC-N1azT2jGQbBd8gHIjroUPms97tQEY-P-h4
+
+{
+  "assigneeId": 2
+}
+### Jack 查任务
+GET http://localhost:8080/projects/1/tasks?scope=MINE
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+### Jack 查看任务2详情
+GET http://localhost:8080/tasks/2
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mjk3MTM2LCJleHAiOjE3ODkzMDQzMzZ9.iY7eDSzveyrNMPM5wrXb4zioARVa8BUbI3BKpIrbS40
+### Tom 评论任务2
+POST http://localhost:8080/tasks/2/comments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzY2Nzg1LCJleHAiOjE3ODkzNzM5ODV9.aWVc35DUgacqEDC0hj3ngqoRvFOdpfY09Z2GkyyQerQ
+
+{
+  "content": "项目搜索 V1 先只支持项目名称。"
+}
+### Jack 回复评论1
+POST http://localhost:8080/tasks/2/comments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+
+{
+  "content": "收到，先按照项目名称实现。",
+  "parentId": 1
+}
+### 查看任务2讨论区
+GET http://localhost:8080/tasks/2/comments
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+### Jack 提交任务申请
+POST http://localhost:8080/projects/1/task-requests
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+
+{
+  "title": "增加项目名称搜索功能",
+  "description": "项目数量增加以后查找不方便，希望增加项目搜索能力",
+  "goal": "支持按照项目名称模糊搜索",
+  "suggestedDeadline": "2026-09-25T18:00:00"
+}
+### Tom 查看待审批任务申请
+GET http://localhost:8080/projects/1/task-requests?status=PENDING
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzY2Nzg1LCJleHAiOjE3ODkzNzM5ODV9.aWVc35DUgacqEDC0hj3ngqoRvFOdpfY09Z2GkyyQerQ
+### Tom 批准Jack的任务申请
+POST http://localhost:8080/projects/1/task-requests/1/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzY2Nzg1LCJleHAiOjE3ODkzNzM5ODV9.aWVc35DUgacqEDC0hj3ngqoRvFOdpfY09Z2GkyyQerQ
+
+{
+  "action": "APPROVE",
+  "reviewNote": "需求合理，同意创建任务",
+  "assigneeId": 2,
+  "priority": "MEDIUM",
+  "deadline": "2026-09-30T18:00:00"
+}
+### Tom 拒绝Jack的任务申请
+POST http://localhost:8080/projects/1/task-requests/3/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzY2Nzg1LCJleHAiOjE3ODkzNzM5ODV9.aWVc35DUgacqEDC0hj3ngqoRvFOdpfY09Z2GkyyQerQ
+
+{
+  "action": "REJECT",
+  "reviewNote": "暂不需要该任务"
+}
+### Jack 撤回自己的任务申请
+POST http://localhost:8080/projects/1/task-requests/3/cancel
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzY2ODI5LCJleHAiOjE3ODkzNzQwMjl9.5-J1DdgYDr7LwIAsEw8puXp_GTxuc5RUT9zhsR0U6vQ
+### Tom 查看已拒绝任务申请
+GET http://localhost:8080/projects/1/task-requests?status=REJECTED
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzY2Nzg1LCJleHAiOjE3ODkzNzM5ODV9.aWVc35DUgacqEDC0hj3ngqoRvFOdpfY09Z2GkyyQerQ
+### Tom 项目提交
+POST http://localhost:8080/projects/1/acceptances
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzY2Nzg1LCJleHAiOjE3ODkzNzM5ODV9.aWVc35DUgacqEDC0hj3ngqoRvFOdpfY09Z2GkyyQerQ
+
+{
+  "submissionNote": "项目开发完成，提交验收"
+}
+### Jack 开始任务2
+POST http://localhost:8080/tasks/3/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzczMzQxLCJleHAiOjE3ODkzODA1NDF9.yZhqvGeyZ3oxtNwaXF6FBvVPL-ce-vvWtxuHHIeWh0I
+### Jack 提交任务2
+POST http://localhost:8080/tasks/6/submit
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "completionNote": "项目搜索功能已完成",
+  "resultUrl": "https://github.com/example/flowdesk",
+  "testNote": "已完成相关功能测试"
+}
+### 注册管理员账号
+POST http://localhost:8080/users/register
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "123456",
+  "realName": "Admin"
+}
+### Admin 登录
+POST http://localhost:8080/users/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "123456"
+}
+### Admin 查看待验收项目
+GET http://localhost:8080/admin/project-acceptances?status=PENDING
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5Mzg0MTk5LCJleHAiOjE3ODkzOTEzOTl9.rl5p-dmeLTNTH8MJS1V5B92FHG5j0EtEcVYa_9BFRQ8
+### Admin 驳回第1次项目验收
+POST http://localhost:8080/admin/project-acceptances/1/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5Mzg0MTk5LCJleHAiOjE3ODkzOTEzOTl9.rl5p-dmeLTNTH8MJS1V5B92FHG5j0EtEcVYa_9BFRQ8
+
+{
+  "action": "REJECT",
+  "reviewNote": "验收材料说明不够完整，请补充后重新提交"
+}
+### Tom 第二次提交项目验收
+POST http://localhost:8080/projects/1/acceptances
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg0MzE0LCJleHAiOjE3ODkzOTE1MTR9.EHTcbPeNmqJBoxqrvCHh5apPga6OasX6D3TftI-iziA
+
+{
+  "submissionNote": "已补充项目验收说明和相关材料，重新提交验收。"
+}
+### Admin 通过第2次项目验收
+POST http://localhost:8080/admin/project-acceptances/2/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5Mzg0MTk5LCJleHAiOjE3ODkzOTEzOTl9.rl5p-dmeLTNTH8MJS1V5B92FHG5j0EtEcVYa_9BFRQ8
+
+{
+  "action": "APPROVE",
+  "reviewNote": "验收材料完整，项目符合交付要求，验收通过"
+}
+### Tom 登录
+POST http://localhost:8080/users/login
+Content-Type: application/json
+
+{
+  "username": "tom",
+  "password": "123456"
+}
+### Jack 登录
+POST http://localhost:8080/users/login
+Content-Type: application/json
+
+{
+  "username": "jack",
+  "password": "123456"
+}
+### Tom 创建测试项目
+POST http://localhost:8080/projects
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDM5NTE1LCJleHAiOjE3ODk0NDY3MTV9.3OCQIQzk2UvLE0sd0Db469SmZJzRpMrtiLFCFbn8CXE
+
+{
+  "name": "FlowDesk 功能测试项目",
+  "description": "用于后续功能开发与接口测试",
+  "goal": "验证审计日志等后端功能"
+}
+### Tom 邀请 Jack
+POST http://localhost:8080/projects/2/invitations
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "username": "jack"
+}
+### Jack 查看待处理邀请
+GET http://localhost:8080/invitations/my?filter=PENDING
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mzg2ODE2LCJleHAiOjE3ODkzOTQwMTZ9.-dKJGL9h5CJObvYnx2LKNNG5FxIX8RhZmWOuEvzLTNg
+### Jack 接受邀请
+POST http://localhost:8080/invitations/3/accept
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mzg2ODE2LCJleHAiOjE3ODkzOTQwMTZ9.-dKJGL9h5CJObvYnx2LKNNG5FxIX8RhZmWOuEvzLTNg
+### Tom 启动项目
+POST http://localhost:8080/projects/2/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+### Tom 创建未分配任务
+POST http://localhost:8080/projects/2/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "title": "operation_log 测试任务",
+  "description": "测试修改任务负责人时是否生成审计日志",
+  "goal": "验证 before_data 和 after_data 是否正确",
+  "priority": "MEDIUM",
+  "deadline": "2026-09-30T23:59:59"
+}
+### Tom 把任务4分配给 Jack
+PATCH http://localhost:8080/tasks/4/assignee
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "assigneeId": 2
+}
+### Tom 创建第二个日志测试任务
+POST http://localhost:8080/projects/2/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "title": "operation_log 第二次测试",
+  "description": "重新启动项目后测试审计日志",
+  "goal": "验证 operation_log 是否正常写入",
+  "priority": "MEDIUM",
+  "deadline": "2026-09-30T23:59:59"
+}
+### Tom 把任务5分配给 Jack
+PATCH http://localhost:8080/tasks/7/assignee
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "assigneeId": 2
+}
+### Jack 开始任务6
+POST http://localhost:8080/tasks/3/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mzg2ODE2LCJleHAiOjE3ODkzOTQwMTZ9.-dKJGL9h5CJObvYnx2LKNNG5FxIX8RhZmWOuEvzLTNg
+### Tom 驳回任务
+POST http://localhost:8080/tasks/7/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "action": "REJECT",
+  "reviewNote": "测试驳回日志"
+}
+### Jack 提交任务
+POST http://localhost:8080/tasks/4/submit
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5Mzg2ODE2LCJleHAiOjE3ODkzOTQwMTZ9.-dKJGL9h5CJObvYnx2LKNNG5FxIX8RhZmWOuEvzLTNg
+
+{
+  "completionNote": "项目搜索功能已完成",
+  "resultUrl": "https://github.com/example/flowdesk",
+  "testNote": "已完成相关功能测试"
+}
+### Tom 审核通过
+POST http://localhost:8080/tasks/4/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "action": "APPROVE",
+  "reviewNote": "修改符合要求，审核通过"
+}
+### Tom 项目通过
+POST http://localhost:8080/projects/2/acceptances
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5Mzg2NzUzLCJleHAiOjE3ODkzOTM5NTN9.YmCvJMoDZXzGzk1fh_OH2ZJ_xZ9J_4K-SJ9pgL96K5M
+
+{
+  "submissionNote": "测试项目核心任务已完成，提交项目验收"
+}
+### Admin 审查
+GET http://localhost:8080/admin/project-acceptances?status=PENDING
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5MzkwMDIzLCJleHAiOjE3ODkzOTcyMjN9.to87v6da1PaS_SKaioHsxgpLqFfJAJAuJ9MCIz_tTcI
+### 驳回
+POST http://localhost:8080/admin/project-acceptances/3/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5MzkwMDIzLCJleHAiOjE3ODkzOTcyMjN9.to87v6da1PaS_SKaioHsxgpLqFfJAJAuJ9MCIz_tTcI
+
+{
+  "action": "REJECT",
+  "reviewNote": "第一次验收测试驳回"
+}
+### 项目通过
+POST http://localhost:8080/admin/project-acceptances/4/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5MzkwMDIzLCJleHAiOjE3ODkzOTcyMjN9.to87v6da1PaS_SKaioHsxgpLqFfJAJAuJ9MCIz_tTcI
+
+{
+  "action": "APPROVE",
+  "reviewNote": "验收通过"
+}
+### Tom 创建取消测试任务
+POST http://localhost:8080/projects/3/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDM5NTE1LCJleHAiOjE3ODk0NDY3MTV9.3OCQIQzk2UvLE0sd0Db469SmZJzRpMrtiLFCFbn8CXE
+
+{
+  "title": "任务取消测试",
+  "description": "用于验证 CANCEL_TASK",
+  "goal": "测试任务取消和审计日志",
+  "priority": "MEDIUM",
+  "deadline": "2026-09-30T23:59:59"
+}
+### Tom 取消任务8
+POST http://localhost:8080/tasks/8/cancel
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDM5NTE1LCJleHAiOjE3ODk0NDY3MTV9.3OCQIQzk2UvLE0sd0Db469SmZJzRpMrtiLFCFbn8CXE
+
+{
+  "reason": "该需求暂时取消，不再继续开发"
+}
+### 项目取消
+POST http://localhost:8080/projects/3/cancel
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDM5NTE1LCJleHAiOjE3ODk0NDY3MTV9.3OCQIQzk2UvLE0sd0Db469SmZJzRpMrtiLFCFbn8CXE
+
+{
+  "reason": "测试项目取消功能"
+}
+### 项目归档
+POST http://localhost:8080/projects/1/archive
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDUwMTk3LCJleHAiOjE3ODk0NTczOTd9._Lcyv-ztinZfP70M0PXjnmJqn0cR8EODF5k-WWkhVvw
+### Tom 创建项目
+POST http://localhost:8080/projects
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "name": "FlowDesk V1 Final Test",
+  "description": "Backend V1 最终回归测试项目",
+  "goal": "验证核心流程和状态机"
+}
+### Tom 启动项目
+POST http://localhost:8080/projects/4/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+### Tom 邀请 Jack 加入项目4
+POST http://localhost:8080/projects/4/invitations
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "username": "jack"
+}
+### Jack 登录
+POST http://localhost:8080/users/login
+Content-Type: application/json
+
+{
+  "username": "jack",
+  "password": "123456"
+}
+### Jack 查看待处理邀请
+GET http://localhost:8080/invitations/my?filter=PENDING
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+### Jack 接受邀请
+POST http://localhost:8080/invitations/4/accept
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+### 查看项目4成员
+GET http://localhost:8080/projects/4/members
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+### Tom 创建任务
+POST http://localhost:8080/projects/4/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "title": "实现项目搜索接口",
+  "description": "实现根据项目名称进行搜索的后端接口",
+  "goal": "能够根据项目名称查询符合条件的项目",
+  "assigneeId": 2,
+  "priority": "HIGH",
+  "deadline": "2026-09-30T23:59:59"
+}
+### Jack 开始任务
+POST http://localhost:8080/tasks/9/start
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+### Jack 第一次提交任务
+POST http://localhost:8080/tasks/9/submit
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+
+{
+  "completionNote": "项目搜索接口已完成",
+  "resultUrl": "https://github.com/example/flowdesk",
+  "testNote": "基本搜索功能测试通过"
+}
+### Tom 驳回第一次提交
+POST http://localhost:8080/tasks/9/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "action": "REJECT",
+  "reviewNote": "请补充空关键词和无结果场景测试"
+}
+### Jack 第二次提交任务
+POST http://localhost:8080/tasks/9/submit
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+
+{
+  "completionNote": "已补充边界场景处理",
+  "resultUrl": "https://github.com/example/flowdesk",
+  "testNote": "空关键词、无结果、正常搜索均测试通过"
+}
+### Tom 审核通过
+POST http://localhost:8080/tasks/9/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "action": "APPROVE",
+  "reviewNote": "功能和测试符合要求"
+}
+### Jack 创建任务申请
+POST http://localhost:8080/projects/4/task-requests
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+
+{
+  "title": "增加项目导出功能",
+  "description": "希望增加项目数据导出能力",
+  "goal": "支持导出项目基础信息",
+  "suggestedDeadline": "2026-09-30T23:59:59"
+}
+### Tom 查看待审批任务申请
+GET http://localhost:8080/projects/4/task-requests?status=PENDING
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+### Tom 驳回任务申请
+POST http://localhost:8080/projects/4/task-requests/4/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "action": "REJECT",
+  "reviewNote": "当前版本暂不安排该功能"
+}
+### Jack 创建第二条任务申请
+POST http://localhost:8080/projects/4/task-requests
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+
+{
+  "title": "增加项目统计功能",
+  "description": "增加项目任务数量统计",
+  "goal": "查看项目任务完成情况",
+  "suggestedDeadline": "2026-09-30T23:59:59"
+}
+### Tom 批准任务申请
+POST http://localhost:8080/projects/4/task-requests/5/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "action": "APPROVE",
+  "reviewNote": "同意开发",
+  "assigneeId": 2,
+  "priority": "MEDIUM",
+  "deadline": "2026-09-30T23:59:59"
+}
+### Tom 取消由 TaskRequest 生成的任务
+POST http://localhost:8080/tasks/10/cancel
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "reason": "回归测试：该需求本期不再继续开发"
+}
+### Jack 评论任务9
+POST http://localhost:8080/tasks/9/comments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+
+{
+  "content": "任务已经完成，请负责人确认最终效果。"
+}
+### Tom 回复 Jack
+POST http://localhost:8080/tasks/9/comments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "content": "已确认，当前实现符合要求。",
+  "parentId": 3
+}
+### 查看任务9评论
+GET http://localhost:8080/tasks/9/comments
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+### Tom 第1次提交项目4验收
+POST http://localhost:8080/projects/4/acceptances
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "submissionNote": "Backend V1 核心功能已完成，任务均已处理，提交第一次验收。"
+}
+### Admin 查看待验收
+GET http://localhost:8080/admin/project-acceptances?status=PENDING
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5NDU2MDEwLCJleHAiOjE3ODk0NjMyMTB9.va6rj87ghDaSrkKJE_x2GxMmmvjpNoItAktNMmekSOM
+### Admin 驳回项目4第一次验收
+POST http://localhost:8080/admin/project-acceptances/5/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5NDU2MDEwLCJleHAiOjE3ODk0NjMyMTB9.va6rj87ghDaSrkKJE_x2GxMmmvjpNoItAktNMmekSOM
+
+{
+  "action": "REJECT",
+  "reviewNote": "回归测试：第一次验收故意驳回"
+}
+### Tom 第2次提交项目4验收
+POST http://localhost:8080/projects/4/acceptances
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "submissionNote": "已根据验收意见确认相关内容，现重新提交验收。"
+}
+### Admin 通过项目4第二次验收
+POST http://localhost:8080/admin/project-acceptances/6/review
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5NDU2MDEwLCJleHAiOjE3ODk0NjMyMTB9.va6rj87ghDaSrkKJE_x2GxMmmvjpNoItAktNMmekSOM
+
+{
+  "action": "APPROVE",
+  "reviewNote": "Backend V1 回归测试通过，项目验收通过"
+}
+### Tom 归档项目4
+POST http://localhost:8080/projects/4/archive
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+### 归档后尝试创建任务——应该失败
+POST http://localhost:8080/projects/4/tasks
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "title": "非法新任务",
+  "description": "归档后不应该创建成功",
+  "goal": "验证状态保护",
+  "priority": "MEDIUM",
+  "deadline": "2026-09-30T23:59:59"
+}
+### 归档后尝试邀请成员——应该失败
+POST http://localhost:8080/projects/4/invitations
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+{
+  "username": "admin"
+}
+### 归档后创建任务申请——应该失败
+POST http://localhost:8080/projects/4/task-requests
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+
+{
+  "title": "归档后非法申请",
+  "description": "测试归档保护",
+  "goal": "不应该创建成功",
+  "suggestedDeadline": "2026-09-30T23:59:59"
+}
+### 归档后新增评论——应该失败
+POST http://localhost:8080/tasks/9/comments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+
+{
+  "content": "归档后这条评论不应该创建成功"
+}
+### 查看归档项目
+GET http://localhost:8080/projects/4
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+### 查看历史任务
+GET http://localhost:8080/projects/4/tasks?scope=ALL&status=ALL
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+
+### 查看任务9历史评论
+GET http://localhost:8080/tasks/9/comments
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4LCJleHAiOjE3ODk0NjE1OTh9.vInrZ_Wj4C-RJymYYlhOHqBvMLaYZuh7En2ROD9bmF4
+
+### 查看任务9提交记录
+GET http://localhost:8080/tasks/9/submissions
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
