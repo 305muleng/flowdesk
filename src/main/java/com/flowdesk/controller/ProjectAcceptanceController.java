@@ -3,10 +3,13 @@ package com.flowdesk.controller;
 import com.flowdesk.common.Result;
 import com.flowdesk.dto.SubmitProjectAcceptanceDTO;
 import com.flowdesk.service.ProjectAcceptanceService;
+import com.flowdesk.vo.ProjectAcceptanceVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Tag(
         name = "项目验收",
@@ -30,5 +33,11 @@ public class ProjectAcceptanceController {
     public Result<Long> submitAcceptance(@PathVariable Long projectId, @Valid @RequestBody SubmitProjectAcceptanceDTO dto) {
         Long acceptanceId = projectAcceptanceService.submitAcceptance(projectId, dto);
         return Result.success("项目验收已提交", acceptanceId);
+    }
+
+    @Operation(summary = "查看项目验收记录", description = "项目成员查看指定项目的历次验收记录")
+    @GetMapping
+    public Result<List<ProjectAcceptanceVO>> getProjectAcceptances(@PathVariable Long projectId) {
+        return Result.success(projectAcceptanceService.getProjectAcceptances(projectId));
     }
 }

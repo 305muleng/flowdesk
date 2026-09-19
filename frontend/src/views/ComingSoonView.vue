@@ -1,0 +1,3 @@
+<script setup lang="ts">import { Tools } from '@element-plus/icons-vue'; import { useRoute } from 'vue-router'; const route = useRoute()</script>
+<template><section class="coming"><el-icon><Tools /></el-icon><h2>{{ route.meta.title }}</h2><p>页面框架已就绪。当前后端尚未提供可供列表展示的聚合查询接口，接入真实列表 API 后将继续完成此模块。</p><el-button type="primary" @click="$router.push('/dashboard')">返回工作台</el-button></section></template>
+<style scoped>.coming{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff;border:1px solid #edf0f6;border-radius:16px}.coming .el-icon{font-size:36px;color:#3562e5}.coming h2{margin:16px 0 8px;color:#24304b}.coming p{max-width:450px;margin:0 0 22px;color:#8994a9;line-height:1.8;font-size:14px}</style>

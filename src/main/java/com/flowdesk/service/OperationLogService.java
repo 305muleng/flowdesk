@@ -5,22 +5,33 @@ import tools.jackson.core.JacksonException;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.OperationLogMapper;
 import com.flowdesk.model.OperationLog;
+import com.flowdesk.vo.OperationLogVO;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class OperationLogService {
 
     private final OperationLogMapper operationLogMapper;
     private final ObjectMapper objectMapper;
+    private final ProjectPermissionService projectPermissionService;
 
     public OperationLogService(
             OperationLogMapper operationLogMapper,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ProjectPermissionService projectPermissionService) {
 
         this.operationLogMapper = operationLogMapper;
         this.objectMapper = objectMapper;
+        this.projectPermissionService = projectPermissionService;
+    }
+
+    public List<OperationLogVO> getProjectLogs(Long projectId, int limit) {
+        projectPermissionService.requireProjectMember(projectId);
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        return operationLogMapper.selectProjectLogs(projectId, safeLimit);
     }
 
     public void record(

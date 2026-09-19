@@ -4,16 +4,13 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
+import com.flowdesk.dto.CreateNotificationDTO;
+import com.flowdesk.dto.ReviewProjectAcceptanceDTO;
 import com.flowdesk.dto.SubmitProjectAcceptanceDTO;
 import com.flowdesk.exception.BusinessException;
-import com.flowdesk.mapper.ProjectAcceptanceMapper;
-import com.flowdesk.mapper.ProjectMapper;
-import com.flowdesk.mapper.TaskMapper;
-import com.flowdesk.mapper.TaskRequestMapper;
-import com.flowdesk.model.Project;
-import com.flowdesk.model.ProjectAcceptance;
-import com.flowdesk.model.Task;
-import com.flowdesk.model.TaskRequest;
+import com.flowdesk.mapper.*;
+import com.flowdesk.model.*;
+import com.flowdesk.service.NotificationService;
 import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectAcceptanceService;
 import com.flowdesk.service.ProjectPermissionService;
@@ -22,15 +19,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectAcceptanceServiceTest {
@@ -56,6 +55,11 @@ public class ProjectAcceptanceServiceTest {
                 assistant,
                 TaskRequest.class
         );
+
+        TableInfoHelper.initTableInfo(
+                assistant,
+                User.class
+        );
     }
 
     @Mock
@@ -78,6 +82,12 @@ public class ProjectAcceptanceServiceTest {
 
     @InjectMocks
     private ProjectAcceptanceService projectAcceptanceService;
+
+    @Mock
+    private UserMapper userMapper;
+
+    @Mock
+    private NotificationService notificationService;
 
     @AfterEach
     void cleanUp() {
@@ -224,5 +234,272 @@ public class ProjectAcceptanceServiceTest {
                         any(),
                         any()
                 );
+    }
+
+    @Test
+    void submittingAcceptanceNotifiesSystemAdmin() {
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setName("FlowDesk");
+        project.setStatus("IN_PROGRESS");
+
+        SubmitProjectAcceptanceDTO dto =
+                new SubmitProjectAcceptanceDTO();
+
+        dto.setSubmissionNote("项目开发完成，提交验收");
+
+        // Tom：项目负责人
+        UserContext.set(
+                new CurrentUser(1L, "USER")
+        );
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        when(taskMapper.selectCount(any()))
+                .thenReturn(0L);
+
+        when(taskRequestMapper.selectCount(any()))
+                .thenReturn(0L);
+
+        when(projectAcceptanceMapper
+                .selectMaxAcceptanceNo(4L))
+                .thenReturn(null);
+
+        // 模拟数据库生成验收记录 ID
+        doAnswer(invocation -> {
+
+            ProjectAcceptance acceptance =
+                    invocation.getArgument(0);
+
+            acceptance.setId(50L);
+
+            return 1;
+
+        }).when(projectAcceptanceMapper)
+                .insert(any(ProjectAcceptance.class));
+
+        // 系统管理员
+        User admin = new User();
+        admin.setId(9L);
+        admin.setSystemRole("SYSTEM_ADMIN");
+        admin.setStatus("ACTIVE");
+
+        when(userMapper.selectList(any()))
+                .thenReturn(List.of(admin));
+
+        Long acceptanceId =
+                projectAcceptanceService.submitAcceptance(
+                        4L,
+                        dto
+                );
+
+        assertEquals(50L, acceptanceId);
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        assertEquals(
+                9L,
+                notification.getRecipientId()
+        );
+
+        assertEquals(
+                1L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "PROJECT_ACCEPTANCE_SUBMITTED",
+                notification.getType()
+        );
+
+        assertEquals(
+                "PROJECT_ACCEPTANCE",
+                notification.getTargetType()
+        );
+
+        assertEquals(
+                50L,
+                notification.getTargetId()
+        );
+    }
+
+    @Test
+    void approvingAcceptanceNotifiesSubmitter() {
+
+        ProjectAcceptance acceptance =
+                new ProjectAcceptance();
+
+        acceptance.setId(50L);
+        acceptance.setProjectId(4L);
+        acceptance.setSubmitterId(1L);
+        acceptance.setAcceptanceNo(1);
+        acceptance.setReviewStatus("PENDING");
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setName("FlowDesk");
+        project.setStatus("PENDING_ACCEPTANCE");
+
+        ReviewProjectAcceptanceDTO dto =
+                new ReviewProjectAcceptanceDTO();
+
+        dto.setAction("APPROVE");
+        dto.setReviewNote("验收通过");
+
+        // 系统管理员审核
+        UserContext.set(
+                new CurrentUser(9L, "SYSTEM_ADMIN")
+        );
+
+        when(projectAcceptanceMapper.selectById(50L))
+                .thenReturn(acceptance);
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        projectAcceptanceService.reviewAcceptance(
+                50L,
+                dto
+        );
+
+        // 原来的业务状态也顺便验证
+        assertEquals(
+                "APPROVED",
+                acceptance.getReviewStatus()
+        );
+
+        assertEquals(
+                "COMPLETED",
+                project.getStatus()
+        );
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        // Tom 收到通知
+        assertEquals(
+                1L,
+                notification.getRecipientId()
+        );
+
+        // Admin 是操作人
+        assertEquals(
+                9L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "PROJECT_ACCEPTANCE_APPROVED",
+                notification.getType()
+        );
+
+        assertEquals(
+                "PROJECT_ACCEPTANCE",
+                notification.getTargetType()
+        );
+
+        assertEquals(
+                50L,
+                notification.getTargetId()
+        );
+    }
+
+    @Test
+    void rejectingAcceptanceNotifiesSubmitter() {
+
+        ProjectAcceptance acceptance =
+                new ProjectAcceptance();
+
+        acceptance.setId(50L);
+        acceptance.setProjectId(4L);
+        acceptance.setSubmitterId(1L);
+        acceptance.setAcceptanceNo(1);
+        acceptance.setReviewStatus("PENDING");
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setName("FlowDesk");
+        project.setStatus("PENDING_ACCEPTANCE");
+
+        ReviewProjectAcceptanceDTO dto =
+                new ReviewProjectAcceptanceDTO();
+
+        dto.setAction("REJECT");
+        dto.setReviewNote("还有部分功能需要调整");
+
+        UserContext.set(
+                new CurrentUser(9L, "SYSTEM_ADMIN")
+        );
+
+        when(projectAcceptanceMapper.selectById(50L))
+                .thenReturn(acceptance);
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        projectAcceptanceService.reviewAcceptance(
+                50L,
+                dto
+        );
+
+        assertEquals(
+                "REJECTED",
+                acceptance.getReviewStatus()
+        );
+
+        assertEquals(
+                "IN_PROGRESS",
+                project.getStatus()
+        );
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        assertEquals(
+                1L,
+                notification.getRecipientId()
+        );
+
+        assertEquals(
+                9L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "PROJECT_ACCEPTANCE_REJECTED",
+                notification.getType()
+        );
+
+        assertEquals(
+                50L,
+                notification.getTargetId()
+        );
     }
 }

@@ -3,15 +3,14 @@ package com.flowdesk;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
-import com.flowdesk.dto.AssignTaskDTO;
-import com.flowdesk.dto.CancelTaskDTO;
-import com.flowdesk.dto.SubmitTaskDTO;
+import com.flowdesk.dto.*;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.Task;
 import com.flowdesk.model.TaskSubmission;
+import com.flowdesk.service.NotificationService;
 import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.TaskService;
@@ -22,6 +21,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -55,6 +56,9 @@ public class TaskServiceTest {
     @InjectMocks
     private TaskService taskService;
 
+    @Mock
+    private NotificationService notificationService;
+
     @AfterEach
     void cleanUp() {
         UserContext.remove();
@@ -69,6 +73,7 @@ public class TaskServiceTest {
         task.setProjectId(4L);
         task.setStatus("TODO");
         task.setAssigneeId(null);
+        task.setTitle("登录接口");
 
         // 2. 准备一个正在进行中的项目
         Project project = new Project();
@@ -128,6 +133,40 @@ public class TaskServiceTest {
                         any(),
                         any()
                 );
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(CreateNotificationDTO.class);
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notificationDTO =
+                captor.getValue();
+
+        assertEquals(
+                2L,
+                notificationDTO.getRecipientId()
+        );
+
+        assertEquals(
+                1L,
+                notificationDTO.getActorId()
+        );
+
+        assertEquals(
+                "TASK_ASSIGNED",
+                notificationDTO.getType()
+        );
+
+        assertEquals(
+                "TASK",
+                notificationDTO.getTargetType()
+        );
+
+        assertEquals(
+                9L,
+                notificationDTO.getTargetId()
+        );
     }
 
     @Test
@@ -505,5 +544,269 @@ public class TaskServiceTest {
         // 10. 分配失败后，不应该更新任务
         verify(taskMapper, never())
                 .updateById(any(Task.class));
+    }
+
+    @Test
+    void submittingTaskNotifiesProjectManager() {
+
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        task.setTitle("实现登录接口");
+        task.setAssigneeId(2L);
+        task.setStatus("IN_PROGRESS");
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        ProjectMember manager = new ProjectMember();
+        manager.setProjectId(4L);
+        manager.setUserId(1L);
+        manager.setRole("PROJECT_MANAGER");
+        manager.setStatus("ACTIVE");
+
+        SubmitTaskDTO dto = new SubmitTaskDTO();
+        dto.setCompletionNote("登录功能已完成");
+        dto.setResultUrl("https://github.com/example/pr/1");
+        dto.setTestNote("测试通过");
+
+        // Jack 提交任务
+        UserContext.set(
+                new CurrentUser(2L, "USER")
+        );
+
+        when(taskMapper.selectById(10L))
+                .thenReturn(task);
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        when(taskSubmissionMapper.selectMaxSubmissionNo(10L))
+                .thenReturn(0);
+
+        when(projectMemberMapper.selectList(any()))
+                .thenReturn(List.of(manager));
+
+        doAnswer(invocation -> {
+            TaskSubmission submission =
+                    invocation.getArgument(0);
+
+            submission.setId(100L);
+
+            return 1;
+        }).when(taskSubmissionMapper)
+                .insert(any(TaskSubmission.class));
+
+        taskService.submitTask(10L, dto);
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        // Tom 收通知
+        assertEquals(
+                1L,
+                notification.getRecipientId()
+        );
+
+        // Jack 是触发者
+        assertEquals(
+                2L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "TASK_SUBMISSION_SUBMITTED",
+                notification.getType()
+        );
+
+        assertEquals(
+                "TASK",
+                notification.getTargetType()
+        );
+
+        assertEquals(
+                10L,
+                notification.getTargetId()
+        );
+    }
+
+    @Test
+    void approvingTaskSubmissionNotifiesAssignee() {
+
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        task.setTitle("实现登录接口");
+        task.setAssigneeId(2L);
+        task.setStatus("REVIEW");
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        TaskSubmission submission = new TaskSubmission();
+        submission.setId(100L);
+        submission.setTaskId(10L);
+        submission.setSubmissionNo(1);
+        submission.setReviewStatus("PENDING");
+
+        ReviewTaskDTO dto = new ReviewTaskDTO();
+        dto.setAction("APPROVE");
+        dto.setReviewNote("实现正确");
+
+        // Tom 审核
+        UserContext.set(
+                new CurrentUser(1L, "USER")
+        );
+
+        when(taskMapper.selectById(10L))
+                .thenReturn(task);
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        when(taskSubmissionMapper.selectPendingSubmission(10L))
+                .thenReturn(submission);
+
+        taskService.reviewTask(10L, dto);
+
+        // 顺便确认业务状态真的改了
+        assertEquals(
+                "DONE",
+                task.getStatus()
+        );
+
+        assertEquals(
+                "APPROVED",
+                submission.getReviewStatus()
+        );
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        // Jack 收通知
+        assertEquals(
+                2L,
+                notification.getRecipientId()
+        );
+
+        // Tom 是审核人
+        assertEquals(
+                1L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "TASK_SUBMISSION_APPROVED",
+                notification.getType()
+        );
+
+        assertEquals(
+                "TASK",
+                notification.getTargetType()
+        );
+
+        assertEquals(
+                10L,
+                notification.getTargetId()
+        );
+    }
+
+    @Test
+    void rejectingTaskSubmissionNotifiesAssignee() {
+
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        task.setTitle("实现登录接口");
+        task.setAssigneeId(2L);
+        task.setStatus("REVIEW");
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        TaskSubmission submission = new TaskSubmission();
+        submission.setId(100L);
+        submission.setTaskId(10L);
+        submission.setSubmissionNo(1);
+        submission.setReviewStatus("PENDING");
+
+        ReviewTaskDTO dto = new ReviewTaskDTO();
+        dto.setAction("REJECT");
+        dto.setReviewNote("测试覆盖不足");
+
+        UserContext.set(
+                new CurrentUser(1L, "USER")
+        );
+
+        when(taskMapper.selectById(10L))
+                .thenReturn(task);
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        when(taskSubmissionMapper.selectPendingSubmission(10L))
+                .thenReturn(submission);
+
+        taskService.reviewTask(10L, dto);
+
+        assertEquals(
+                "IN_PROGRESS",
+                task.getStatus()
+        );
+
+        assertEquals(
+                "REJECTED",
+                submission.getReviewStatus()
+        );
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        assertEquals(
+                2L,
+                notification.getRecipientId()
+        );
+
+        assertEquals(
+                1L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "TASK_SUBMISSION_REJECTED",
+                notification.getType()
+        );
+
+        assertEquals(
+                10L,
+                notification.getTargetId()
+        );
     }
 }

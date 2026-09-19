@@ -1,12 +1,11 @@
 package com.flowdesk.controller;
 
 import com.flowdesk.common.Result;
-import com.flowdesk.context.CurrentUser;
-import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.LoginDTO;
 import com.flowdesk.dto.RegisterDTO;
 import com.flowdesk.service.UserService;
 import com.flowdesk.vo.LoginVO;
+import com.flowdesk.vo.UserProfileVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -54,7 +53,7 @@ public class UserController {
             description = "根据当前请求中的 JWT 获取已登录用户的基本身份信息"
     )
     @GetMapping("/me")
-    public Result<CurrentUser> me() {
-        return Result.success(UserContext.get());
+    public Result<UserProfileVO> me() {
+        return Result.success(userService.getCurrentUserProfile());
     }
 }

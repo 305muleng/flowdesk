@@ -1,6 +1,7 @@
 package com.flowdesk.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.LoginDTO;
 import com.flowdesk.dto.RegisterDTO;
 import com.flowdesk.exception.BusinessException;
@@ -8,6 +9,7 @@ import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.User;
 import com.flowdesk.util.JwtUtil;
 import com.flowdesk.vo.LoginVO;
+import com.flowdesk.vo.UserProfileVO;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -91,5 +93,23 @@ public class UserService {
         loginVO.setToken(token);
 
         return loginVO;
+    }
+
+    public UserProfileVO getCurrentUserProfile() {
+        User user = userMapper.selectById(UserContext.get().getUserId());
+
+        if (user == null) {
+            throw new BusinessException(401, "登录用户不存在");
+        }
+
+        UserProfileVO profile = new UserProfileVO();
+        profile.setId(user.getId());
+        profile.setUsername(user.getUsername());
+        profile.setRealName(user.getRealName());
+        profile.setSystemRole(user.getSystemRole());
+        profile.setStatus(user.getStatus());
+        profile.setCreatedAt(user.getCreatedAt());
+        profile.setUpdatedAt(user.getUpdatedAt());
+        return profile;
     }
 }

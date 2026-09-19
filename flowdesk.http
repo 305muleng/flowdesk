@@ -800,3 +800,21 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5NDU0Mzk4L
 ### 查看任务9提交记录
 GET http://localhost:8080/tasks/9/submissions
 Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5NDU0MTI4LCJleHAiOjE3ODk0NjEzMjh9.fSh03-SCDTw4dofatkcEmIpJC_5g6A6WDPNDvUht1qc
+###
+GET http://localhost:8080/admin/users?page=1&size=1
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5ODIwMDg3LCJleHAiOjE3ODk4MjcyODd9.OuUFYM0My28WlQxTQFb94dCN5XXpKFOMVnRWIwZeCLs
+###
+GET http://localhost:8080/admin/users?page=1&size=5
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5ODIwMDg3LCJleHAiOjE3ODk4MjcyODd9.OuUFYM0My28WlQxTQFb94dCN5XXpKFOMVnRWIwZeCLs
+###
+GET http://localhost:8080/admin/users?keyword=ja
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5ODIwMDg3LCJleHAiOjE3ODk4MjcyODd9.OuUFYM0My28WlQxTQFb94dCN5XXpKFOMVnRWIwZeCLs
+###
+GET http://localhost:8080/admin/users?status=ACTIVE
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5ODIwMDg3LCJleHAiOjE3ODk4MjcyODd9.OuUFYM0My28WlQxTQFb94dCN5XXpKFOMVnRWIwZeCLs
+###
+GET http://localhost:8080/admin/users?systemRole=USER
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5ODIwMDg3LCJleHAiOjE3ODk4MjcyODd9.OuUFYM0My28WlQxTQFb94dCN5XXpKFOMVnRWIwZeCLs
+###
+GET http://localhost:8080/admin/users?keyword=jack&status=ACTIVE&systemRole=USER
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5ODIwMDg3LCJleHAiOjE3ODk4MjcyODd9.OuUFYM0My28WlQxTQFb94dCN5XXpKFOMVnRWIwZeCLs

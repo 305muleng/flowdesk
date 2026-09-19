@@ -26,6 +26,7 @@ public class TaskService {
     private final TaskSubmissionMapper taskSubmissionMapper;
     private final TaskCommentMapper taskCommentMapper;
     private final OperationLogService operationLogService;
+    private final NotificationService notificationService;
 
     public TaskService(
             TaskMapper taskMapper,
@@ -34,7 +35,8 @@ public class TaskService {
             ProjectPermissionService projectPermissionService,
             TaskSubmissionMapper taskSubmissionMapper,
             TaskCommentMapper taskCommentMapper,
-            OperationLogService operationLogService) {
+            OperationLogService operationLogService,
+            NotificationService notificationService) {
 
         this.taskMapper = taskMapper;
         this.projectMapper = projectMapper;
@@ -43,6 +45,7 @@ public class TaskService {
         this.taskSubmissionMapper = taskSubmissionMapper;
         this.taskCommentMapper = taskCommentMapper;
         this.operationLogService = operationLogService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -195,6 +198,10 @@ public class TaskService {
                 currentUser.getUserId(),
                 normalizedStatus
         );
+    }
+
+    public List<TaskVO> getMyTasks() {
+        return taskMapper.selectMyTasks(UserContext.get().getUserId());
     }
 
     @Transactional
@@ -388,6 +395,40 @@ public class TaskService {
                 afterData
         );
 
+        List<ProjectMember> managers =
+                projectMemberMapper.selectList(
+                        new LambdaQueryWrapper<ProjectMember>()
+                                .eq(ProjectMember::getProjectId, task.getProjectId())
+                                .eq(ProjectMember::getRole, "PROJECT_MANAGER")
+                                .eq(ProjectMember::getStatus, "ACTIVE")
+                );
+
+        for (ProjectMember manager : managers) {
+
+            // 不给自己发通知
+            if (manager.getUserId().equals(currentUser.getUserId())) {
+                continue;
+            }
+
+            CreateNotificationDTO notificationDTO =
+                    new CreateNotificationDTO();
+
+            notificationDTO.setRecipientId(manager.getUserId());
+            notificationDTO.setActorId(currentUser.getUserId());
+
+            notificationDTO.setType("TASK_SUBMISSION_SUBMITTED");
+            notificationDTO.setTitle("任务待审核");
+            notificationDTO.setContent(
+                    "任务“" + task.getTitle() + "”提交了新的成果，等待审核"
+            );
+
+            notificationDTO.setProjectId(task.getProjectId());
+            notificationDTO.setTargetType("TASK");
+            notificationDTO.setTargetId(task.getId());
+
+            notificationService.createNotification(notificationDTO);
+        }
+
         return submission.getId();
     }
 
@@ -546,6 +587,59 @@ public class TaskService {
                 beforeData,
                 afterData
         );
+
+        Long assigneeId = task.getAssigneeId();
+
+        if (assigneeId != null
+                && !assigneeId.equals(currentUser.getUserId())) {
+
+            CreateNotificationDTO notificationDTO =
+                    new CreateNotificationDTO();
+
+            notificationDTO.setRecipientId(assigneeId);
+            notificationDTO.setActorId(currentUser.getUserId());
+
+            if ("APPROVE".equals(action)) {
+
+                notificationDTO.setType(
+                        "TASK_SUBMISSION_APPROVED"
+                );
+
+                notificationDTO.setTitle(
+                        "任务审核通过"
+                );
+
+                notificationDTO.setContent(
+                        "你提交的任务“"
+                                + task.getTitle()
+                                + "”已通过审核"
+                );
+
+            } else {
+
+                notificationDTO.setType(
+                        "TASK_SUBMISSION_REJECTED"
+                );
+
+                notificationDTO.setTitle(
+                        "任务审核未通过"
+                );
+
+                notificationDTO.setContent(
+                        "你提交的任务“"
+                                + task.getTitle()
+                                + "”未通过审核，请修改后重新提交"
+                );
+            }
+
+            notificationDTO.setProjectId(task.getProjectId());
+            notificationDTO.setTargetType("TASK");
+            notificationDTO.setTargetId(task.getId());
+
+            notificationService.createNotification(
+                    notificationDTO
+            );
+        }
     }
 
     public List<TaskSubmissionVO> getTaskSubmissions(Long taskId) {
@@ -692,6 +786,50 @@ public class TaskService {
                 beforeData,
                 afterData
         );
+
+        if (!Objects.equals(
+                currentUser.getUserId(),
+                dto.getAssigneeId())) {
+
+            CreateNotificationDTO notificationDTO =
+                    new CreateNotificationDTO();
+
+            notificationDTO.setRecipientId(
+                    dto.getAssigneeId()
+            );
+
+            notificationDTO.setActorId(
+                    currentUser.getUserId()
+            );
+
+            notificationDTO.setType(
+                    "TASK_ASSIGNED"
+            );
+
+            notificationDTO.setTitle(
+                    "任务分配"
+            );
+
+            notificationDTO.setContent(
+                    "你被分配了任务：" + task.getTitle()
+            );
+
+            notificationDTO.setProjectId(
+                    task.getProjectId()
+            );
+
+            notificationDTO.setTargetType(
+                    "TASK"
+            );
+
+            notificationDTO.setTargetId(
+                    task.getId()
+            );
+
+            notificationService.createNotification(
+                    notificationDTO
+            );
+        }
     }
 
     public TaskVO getTaskDetail(Long taskId) {

@@ -95,6 +95,10 @@ public class ProjectService {
         return project.getId();
     }
 
+    public List<ProjectVO> getMyProjects() {
+        return projectMapper.selectProjectsForUser(UserContext.get().getUserId());
+    }
+
     public ProjectVO getProjectDetail(Long projectId) {
 
         projectPermissionService.requireProjectMember(projectId);

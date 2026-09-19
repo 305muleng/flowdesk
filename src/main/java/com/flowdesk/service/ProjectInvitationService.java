@@ -3,6 +3,7 @@ package com.flowdesk.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
+import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.SendInvitationDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.ProjectInvitationMapper;
@@ -30,6 +31,7 @@ public class ProjectInvitationService {
     private final ProjectPermissionService projectPermissionService;
     private final int expireDays;
     private final ProjectMapper projectMapper;
+    private final NotificationService notificationService;
 
     public ProjectInvitationService(
             ProjectInvitationMapper projectInvitationMapper,
@@ -37,6 +39,7 @@ public class ProjectInvitationService {
             UserMapper userMapper,
             ProjectPermissionService projectPermissionService,
             ProjectMapper projectMapper,
+            NotificationService notificationService,
             @Value("${invitation.expire-days}") int expireDays) {
 
         this.projectInvitationMapper = projectInvitationMapper;
@@ -45,8 +48,10 @@ public class ProjectInvitationService {
         this.projectPermissionService = projectPermissionService;
         this.expireDays = expireDays;
         this.projectMapper = projectMapper;
+        this.notificationService = notificationService;
     }
 
+    @Transactional
     public Long sendInvitation(Long projectId, SendInvitationDTO dto) {
 
         // 1. 当前用户必须是该项目负责人
@@ -134,6 +139,26 @@ public class ProjectInvitationService {
         invitation.setExpiresAt(now.plusDays(expireDays));
 
         projectInvitationMapper.insert(invitation);
+
+        CreateNotificationDTO notificationDTO =
+                new CreateNotificationDTO();
+
+        notificationDTO.setRecipientId(invitee.getId());
+        notificationDTO.setActorId(currentUser.getUserId());
+
+        notificationDTO.setType("PROJECT_INVITATION");
+        notificationDTO.setTitle("项目邀请");
+        notificationDTO.setContent(
+                "你收到了项目“"
+                        + project.getName()
+                        + "”的加入邀请"
+        );
+
+        notificationDTO.setProjectId(projectId);
+        notificationDTO.setTargetType("PROJECT_INVITATION");
+        notificationDTO.setTargetId(invitation.getId());
+
+        notificationService.createNotification(notificationDTO);
 
         return invitation.getId();
     }
@@ -230,6 +255,42 @@ public class ProjectInvitationService {
         invitation.setRespondedAt(now);
 
         projectInvitationMapper.updateById(invitation);
+
+        CreateNotificationDTO notificationDTO =
+                new CreateNotificationDTO();
+
+        notificationDTO.setRecipientId(
+                invitation.getInviterId()
+        );
+
+        notificationDTO.setActorId(
+                currentUser.getUserId()
+        );
+
+        notificationDTO.setType(
+                "PROJECT_INVITATION_ACCEPTED"
+        );
+
+        notificationDTO.setTitle(
+                "项目邀请已接受"
+        );
+
+        notificationDTO.setContent(
+                "你发送的项目邀请已被接受"
+        );
+
+        notificationDTO.setProjectId(
+                invitation.getProjectId()
+        );
+
+        notificationDTO.setTargetType("PROJECT");
+        notificationDTO.setTargetId(
+                invitation.getProjectId()
+        );
+
+        notificationService.createNotification(
+                notificationDTO
+        );
     }
 
     public List<InvitationVO> getMyInvitations(String filter) {
@@ -266,6 +327,7 @@ public class ProjectInvitationService {
         return invitations;
     }
 
+    @Transactional
     public void rejectInvitation(Long invitationId) {
 
         CurrentUser currentUser = UserContext.get();
@@ -300,5 +362,41 @@ public class ProjectInvitationService {
         invitation.setRespondedAt(now);
 
         projectInvitationMapper.updateById(invitation);
+
+        CreateNotificationDTO notificationDTO =
+                new CreateNotificationDTO();
+
+        notificationDTO.setRecipientId(
+                invitation.getInviterId()
+        );
+
+        notificationDTO.setActorId(
+                currentUser.getUserId()
+        );
+
+        notificationDTO.setType(
+                "PROJECT_INVITATION_REJECTED"
+        );
+
+        notificationDTO.setTitle(
+                "项目邀请已拒绝"
+        );
+
+        notificationDTO.setContent(
+                "你发送的项目邀请已被拒绝"
+        );
+
+        notificationDTO.setProjectId(
+                invitation.getProjectId()
+        );
+
+        notificationDTO.setTargetType("PROJECT");
+        notificationDTO.setTargetId(
+                invitation.getProjectId()
+        );
+
+        notificationService.createNotification(
+                notificationDTO
+        );
     }
 }

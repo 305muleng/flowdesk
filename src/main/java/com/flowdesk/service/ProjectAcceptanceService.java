@@ -3,17 +3,12 @@ package com.flowdesk.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
+import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.ReviewProjectAcceptanceDTO;
 import com.flowdesk.dto.SubmitProjectAcceptanceDTO;
 import com.flowdesk.exception.BusinessException;
-import com.flowdesk.mapper.ProjectAcceptanceMapper;
-import com.flowdesk.mapper.ProjectMapper;
-import com.flowdesk.mapper.TaskMapper;
-import com.flowdesk.mapper.TaskRequestMapper;
-import com.flowdesk.model.Project;
-import com.flowdesk.model.ProjectAcceptance;
-import com.flowdesk.model.Task;
-import com.flowdesk.model.TaskRequest;
+import com.flowdesk.mapper.*;
+import com.flowdesk.model.*;
 import com.flowdesk.vo.ProjectAcceptanceVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +28,8 @@ public class ProjectAcceptanceService {
     private final ProjectPermissionService projectPermissionService;
     private final OperationLogService operationLogService;
     private final TaskRequestMapper taskRequestMapper;
+    private final UserMapper userMapper;
+    private final NotificationService notificationService;
 
     public ProjectAcceptanceService(
             ProjectAcceptanceMapper projectAcceptanceMapper,
@@ -40,7 +37,9 @@ public class ProjectAcceptanceService {
             TaskMapper taskMapper,
             ProjectPermissionService projectPermissionService,
             OperationLogService operationLogService,
-            TaskRequestMapper taskRequestMapper) {
+            TaskRequestMapper taskRequestMapper,
+            UserMapper userMapper,
+            NotificationService notificationService) {
 
         this.projectAcceptanceMapper = projectAcceptanceMapper;
         this.projectMapper = projectMapper;
@@ -48,6 +47,8 @@ public class ProjectAcceptanceService {
         this.projectPermissionService = projectPermissionService;
         this.operationLogService = operationLogService;
         this.taskRequestMapper = taskRequestMapper;
+        this.userMapper = userMapper;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -199,6 +200,47 @@ public class ProjectAcceptanceService {
                 afterData
         );
 
+        List<User> admins =
+                userMapper.selectList(
+                        new LambdaQueryWrapper<User>()
+                                .eq(User::getSystemRole, "SYSTEM_ADMIN")
+                                .eq(User::getStatus, "ACTIVE")
+                );
+
+        for (User admin : admins) {
+
+            // 不给自己发通知
+            if (admin.getId().equals(currentUser.getUserId())) {
+                continue;
+            }
+
+            CreateNotificationDTO notificationDTO =
+                    new CreateNotificationDTO();
+
+            notificationDTO.setRecipientId(admin.getId());
+            notificationDTO.setActorId(currentUser.getUserId());
+
+            notificationDTO.setType(
+                    "PROJECT_ACCEPTANCE_SUBMITTED"
+            );
+
+            notificationDTO.setTitle(
+                    "新的项目验收申请"
+            );
+
+            notificationDTO.setContent(
+                    "项目“" + project.getName() + "”提交了验收申请"
+            );
+
+            notificationDTO.setProjectId(projectId);
+            notificationDTO.setTargetType("PROJECT_ACCEPTANCE");
+            notificationDTO.setTargetId(acceptance.getId());
+
+            notificationService.createNotification(
+                    notificationDTO
+            );
+        }
+
         return acceptance.getId();
     }
 
@@ -223,6 +265,11 @@ public class ProjectAcceptanceService {
         return projectAcceptanceMapper.selectAcceptances(
                 normalizedStatus
         );
+    }
+
+    public List<ProjectAcceptanceVO> getProjectAcceptances(Long projectId) {
+        projectPermissionService.requireProjectMember(projectId);
+        return projectAcceptanceMapper.selectProjectAcceptances(projectId);
     }
 
     @Transactional
@@ -396,5 +443,57 @@ public class ProjectAcceptanceService {
                 beforeData,
                 afterData
         );
+
+        Long submitterId = acceptance.getSubmitterId();
+
+        if (!submitterId.equals(currentUser.getUserId())) {
+
+            CreateNotificationDTO notificationDTO =
+                    new CreateNotificationDTO();
+
+            notificationDTO.setRecipientId(submitterId);
+            notificationDTO.setActorId(currentUser.getUserId());
+
+            if ("APPROVE".equals(action)) {
+
+                notificationDTO.setType(
+                        "PROJECT_ACCEPTANCE_APPROVED"
+                );
+
+                notificationDTO.setTitle(
+                        "项目验收已通过"
+                );
+
+                notificationDTO.setContent(
+                        "项目“"
+                                + project.getName()
+                                + "”已通过验收"
+                );
+
+            } else {
+
+                notificationDTO.setType(
+                        "PROJECT_ACCEPTANCE_REJECTED"
+                );
+
+                notificationDTO.setTitle(
+                        "项目验收未通过"
+                );
+
+                notificationDTO.setContent(
+                        "项目“"
+                                + project.getName()
+                                + "”验收未通过，请根据审核意见进行调整"
+                );
+            }
+
+            notificationDTO.setProjectId(project.getId());
+            notificationDTO.setTargetType("PROJECT_ACCEPTANCE");
+            notificationDTO.setTargetId(acceptance.getId());
+
+            notificationService.createNotification(
+                    notificationDTO
+            );
+        }
     }
 }

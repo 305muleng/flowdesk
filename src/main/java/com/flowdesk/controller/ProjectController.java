@@ -50,6 +50,12 @@ public class ProjectController {
         return Result.success("项目创建成功", projectId);
     }
 
+    @Operation(summary = "查看我的项目", description = "查看当前登录用户作为有效成员参与的全部项目")
+    @GetMapping
+    public Result<List<ProjectVO>> getMyProjects() {
+        return Result.success(projectService.getMyProjects());
+    }
+
     @Operation(
             summary = "查看项目详情",
             description = "项目成员查看指定项目的基本信息"

@@ -101,4 +101,18 @@ public interface TaskMapper extends BaseMapper<Task> {
         LIMIT 1
         """)
     TaskVO selectTaskDetail(@Param("taskId") Long taskId);
+
+    @Select("""
+        SELECT t.id, t.project_id AS projectId, t.creator_id AS creatorId,
+               creator.real_name AS creatorName, t.assignee_id AS assigneeId,
+               assignee.real_name AS assigneeName, t.title, t.description, t.goal,
+               t.status, t.priority, t.deadline, t.completed_at AS completedAt,
+               t.created_at AS createdAt, t.updated_at AS updatedAt
+        FROM task t
+        JOIN `user` creator ON t.creator_id = creator.id
+        LEFT JOIN `user` assignee ON t.assignee_id = assignee.id
+        WHERE t.assignee_id = #{userId} AND t.deleted_at IS NULL
+        ORDER BY t.updated_at DESC, t.id DESC
+        """)
+    List<TaskVO> selectMyTasks(@Param("userId") Long userId);
 }

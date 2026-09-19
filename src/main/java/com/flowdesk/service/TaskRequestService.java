@@ -3,6 +3,7 @@ package com.flowdesk.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
+import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.CreateTaskRequestDTO;
 import com.flowdesk.dto.ReviewTaskRequestDTO;
 import com.flowdesk.exception.BusinessException;
@@ -30,21 +31,25 @@ public class TaskRequestService {
     private final ProjectPermissionService projectPermissionService;
     private final TaskMapper taskMapper;
     private final ProjectMemberMapper projectMemberMapper;
+    private final NotificationService notificationService;
 
     public TaskRequestService(
             TaskRequestMapper taskRequestMapper,
             ProjectMapper projectMapper,
             ProjectPermissionService projectPermissionService,
             TaskMapper taskMapper,
-            ProjectMemberMapper projectMemberMapper) {
+            ProjectMemberMapper projectMemberMapper,
+            NotificationService notificationService) {
 
         this.taskRequestMapper = taskRequestMapper;
         this.projectMapper = projectMapper;
         this.projectPermissionService = projectPermissionService;
         this.taskMapper = taskMapper;
         this.projectMemberMapper = projectMemberMapper;
+        this.notificationService = notificationService;
     }
 
+    @Transactional
     public Long createTaskRequest(
             Long projectId,
             CreateTaskRequestDTO dto) {
@@ -106,6 +111,54 @@ public class TaskRequestService {
 
         taskRequestMapper.insert(request);
 
+        List<ProjectMember> managers =
+                projectMemberMapper.selectList(
+                        new LambdaQueryWrapper<ProjectMember>()
+                                .eq(ProjectMember::getProjectId, projectId)
+                                .eq(ProjectMember::getRole, "PROJECT_MANAGER")
+                                .eq(ProjectMember::getStatus, "ACTIVE")
+                );
+
+        for (ProjectMember manager : managers) {
+
+            CreateNotificationDTO notificationDTO =
+                    new CreateNotificationDTO();
+
+            notificationDTO.setRecipientId(
+                    manager.getUserId()
+            );
+
+            notificationDTO.setActorId(
+                    currentUser.getUserId()
+            );
+
+            notificationDTO.setType(
+                    "TASK_REQUEST_SUBMITTED"
+            );
+
+            notificationDTO.setTitle(
+                    "新的任务申请"
+            );
+
+            notificationDTO.setContent(
+                    "有新的任务申请：" + request.getTitle()
+            );
+
+            notificationDTO.setProjectId(projectId);
+
+            notificationDTO.setTargetType(
+                    "TASK_REQUEST"
+            );
+
+            notificationDTO.setTargetId(
+                    request.getId()
+            );
+
+            notificationService.createNotification(
+                    notificationDTO
+            );
+        }
+
         return request.getId();
     }
 
@@ -138,6 +191,23 @@ public class TaskRequestService {
                 projectId,
                 normalizedStatus
         );
+    }
+
+    public List<TaskRequestVO> getMyTaskRequests(String status) {
+        String normalizedStatus = normalizeStatus(status);
+        return taskRequestMapper.selectMyTaskRequests(
+                UserContext.get().getUserId(),
+                normalizedStatus
+        );
+    }
+
+    private String normalizeStatus(String status) {
+        String normalizedStatus = status.trim().toUpperCase();
+        if (!Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED")
+                .contains(normalizedStatus)) {
+            throw new BusinessException(400, "任务申请状态筛选条件不正确");
+        }
+        return normalizedStatus;
     }
 
     @Transactional
@@ -218,6 +288,22 @@ public class TaskRequestService {
             request.setReviewedAt(now);
 
             taskRequestMapper.updateById(request);
+
+            CreateNotificationDTO notificationDTO =
+                    new CreateNotificationDTO();
+
+            notificationDTO.setRecipientId(request.getRequesterId());
+            notificationDTO.setActorId(currentUser.getUserId());
+            notificationDTO.setType("TASK_REQUEST_REJECTED");
+            notificationDTO.setTitle("任务申请未通过");
+            notificationDTO.setContent(
+                    "你的任务申请“" + request.getTitle() + "”未通过"
+            );
+            notificationDTO.setProjectId(projectId);
+            notificationDTO.setTargetType("TASK_REQUEST");
+            notificationDTO.setTargetId(request.getId());
+
+            notificationService.createNotification(notificationDTO);
 
             return null;
         }
@@ -309,6 +395,60 @@ public class TaskRequestService {
         request.setReviewedAt(now);
 
         taskRequestMapper.updateById(request);
+
+        CreateNotificationDTO approvedNotification =
+                new CreateNotificationDTO();
+
+        approvedNotification.setRecipientId(request.getRequesterId());
+        approvedNotification.setActorId(currentUser.getUserId());
+        approvedNotification.setType("TASK_REQUEST_APPROVED");
+        approvedNotification.setTitle("任务申请已通过");
+        if (request.getRequesterId().equals(dto.getAssigneeId())) {
+
+            approvedNotification.setContent(
+                    "你的任务申请“"
+                            + request.getTitle()
+                            + "”已通过，并已分配给你"
+            );
+
+        } else {
+
+            approvedNotification.setContent(
+                    "你的任务申请“"
+                            + request.getTitle()
+                            + "”已通过"
+            );
+        }
+        approvedNotification.setProjectId(projectId);
+
+// 已经生成正式 Task，所以点击通知直接看 Task 更实用
+        approvedNotification.setTargetType("TASK");
+        approvedNotification.setTargetId(task.getId());
+
+        notificationService.createNotification(approvedNotification);
+
+        Long assigneeId = dto.getAssigneeId();
+
+        if (assigneeId != null
+                && !assigneeId.equals(currentUser.getUserId())
+                && !assigneeId.equals(request.getRequesterId())) {
+
+            CreateNotificationDTO assignedNotification =
+                    new CreateNotificationDTO();
+
+            assignedNotification.setRecipientId(assigneeId);
+            assignedNotification.setActorId(currentUser.getUserId());
+            assignedNotification.setType("TASK_ASSIGNED");
+            assignedNotification.setTitle("任务分配");
+            assignedNotification.setContent(
+                    "你被分配了任务：" + task.getTitle()
+            );
+            assignedNotification.setProjectId(projectId);
+            assignedNotification.setTargetType("TASK");
+            assignedNotification.setTargetId(task.getId());
+
+            notificationService.createNotification(assignedNotification);
+        }
 
         return task.getId();
     }

@@ -1,0 +1,126 @@
+:root {
+  --brand: #315bd8;
+  --brand-dark: #1d3f9f;
+  --primary: var(--brand);
+  --ink: #17223b;
+  --text-strong: var(--ink);
+  --text: #344054;
+  --muted: #77829a;
+  --text-muted: var(--muted);
+  --muted-soft: #99a3b5;
+  --surface: #f6f7fb;
+  --line: #e9edf4;
+  --border: #dfe5ef;
+  --radius: 16px;
+  --shadow-soft: 0 8px 30px rgba(30, 48, 84, 0.045);
+  --shadow-sm: 0 6px 18px rgba(30, 48, 84, 0.06);
+  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: var(--ink);
+  background: var(--surface);
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  background: var(--surface);
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+a {
+  color: inherit;
+}
+#app {
+  min-height: 100vh;
+}
+.el-button--primary {
+  --el-button-bg-color: var(--brand);
+  --el-button-border-color: var(--brand);
+  --el-button-hover-bg-color: #426be0;
+  --el-button-hover-border-color: #426be0;
+}
+.el-button {
+  border-radius: 9px;
+}
+.el-dialog {
+  border-radius: 18px !important;
+  padding: 22px !important;
+}
+.el-card,
+.el-table {
+  --el-card-border-color: var(--line);
+  --el-table-border-color: var(--line);
+}
+.surface-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+.empty-panel {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1px dashed #dfe4ed;
+  border-radius: var(--radius);
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.toolbar h3 {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 20px;
+}
+.toolbar p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.table-card {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 15px;
+}
+.section-title h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+}
+.section-title p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+@media (max-width: 680px) {
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .el-dialog {
+    width: calc(100vw - 28px) !important;
+  }
+}

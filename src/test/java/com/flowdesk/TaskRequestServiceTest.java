@@ -1,7 +1,9 @@
 package com.flowdesk;
 
-import com.flowdesk.context.CurrentUser;
+import  com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
+import com.flowdesk.dto.CreateNotificationDTO;
+import com.flowdesk.dto.CreateTaskRequestDTO;
 import com.flowdesk.dto.ReviewTaskRequestDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.ProjectMapper;
@@ -9,8 +11,10 @@ import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.mapper.TaskMapper;
 import com.flowdesk.mapper.TaskRequestMapper;
 import com.flowdesk.model.Project;
+import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.Task;
 import com.flowdesk.model.TaskRequest;
+import com.flowdesk.service.NotificationService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.TaskRequestService;
 import org.junit.jupiter.api.AfterEach;
@@ -22,14 +26,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class TaskRequestServiceTest {
@@ -51,6 +53,9 @@ public class TaskRequestServiceTest {
 
     @InjectMocks
     private TaskRequestService taskRequestService;
+
+    @Mock
+    private NotificationService notificationService;
 
     @AfterEach
     void cleanUp() {
@@ -304,6 +309,449 @@ public class TaskRequestServiceTest {
         assertEquals(
                 "你不是该项目负责人",
                 exception.getMessage()
+        );
+    }
+
+    @Test
+    void creatingTaskRequestNotifiesProjectManager() {
+
+        // Jack 是当前项目的开发人员
+        ProjectMember developer = new ProjectMember();
+        developer.setProjectId(4L);
+        developer.setUserId(2L);
+        developer.setRole("DEVELOPER");
+        developer.setStatus("ACTIVE");
+
+        when(projectPermissionService.requireProjectMember(4L))
+                .thenReturn(developer);
+
+        // 项目允许提交任务申请
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        // 当前登录用户是 Jack
+        UserContext.set(
+                new CurrentUser(2L, "USER")
+        );
+
+        // 创建申请参数
+        CreateTaskRequestDTO dto =
+                new CreateTaskRequestDTO();
+
+        dto.setTitle("增加项目统计功能");
+        dto.setDescription("统计任务数量");
+        dto.setGoal("查看项目进度");
+
+        // 模拟插入后数据库生成 TaskRequest id = 15
+        doAnswer(invocation -> {
+
+            TaskRequest request =
+                    invocation.getArgument(0);
+
+            request.setId(15L);
+
+            return 1;
+
+        }).when(taskRequestMapper)
+                .insert(any(TaskRequest.class));
+
+        // Tom 是项目负责人
+        ProjectMember manager = new ProjectMember();
+        manager.setProjectId(4L);
+        manager.setUserId(1L);
+        manager.setRole("PROJECT_MANAGER");
+        manager.setStatus("ACTIVE");
+
+        when(projectMemberMapper.selectList(any()))
+                .thenReturn(List.of(manager));
+
+        // 真正执行
+        Long requestId =
+                taskRequestService.createTaskRequest(
+                        4L,
+                        dto
+                );
+
+        assertEquals(15L, requestId);
+
+        // 抓住传给 NotificationService 的 DTO
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        // 收件人：Tom
+        assertEquals(
+                1L,
+                notification.getRecipientId()
+        );
+
+        // 操作者：Jack
+        assertEquals(
+                2L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "TASK_REQUEST_SUBMITTED",
+                notification.getType()
+        );
+
+        assertEquals(
+                "TASK_REQUEST",
+                notification.getTargetType()
+        );
+
+        assertEquals(
+                15L,
+                notification.getTargetId()
+        );
+
+        assertEquals(
+                4L,
+                notification.getProjectId()
+        );
+    }
+
+    @Test
+    void rejectingTaskRequestNotifiesRequester() {
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        TaskRequest request = new TaskRequest();
+        request.setId(10L);
+        request.setProjectId(4L);
+        request.setRequesterId(2L);
+        request.setTitle("增加缓存");
+        request.setStatus("PENDING");
+
+        ReviewTaskRequestDTO dto =
+                new ReviewTaskRequestDTO();
+
+        dto.setAction("REJECT");
+        dto.setReviewNote("暂时不需要");
+
+        // Tom 审批
+        UserContext.set(
+                new CurrentUser(1L, "USER")
+        );
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        when(taskRequestMapper.selectById(10L))
+                .thenReturn(request);
+
+        Long result =
+                taskRequestService.reviewTaskRequest(
+                        4L,
+                        10L,
+                        dto
+                );
+
+        // REJECT 不会产生正式 Task
+        assertEquals(null, result);
+
+        assertEquals(
+                "REJECTED",
+                request.getStatus()
+        );
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        assertEquals(
+                2L,
+                notification.getRecipientId()
+        );
+
+        assertEquals(
+                1L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "TASK_REQUEST_REJECTED",
+                notification.getType()
+        );
+
+        assertEquals(
+                "TASK_REQUEST",
+                notification.getTargetType()
+        );
+
+        assertEquals(
+                10L,
+                notification.getTargetId()
+        );
+    }
+
+    @Test
+    void approvingTaskRequestAndAssigningToRequesterCreatesCombinedNotification() {
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        TaskRequest request = new TaskRequest();
+        request.setId(10L);
+        request.setProjectId(4L);
+        request.setRequesterId(2L);
+        request.setTitle("增加缓存");
+        request.setDescription("增加 Redis 缓存");
+        request.setGoal("降低数据库压力");
+        request.setStatus("PENDING");
+
+        ReviewTaskRequestDTO dto =
+                new ReviewTaskRequestDTO();
+
+        dto.setAction("APPROVE");
+        dto.setReviewNote("同意");
+        dto.setPriority("HIGH");
+        dto.setDeadline(
+                LocalDateTime.now().plusDays(7)
+        );
+
+        // Jack 提的申请，最后也分给 Jack
+        dto.setAssigneeId(2L);
+
+        // Tom 审批
+        UserContext.set(
+                new CurrentUser(1L, "USER")
+        );
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        when(taskRequestMapper.selectById(10L))
+                .thenReturn(request);
+
+        // Jack 是项目有效成员
+        ProjectMember jack = new ProjectMember();
+        jack.setProjectId(4L);
+        jack.setUserId(2L);
+        jack.setStatus("ACTIVE");
+        jack.setRole("DEVELOPER");
+
+        when(projectMemberMapper.selectOne(any()))
+                .thenReturn(jack);
+
+        // 模拟 Task insert 后生成 id = 99
+        doAnswer(invocation -> {
+
+            Task task =
+                    invocation.getArgument(0);
+
+            task.setId(99L);
+
+            return 1;
+
+        }).when(taskMapper)
+                .insert(any(Task.class));
+
+        Long taskId =
+                taskRequestService.reviewTaskRequest(
+                        4L,
+                        10L,
+                        dto
+                );
+
+        assertEquals(
+                99L,
+                taskId
+        );
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService)
+                .createNotification(captor.capture());
+
+        CreateNotificationDTO notification =
+                captor.getValue();
+
+        assertEquals(
+                2L,
+                notification.getRecipientId()
+        );
+
+        assertEquals(
+                1L,
+                notification.getActorId()
+        );
+
+        assertEquals(
+                "TASK_REQUEST_APPROVED",
+                notification.getType()
+        );
+
+        // 申请已经生成正式 Task，所以通知指向 Task
+        assertEquals(
+                "TASK",
+                notification.getTargetType()
+        );
+
+        assertEquals(
+                99L,
+                notification.getTargetId()
+        );
+
+        assertEquals(
+                "你的任务申请“增加缓存”已通过，并已分配给你",
+                notification.getContent()
+        );
+    }
+
+    @Test
+    void approvingTaskRequestAndAssigningToAnotherDeveloperCreatesTwoNotifications() {
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        TaskRequest request = new TaskRequest();
+        request.setId(10L);
+        request.setProjectId(4L);
+        request.setRequesterId(2L); // Jack
+        request.setTitle("增加缓存");
+        request.setDescription("增加 Redis 缓存");
+        request.setGoal("降低数据库压力");
+        request.setStatus("PENDING");
+
+        ReviewTaskRequestDTO dto =
+                new ReviewTaskRequestDTO();
+
+        dto.setAction("APPROVE");
+        dto.setReviewNote("同意");
+        dto.setPriority("HIGH");
+        dto.setDeadline(
+                LocalDateTime.now().plusDays(7)
+        );
+
+        // 最后把任务分给 Rose，而不是 Jack
+        dto.setAssigneeId(3L);
+
+        // Tom 审批
+        UserContext.set(
+                new CurrentUser(1L, "USER")
+        );
+
+        when(projectMapper.selectById(4L))
+                .thenReturn(project);
+
+        when(taskRequestMapper.selectById(10L))
+                .thenReturn(request);
+
+        // Rose 是有效项目成员
+        ProjectMember rose = new ProjectMember();
+        rose.setProjectId(4L);
+        rose.setUserId(3L);
+        rose.setStatus("ACTIVE");
+        rose.setRole("DEVELOPER");
+
+        when(projectMemberMapper.selectOne(any()))
+                .thenReturn(rose);
+
+        // 模拟生成正式 Task id = 99
+        doAnswer(invocation -> {
+
+            Task task = invocation.getArgument(0);
+
+            task.setId(99L);
+
+            return 1;
+
+        }).when(taskMapper)
+                .insert(any(Task.class));
+
+        Long taskId =
+                taskRequestService.reviewTaskRequest(
+                        4L,
+                        10L,
+                        dto
+                );
+
+        assertEquals(99L, taskId);
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(
+                        CreateNotificationDTO.class
+                );
+
+        verify(notificationService, times(2))
+                .createNotification(captor.capture());
+
+        List<CreateNotificationDTO> notifications =
+                captor.getAllValues();
+
+        CreateNotificationDTO requesterNotification =
+                notifications.get(0);
+
+        CreateNotificationDTO assigneeNotification =
+                notifications.get(1);
+
+        // Jack 收到申请通过通知
+        assertEquals(
+                2L,
+                requesterNotification.getRecipientId()
+        );
+
+        assertEquals(
+                "TASK_REQUEST_APPROVED",
+                requesterNotification.getType()
+        );
+
+        assertEquals(
+                "TASK",
+                requesterNotification.getTargetType()
+        );
+
+        assertEquals(
+                99L,
+                requesterNotification.getTargetId()
+        );
+
+        // Rose 收到任务分配通知
+        assertEquals(
+                3L,
+                assigneeNotification.getRecipientId()
+        );
+
+        assertEquals(
+                "TASK_ASSIGNED",
+                assigneeNotification.getType()
+        );
+
+        assertEquals(
+                "TASK",
+                assigneeNotification.getTargetType()
+        );
+
+        assertEquals(
+                99L,
+                assigneeNotification.getTargetId()
         );
     }
 }

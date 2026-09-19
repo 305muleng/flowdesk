@@ -27,6 +27,11 @@ public class TaskController {
         this.taskService = taskService;
     }
 
+    @GetMapping("/my")
+    public Result<List<TaskVO>> getMyTasks() {
+        return Result.success(taskService.getMyTasks());
+    }
+
     @Operation(
             summary = "开始任务",
             description = "任务负责人开始执行任务，使任务从 TODO 进入 IN_PROGRESS"

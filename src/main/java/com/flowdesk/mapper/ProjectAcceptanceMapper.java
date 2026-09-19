@@ -61,4 +61,21 @@ public interface ProjectAcceptanceMapper
         ORDER BY pa.submitted_at DESC
         """)
     List<ProjectAcceptanceVO> selectAcceptances(@Param("status") String status);
+
+    @Select("""
+        SELECT pa.id, pa.project_id AS projectId, p.name AS projectName,
+               pa.acceptance_no AS acceptanceNo,
+               pa.submitter_id AS submitterId, submitter.real_name AS submitterName,
+               pa.submission_note AS submissionNote, pa.review_status AS reviewStatus,
+               pa.reviewer_id AS reviewerId, reviewer.real_name AS reviewerName,
+               pa.review_note AS reviewNote, pa.submitted_at AS submittedAt,
+               pa.reviewed_at AS reviewedAt
+        FROM project_acceptance pa
+        JOIN project p ON pa.project_id = p.id
+        JOIN `user` submitter ON pa.submitter_id = submitter.id
+        LEFT JOIN `user` reviewer ON pa.reviewer_id = reviewer.id
+        WHERE pa.project_id = #{projectId}
+        ORDER BY pa.acceptance_no DESC
+        """)
+    List<ProjectAcceptanceVO> selectProjectAcceptances(@Param("projectId") Long projectId);
 }
