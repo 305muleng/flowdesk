@@ -10,14 +10,17 @@ import com.flowdesk.mapper.ProjectMapper;
 import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.mapper.TaskMapper;
 import com.flowdesk.mapper.TaskRequestMapper;
+import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.Task;
 import com.flowdesk.model.TaskRequest;
+import com.flowdesk.model.User;
 import com.flowdesk.service.NotificationService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.TaskRequestService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -56,6 +59,20 @@ public class TaskRequestServiceTest {
 
     @Mock
     private NotificationService notificationService;
+
+    @Mock
+    private UserMapper userMapper;
+
+    @BeforeEach
+    void setUpActiveUsers() {
+        lenient().when(userMapper.selectById(anyLong())).thenAnswer(invocation -> {
+            User user = new User();
+            user.setId(invocation.getArgument(0));
+            user.setStatus("ACTIVE");
+            user.setSystemRole("USER");
+            return user;
+        });
+    }
 
     @AfterEach
     void cleanUp() {
@@ -421,6 +438,34 @@ public class TaskRequestServiceTest {
                 4L,
                 notification.getProjectId()
         );
+    }
+
+    @Test
+    void disabledManagerDoesNotReceiveTaskRequestNotification() {
+        ProjectMember developer = new ProjectMember();
+        developer.setRole("DEVELOPER");
+        when(projectPermissionService.requireProjectMember(4L)).thenReturn(developer);
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        ProjectMember manager = new ProjectMember();
+        manager.setUserId(1L);
+        manager.setRole("PROJECT_MANAGER");
+        manager.setStatus("ACTIVE");
+        when(projectMemberMapper.selectList(any())).thenReturn(List.of(manager));
+        User disabled = new User();
+        disabled.setId(1L);
+        disabled.setStatus("DISABLED");
+        disabled.setSystemRole("USER");
+        when(userMapper.selectById(1L)).thenReturn(disabled);
+        UserContext.set(new CurrentUser(2L, "USER"));
+        CreateTaskRequestDTO dto = new CreateTaskRequestDTO();
+        dto.setTitle("增加统计");
+
+        taskRequestService.createTaskRequest(4L, dto);
+
+        verify(notificationService, never()).createNotification(any(CreateNotificationDTO.class));
     }
 
     @Test

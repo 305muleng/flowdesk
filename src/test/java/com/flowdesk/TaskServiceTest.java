@@ -10,11 +10,13 @@ import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.Task;
 import com.flowdesk.model.TaskSubmission;
+import com.flowdesk.model.User;
 import com.flowdesk.service.NotificationService;
 import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.TaskService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -59,6 +61,20 @@ public class TaskServiceTest {
 
     @Mock
     private NotificationService notificationService;
+
+    @Mock
+    private UserMapper userMapper;
+
+    @BeforeEach
+    void setUpActiveUsers() {
+        lenient().when(userMapper.selectById(anyLong())).thenAnswer(invocation -> {
+            User user = new User();
+            user.setId(invocation.getArgument(0));
+            user.setStatus("ACTIVE");
+            user.setSystemRole("USER");
+            return user;
+        });
+    }
 
     @AfterEach
     void cleanUp() {
@@ -109,6 +125,37 @@ public class TaskServiceTest {
         assertEquals(4L, notification.getProjectId());
         assertEquals("TASK", notification.getTargetType());
         assertEquals(9L, notification.getTargetId());
+    }
+
+    @Test
+    void disabledActiveMemberCannotReceiveNewTaskAssignment() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        ProjectMember member = new ProjectMember();
+        member.setProjectId(4L);
+        member.setUserId(2L);
+        member.setStatus("ACTIVE");
+        User disabled = new User();
+        disabled.setId(2L);
+        disabled.setStatus("DISABLED");
+        disabled.setSystemRole("USER");
+        CreateTaskDTO dto = new CreateTaskDTO();
+        dto.setTitle("登录接口");
+        dto.setAssigneeId(2L);
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMemberMapper.selectOne(any())).thenReturn(member);
+        when(userMapper.selectById(2L)).thenReturn(disabled);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> taskService.createTask(4L, dto)
+        );
+
+        assertEquals(409, exception.getCode());
+        verify(taskMapper, never()).insert(any(Task.class));
     }
 
     @Test

@@ -6,7 +6,9 @@ import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.NotificationMapper;
+import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.Notification;
+import com.flowdesk.model.User;
 import com.flowdesk.vo.NotificationVO;
 import org.springframework.stereotype.Service;
 
@@ -17,12 +19,20 @@ import java.util.List;
 public class NotificationService {
 
     private final NotificationMapper notificationMapper;
+    private final UserMapper userMapper;
 
-    public NotificationService(NotificationMapper notificationMapper) {
+    public NotificationService(NotificationMapper notificationMapper, UserMapper userMapper) {
         this.notificationMapper = notificationMapper;
+        this.userMapper = userMapper;
     }
 
     public void createNotification(CreateNotificationDTO dto) {
+
+        User recipient = userMapper.selectById(dto.getRecipientId());
+
+        if (recipient == null || !"ACTIVE".equals(recipient.getStatus())) {
+            return;
+        }
 
         Notification notification = new Notification();
 

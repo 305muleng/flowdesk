@@ -6,6 +6,7 @@ import com.flowdesk.vo.InvitationVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,6 +14,16 @@ import java.util.List;
 @Mapper
 public interface ProjectInvitationMapper
         extends BaseMapper<ProjectInvitation> {
+
+    @Update("""
+            UPDATE project_invitation
+            SET status = #{newStatus}, responded_at = #{respondedAt}
+            WHERE id = #{invitationId} AND status = 'PENDING'
+            """)
+    int transitionPending(
+            @Param("invitationId") Long invitationId,
+            @Param("newStatus") String newStatus,
+            @Param("respondedAt") LocalDateTime respondedAt);
 
     @Select("""
             SELECT

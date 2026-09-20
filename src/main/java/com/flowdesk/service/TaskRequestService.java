@@ -11,10 +11,12 @@ import com.flowdesk.mapper.ProjectMapper;
 import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.mapper.TaskMapper;
 import com.flowdesk.mapper.TaskRequestMapper;
+import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.Task;
 import com.flowdesk.model.TaskRequest;
+import com.flowdesk.model.User;
 import com.flowdesk.vo.TaskRequestVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ public class TaskRequestService {
     private final TaskMapper taskMapper;
     private final ProjectMemberMapper projectMemberMapper;
     private final NotificationService notificationService;
+    private final UserMapper userMapper;
 
     public TaskRequestService(
             TaskRequestMapper taskRequestMapper,
@@ -39,7 +42,8 @@ public class TaskRequestService {
             ProjectPermissionService projectPermissionService,
             TaskMapper taskMapper,
             ProjectMemberMapper projectMemberMapper,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            UserMapper userMapper) {
 
         this.taskRequestMapper = taskRequestMapper;
         this.projectMapper = projectMapper;
@@ -47,6 +51,7 @@ public class TaskRequestService {
         this.taskMapper = taskMapper;
         this.projectMemberMapper = projectMemberMapper;
         this.notificationService = notificationService;
+        this.userMapper = userMapper;
     }
 
     @Transactional
@@ -120,6 +125,10 @@ public class TaskRequestService {
                 );
 
         for (ProjectMember manager : managers) {
+
+            if (!isActiveProjectUser(manager.getUserId())) {
+                continue;
+            }
 
             CreateNotificationDTO notificationDTO =
                     new CreateNotificationDTO();
@@ -356,7 +365,7 @@ public class TaskRequestService {
                                     .eq(ProjectMember::getStatus, "ACTIVE")
                     );
 
-            if (assignee == null) {
+            if (assignee == null || !isActiveProjectUser(dto.getAssigneeId())) {
                 throw new BusinessException(
                         409,
                         "任务负责人不是该项目的有效成员"
@@ -451,6 +460,13 @@ public class TaskRequestService {
         }
 
         return task.getId();
+    }
+
+    private boolean isActiveProjectUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        return user != null
+                && "ACTIVE".equals(user.getStatus())
+                && "USER".equals(user.getSystemRole());
     }
 
     public void cancelTaskRequest(

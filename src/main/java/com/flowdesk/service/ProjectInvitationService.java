@@ -58,7 +58,7 @@ public class ProjectInvitationService {
         projectPermissionService.requireProjectManager(projectId);
 
         Project project =
-                projectMapper.selectById(projectId);
+                projectMapper.selectByIdForUpdate(projectId);
 
         if (project == null
                 || project.getDeletedAt() != null) {
@@ -199,8 +199,15 @@ public class ProjectInvitationService {
 
         User invitee = userMapper.selectById(invitation.getInviteeId());
 
-        if (invitee != null
-                && "SYSTEM_ADMIN".equals(invitee.getSystemRole())) {
+        if (invitee == null) {
+            throw new BusinessException(401, "登录用户不存在");
+        }
+
+        if (!"ACTIVE".equals(invitee.getStatus())) {
+            throw new BusinessException(403, "账号已被禁用");
+        }
+
+        if ("SYSTEM_ADMIN".equals(invitee.getSystemRole())) {
             throw new BusinessException(403, "系统管理员不能加入项目");
         }
 
@@ -227,6 +234,19 @@ public class ProjectInvitationService {
             );
         }
 
+        int accepted = projectInvitationMapper.transitionPending(
+                invitationId,
+                "ACCEPTED",
+                now
+        );
+
+        if (accepted != 1) {
+            throw new BusinessException(409, "该邀请已经处理");
+        }
+
+        invitation.setStatus("ACCEPTED");
+        invitation.setRespondedAt(now);
+
         // 5. 查询是否曾经是这个项目的成员
         ProjectMember member = projectMemberMapper.selectOne(
                 new LambdaQueryWrapper<ProjectMember>()
@@ -252,7 +272,9 @@ public class ProjectInvitationService {
         } else {
 
             // 7. 如果以前退出过，则重新激活
-            member.setRole("DEVELOPER");
+            if (!"PROJECT_MANAGER".equals(member.getRole())) {
+                member.setRole("DEVELOPER");
+            }
             member.setStatus("ACTIVE");
             member.setJoinedAt(now);
             member.setLeftAt(null);
@@ -260,12 +282,6 @@ public class ProjectInvitationService {
 
             projectMemberMapper.updateById(member);
         }
-
-        // 8. 邀请变成已接受
-        invitation.setStatus("ACCEPTED");
-        invitation.setRespondedAt(now);
-
-        projectInvitationMapper.updateById(invitation);
 
         CreateNotificationDTO notificationDTO =
                 new CreateNotificationDTO();
@@ -368,11 +384,18 @@ public class ProjectInvitationService {
             throw new BusinessException(409, "该邀请已经过期");
         }
 
-        // 5. 修改邀请状态
+        int rejected = projectInvitationMapper.transitionPending(
+                invitationId,
+                "REJECTED",
+                now
+        );
+
+        if (rejected != 1) {
+            throw new BusinessException(409, "该邀请已经处理");
+        }
+
         invitation.setStatus("REJECTED");
         invitation.setRespondedAt(now);
-
-        projectInvitationMapper.updateById(invitation);
 
         CreateNotificationDTO notificationDTO =
                 new CreateNotificationDTO();

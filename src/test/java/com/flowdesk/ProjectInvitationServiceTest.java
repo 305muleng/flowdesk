@@ -33,10 +33,14 @@ import java.time.LocalDateTime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectInvitationServiceTest {
@@ -102,6 +106,10 @@ public class ProjectInvitationServiceTest {
                         notificationService,
                         7
                 );
+
+        lenient().when(projectInvitationMapper.transitionPending(
+                anyLong(), anyString(), any(LocalDateTime.class)
+        )).thenReturn(1);
     }
 
     @AfterEach
@@ -127,7 +135,7 @@ public class ProjectInvitationServiceTest {
 
         UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(userMapper.selectOne(any())).thenReturn(admin);
 
         BusinessException exception =
@@ -161,6 +169,7 @@ public class ProjectInvitationServiceTest {
         User admin = new User();
         admin.setId(2L);
         admin.setSystemRole("SYSTEM_ADMIN");
+        admin.setStatus("ACTIVE");
 
         // 即使登录态仍保留旧角色，也必须以数据库当前角色为准。
         UserContext.set(new CurrentUser(2L, "USER"));
@@ -216,7 +225,7 @@ public class ProjectInvitationServiceTest {
                 new CurrentUser(1L, "USER")
         );
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 根据用户名找到 Jack
@@ -346,6 +355,12 @@ public class ProjectInvitationServiceTest {
 
         when(projectMapper.selectById(4L))
                 .thenReturn(project);
+
+        User jack = new User();
+        jack.setId(2L);
+        jack.setSystemRole("USER");
+        jack.setStatus("ACTIVE");
+        when(userMapper.selectById(2L)).thenReturn(jack);
 
         // Jack 之前不是项目成员
         when(projectMemberMapper.selectOne(any()))
@@ -502,5 +517,166 @@ public class ProjectInvitationServiceTest {
                 4L,
                 notification.getProjectId()
         );
+    }
+
+    @Test
+    void developerCannotSendInvitation() {
+        UserContext.set(new CurrentUser(2L, "USER"));
+        SendInvitationDTO dto = new SendInvitationDTO();
+        dto.setUsername("jack");
+        doThrow(new BusinessException(403, "你不是该项目负责人"))
+                .when(projectPermissionService).requireProjectManager(4L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> projectInvitationService.sendInvitation(4L, dto)
+        );
+
+        assertEquals(403, exception.getCode());
+        verify(projectInvitationMapper, never()).insert(any(ProjectInvitation.class));
+    }
+
+    @Test
+    void activeMemberCannotBeInvitedAgain() {
+        UserContext.set(new CurrentUser(1L, "USER"));
+        SendInvitationDTO dto = new SendInvitationDTO();
+        dto.setUsername("jack");
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
+        when(userMapper.selectOne(any())).thenReturn(activeUser(2L, "USER"));
+        ProjectMember member = new ProjectMember();
+        member.setStatus("ACTIVE");
+        when(projectMemberMapper.selectOne(any())).thenReturn(member);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> projectInvitationService.sendInvitation(4L, dto)
+        );
+
+        assertEquals(409, exception.getCode());
+    }
+
+    @Test
+    void validPendingInvitationCannotBeDuplicated() {
+        UserContext.set(new CurrentUser(1L, "USER"));
+        SendInvitationDTO dto = new SendInvitationDTO();
+        dto.setUsername("jack");
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
+        when(userMapper.selectOne(any())).thenReturn(activeUser(2L, "USER"));
+        when(projectMemberMapper.selectOne(any())).thenReturn(null);
+        when(projectInvitationMapper.selectCount(any())).thenReturn(1L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> projectInvitationService.sendInvitation(4L, dto)
+        );
+
+        assertEquals(409, exception.getCode());
+        verify(projectInvitationMapper, never()).insert(any(ProjectInvitation.class));
+    }
+
+    @Test
+    void nonInviteeCannotAcceptOrRejectInvitation() {
+        ProjectInvitation invitation = pendingInvitation();
+        UserContext.set(new CurrentUser(3L, "USER"));
+        when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
+
+        assertEquals(403, assertThrows(BusinessException.class,
+                () -> projectInvitationService.acceptInvitation(50L)).getCode());
+        assertEquals(403, assertThrows(BusinessException.class,
+                () -> projectInvitationService.rejectInvitation(50L)).getCode());
+    }
+
+    @Test
+    void expiredInvitationCannotBeAccepted() {
+        ProjectInvitation invitation = pendingInvitation();
+        invitation.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        UserContext.set(new CurrentUser(2L, "USER"));
+        when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
+
+        assertEquals(409, assertThrows(BusinessException.class,
+                () -> projectInvitationService.acceptInvitation(50L)).getCode());
+    }
+
+    @Test
+    void acceptedOrRejectedInvitationCannotBeAcceptedAgain() {
+        ProjectInvitation invitation = pendingInvitation();
+        UserContext.set(new CurrentUser(2L, "USER"));
+        when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
+
+        invitation.setStatus("ACCEPTED");
+        assertEquals(409, assertThrows(BusinessException.class,
+                () -> projectInvitationService.acceptInvitation(50L)).getCode());
+
+        invitation.setStatus("REJECTED");
+        assertEquals(409, assertThrows(BusinessException.class,
+                () -> projectInvitationService.acceptInvitation(50L)).getCode());
+    }
+
+    @Test
+    void concurrentAcceptanceIsRejectedByConditionalUpdate() {
+        ProjectInvitation invitation = pendingInvitation();
+        UserContext.set(new CurrentUser(2L, "USER"));
+        when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
+        when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
+        when(projectMapper.selectById(4L)).thenReturn(activeProject());
+        when(projectInvitationMapper.transitionPending(
+                anyLong(), anyString(), any(LocalDateTime.class)
+        )).thenReturn(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> projectInvitationService.acceptInvitation(50L)
+        );
+
+        assertEquals(409, exception.getCode());
+        verify(projectMemberMapper, never()).insert(any(ProjectMember.class));
+        verify(notificationService, never()).createNotification(any(CreateNotificationDTO.class));
+    }
+
+    @Test
+    void reactivatingFormerManagerDoesNotDemoteRole() {
+        ProjectInvitation invitation = pendingInvitation();
+        ProjectMember member = new ProjectMember();
+        member.setRole("PROJECT_MANAGER");
+        member.setStatus("INACTIVE");
+        UserContext.set(new CurrentUser(2L, "USER"));
+        when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
+        when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
+        when(projectMapper.selectById(4L)).thenReturn(activeProject());
+        when(projectMemberMapper.selectOne(any())).thenReturn(member);
+
+        projectInvitationService.acceptInvitation(50L);
+
+        assertEquals("PROJECT_MANAGER", member.getRole());
+        assertEquals("ACTIVE", member.getStatus());
+        verify(projectMemberMapper).updateById(member);
+    }
+
+    private ProjectInvitation pendingInvitation() {
+        ProjectInvitation invitation = new ProjectInvitation();
+        invitation.setId(50L);
+        invitation.setProjectId(4L);
+        invitation.setInviterId(1L);
+        invitation.setInviteeId(2L);
+        invitation.setStatus("PENDING");
+        invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
+        return invitation;
+    }
+
+    private Project activeProject() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setName("FlowDesk");
+        project.setStatus("IN_PROGRESS");
+        return project;
+    }
+
+    private User activeUser(Long id, String role) {
+        User user = new User();
+        user.setId(id);
+        user.setUsername("user" + id);
+        user.setStatus("ACTIVE");
+        user.setSystemRole(role);
+        return user;
     }
 }

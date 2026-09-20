@@ -21,6 +21,10 @@ public class ProjectPermissionService {
 
         CurrentUser currentUser = UserContext.get();
 
+        if ("SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+            throw new BusinessException(403, "系统管理员不能参与普通项目");
+        }
+
         ProjectMember member = projectMemberMapper.selectOne(
                 new LambdaQueryWrapper<ProjectMember>()
                         .eq(ProjectMember::getProjectId, projectId)

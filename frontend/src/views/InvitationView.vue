@@ -17,6 +17,7 @@ const route = useRoute()
 const focusedInvitationId = computed(() => Number(route.query.invitationId) || undefined)
 const list = ref<Invitation[]>([])
 const loading = ref(false)
+const processingIds = ref(new Set<number>())
 async function load() {
   loading.value = true
   try {
@@ -26,10 +27,16 @@ async function load() {
   }
 }
 async function respond(item: Invitation, accepted: boolean) {
-  await (accepted ? acceptInvitation(item.id) : rejectInvitation(item.id))
-  ElMessage.success(accepted ? '已加入项目' : '已拒绝邀请')
-  await load()
-  if (accepted) await router.push('/projects/' + item.projectId)
+  if (processingIds.value.has(item.id)) return
+  processingIds.value.add(item.id)
+  try {
+    await (accepted ? acceptInvitation(item.id) : rejectInvitation(item.id))
+    ElMessage.success(accepted ? '已加入项目' : '已拒绝邀请')
+    await load()
+    if (accepted) await router.push('/projects/' + item.projectId)
+  } finally {
+    processingIds.value.delete(item.id)
+  }
 }
 onMounted(load)
 </script>
@@ -58,8 +65,8 @@ onMounted(load)
         <small>有效期至 {{ formatDateTime(item.expiresAt) }}</small>
       </div>
       <div v-if="item.status === 'PENDING' && !item.expired" class="actions">
-        <el-button @click="respond(item, false)">拒绝</el-button
-        ><el-button type="primary" @click="respond(item, true)">接受邀请</el-button>
+        <el-button :disabled="processingIds.has(item.id)" @click="respond(item, false)">拒绝</el-button
+        ><el-button type="primary" :loading="processingIds.has(item.id)" @click="respond(item, true)">接受邀请</el-button>
       </div>
       <span v-else class="handled">{{ item.expired ? '邀请已过期' : '已处理' }}</span>
     </article>

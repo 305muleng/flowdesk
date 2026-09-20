@@ -100,6 +100,9 @@ public class ProjectService {
     }
 
     public List<ProjectVO> getMyProjects() {
+        if ("SYSTEM_ADMIN".equals(UserContext.get().getSystemRole())) {
+            return List.of();
+        }
         return projectMapper.selectProjectsForUser(UserContext.get().getUserId());
     }
 

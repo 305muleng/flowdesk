@@ -12,14 +12,20 @@ import java.util.List;
 @Mapper
 public interface ProjectMapper extends BaseMapper<Project> {
 
+    @Select("SELECT * FROM project WHERE id = #{projectId} FOR UPDATE")
+    Project selectByIdForUpdate(@Param("projectId") Long projectId);
+
     @Select("""
         SELECT p.id, p.creator_id AS creatorId, p.name, p.description, p.goal, p.status,
                p.start_time AS startTime, p.expected_end_time AS expectedEndTime,
                p.actual_end_time AS actualEndTime, p.created_at AS createdAt, p.updated_at AS updatedAt
         FROM project p
         JOIN project_member pm ON pm.project_id = p.id
+        JOIN `user` u ON u.id = pm.user_id
         WHERE pm.user_id = #{userId}
           AND pm.status = 'ACTIVE'
+          AND u.status = 'ACTIVE'
+          AND u.system_role = 'USER'
           AND p.deleted_at IS NULL
         ORDER BY p.updated_at DESC, p.id DESC
         """)

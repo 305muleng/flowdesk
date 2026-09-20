@@ -9,10 +9,13 @@ import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.NotificationMapper;
+import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.Notification;
+import com.flowdesk.model.User;
 import com.flowdesk.service.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,12 +32,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 public class NotificationServiceTest {
@@ -50,8 +55,22 @@ public class NotificationServiceTest {
     @Mock
     private NotificationMapper notificationMapper;
 
+    @Mock
+    private UserMapper userMapper;
+
     @InjectMocks
     private NotificationService notificationService;
+
+    @BeforeEach
+    void setUpRecipient() {
+        lenient().when(userMapper.selectById(anyLong())).thenAnswer(invocation -> {
+            User user = new User();
+            user.setId(invocation.getArgument(0));
+            user.setStatus("ACTIVE");
+            user.setSystemRole("USER");
+            return user;
+        });
+    }
 
     @AfterEach
     void cleanUp() {
@@ -85,6 +104,23 @@ public class NotificationServiceTest {
         assertEquals(9L, notification.getTargetId());
         assertNull(notification.getReadAt());
         assertNotNull(notification.getCreatedAt());
+    }
+
+    @Test
+    void disabledRecipientDoesNotAccumulateNewNotifications() {
+        User disabled = new User();
+        disabled.setId(2L);
+        disabled.setStatus("DISABLED");
+        when(userMapper.selectById(2L)).thenReturn(disabled);
+
+        CreateNotificationDTO dto = new CreateNotificationDTO();
+        dto.setRecipientId(2L);
+        dto.setType("TASK_ASSIGNED");
+        dto.setTitle("任务分配");
+
+        notificationService.createNotification(dto);
+
+        verify(notificationMapper, never()).insert(any(Notification.class));
     }
 
     @Test

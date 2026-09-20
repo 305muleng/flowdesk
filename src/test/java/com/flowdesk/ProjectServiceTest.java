@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,6 +25,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectServiceTest {
@@ -70,6 +73,59 @@ public class ProjectServiceTest {
         verify(projectMapper, never()).insert(any(Project.class));
         verify(projectMemberMapper, never())
                 .insert(any(ProjectMember.class));
+    }
+
+    @Test
+    void normalUserCreatesProjectAndBecomesManager() {
+        UserContext.set(new CurrentUser(2L, "USER"));
+        CreateProjectDTO dto = new CreateProjectDTO();
+        dto.setName(" FlowDesk ");
+
+        doAnswer(invocation -> {
+            Project project = invocation.getArgument(0);
+            project.setId(4L);
+            return 1;
+        }).when(projectMapper).insert(any(Project.class));
+
+        Long projectId = projectService.createProject(dto);
+
+        assertEquals(4L, projectId);
+        ArgumentCaptor<ProjectMember> captor = ArgumentCaptor.forClass(ProjectMember.class);
+        verify(projectMemberMapper).insert(captor.capture());
+        ProjectMember member = captor.getValue();
+        assertEquals(4L, member.getProjectId());
+        assertEquals(2L, member.getUserId());
+        assertEquals("PROJECT_MANAGER", member.getRole());
+        assertEquals("ACTIVE", member.getStatus());
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void memberInsertFailurePropagatesInsideTransactionalCreate() throws Exception {
+        UserContext.set(new CurrentUser(2L, "USER"));
+        CreateProjectDTO dto = new CreateProjectDTO();
+        dto.setName("FlowDesk");
+        doAnswer(invocation -> {
+            Project project = invocation.getArgument(0);
+            project.setId(4L);
+            return 1;
+        }).when(projectMapper).insert(any(Project.class));
+        doThrow(new RuntimeException("member insert failed"))
+                .when(projectMemberMapper).insert(any(ProjectMember.class));
+
+        assertThrows(RuntimeException.class, () -> projectService.createProject(dto));
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+        assertNotNull(ProjectService.class
+                .getMethod("createProject", CreateProjectDTO.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class));
+    }
+
+    @Test
+    void systemAdminProjectListIsAlwaysEmpty() {
+        UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
+
+        assertTrue(projectService.getMyProjects().isEmpty());
+        verify(projectMapper, never()).selectProjectsForUser(any());
     }
 
     @Test

@@ -33,6 +33,8 @@ public class LoginInterceptor implements HandlerInterceptor {
             HttpServletResponse response,
             Object handler) throws Exception {
 
+        UserContext.remove();
+
         String authorization = request.getHeader("Authorization");
 
         if (authorization == null

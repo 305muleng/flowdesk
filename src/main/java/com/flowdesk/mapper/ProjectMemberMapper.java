@@ -23,6 +23,8 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
             ON pm.user_id = u.id
         WHERE pm.project_id = #{projectId}
           AND pm.status = 'ACTIVE'
+          AND u.status = 'ACTIVE'
+          AND u.system_role = 'USER'
         ORDER BY pm.joined_at ASC
         """)
     List<ProjectMemberVO> selectActiveMembers(@Param("projectId") Long projectId);

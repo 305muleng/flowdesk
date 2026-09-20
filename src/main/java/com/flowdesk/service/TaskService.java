@@ -27,6 +27,7 @@ public class TaskService {
     private final TaskCommentMapper taskCommentMapper;
     private final OperationLogService operationLogService;
     private final NotificationService notificationService;
+    private final UserMapper userMapper;
 
     public TaskService(
             TaskMapper taskMapper,
@@ -36,7 +37,8 @@ public class TaskService {
             TaskSubmissionMapper taskSubmissionMapper,
             TaskCommentMapper taskCommentMapper,
             OperationLogService operationLogService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            UserMapper userMapper) {
 
         this.taskMapper = taskMapper;
         this.projectMapper = projectMapper;
@@ -46,6 +48,7 @@ public class TaskService {
         this.taskCommentMapper = taskCommentMapper;
         this.operationLogService = operationLogService;
         this.notificationService = notificationService;
+        this.userMapper = userMapper;
     }
 
     @Transactional
@@ -105,7 +108,7 @@ public class TaskService {
                                     .eq(ProjectMember::getStatus, "ACTIVE")
                     );
 
-            if (assignee == null) {
+            if (assignee == null || !isActiveProjectUser(dto.getAssigneeId())) {
                 throw new BusinessException(
                         409,
                         "任务负责人不是该项目的有效成员"
@@ -425,6 +428,10 @@ public class TaskService {
 
         for (ProjectMember manager : managers) {
 
+            if (!isActiveProjectUser(manager.getUserId())) {
+                continue;
+            }
+
             // 不给自己发通知
             if (manager.getUserId().equals(currentUser.getUserId())) {
                 continue;
@@ -611,6 +618,7 @@ public class TaskService {
         Long assigneeId = task.getAssigneeId();
 
         if (assigneeId != null
+                && isActiveProjectUser(assigneeId)
                 && !assigneeId.equals(currentUser.getUserId())) {
 
             CreateNotificationDTO notificationDTO =
@@ -744,7 +752,7 @@ public class TaskService {
                                 )
                 );
 
-        if (member == null) {
+        if (member == null || !isActiveProjectUser(dto.getAssigneeId())) {
             throw new BusinessException(
                     409,
                     "任务负责人不是该项目的有效成员"
@@ -850,6 +858,13 @@ public class TaskService {
                     notificationDTO
             );
         }
+    }
+
+    private boolean isActiveProjectUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        return user != null
+                && "ACTIVE".equals(user.getStatus())
+                && "USER".equals(user.getSystemRole());
     }
 
     public TaskVO getTaskDetail(Long taskId) {

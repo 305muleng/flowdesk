@@ -2,6 +2,7 @@ package com.flowdesk;
 
 import com.flowdesk.controller.AdminProjectAcceptanceController;
 import com.flowdesk.controller.TaskController;
+import com.flowdesk.context.UserContext;
 import com.flowdesk.interceptor.LoginInterceptor;
 import com.flowdesk.interceptor.SystemAdminInterceptor;
 import com.flowdesk.mapper.UserMapper;
@@ -17,6 +18,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -250,5 +252,45 @@ public class SecurityInterceptorWebTest {
                         jsonPath("$.message")
                                 .value("账号已被禁用")
                 );
+    }
+
+    @Test
+    void tokenForDeletedUserShouldReturn401() throws Exception {
+        Claims claims = mock(Claims.class);
+        when(jwtUtil.parseToken("orphan-token")).thenReturn(claims);
+        when(claims.getSubject()).thenReturn("99");
+        when(userMapper.selectById(99L)).thenReturn(null);
+
+        mockMvc.perform(get("/tasks/9")
+                        .header("Authorization", "Bearer orphan-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    void expiredTokenShouldReturn401() throws Exception {
+        when(jwtUtil.parseToken("expired-token"))
+                .thenThrow(new RuntimeException("expired"));
+
+        mockMvc.perform(get("/tasks/9")
+                        .header("Authorization", "Bearer expired-token"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void userContextIsClearedAfterCompletedRequest() throws Exception {
+        Claims claims = mock(Claims.class);
+        when(jwtUtil.parseToken("user-token")).thenReturn(claims);
+        when(claims.getSubject()).thenReturn("2");
+        User user = new User();
+        user.setId(2L);
+        user.setStatus("ACTIVE");
+        user.setSystemRole("USER");
+        when(userMapper.selectById(2L)).thenReturn(user);
+
+        mockMvc.perform(get("/tasks/9")
+                        .header("Authorization", "Bearer user-token"));
+
+        assertNull(UserContext.get());
     }
 }

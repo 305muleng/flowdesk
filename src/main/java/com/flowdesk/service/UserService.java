@@ -32,6 +32,10 @@ public class UserService {
 
         String username = dto.getUsername().trim();
 
+        if (username.length() < 3) {
+            throw new BusinessException(400, "用户名长度必须在3到50个字符之间");
+        }
+
         Long count = userMapper.selectCount(
                 new LambdaQueryWrapper<User>()
                         .eq(User::getUsername, username)
