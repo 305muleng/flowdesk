@@ -6,6 +6,7 @@ import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.SendInvitationDTO;
+import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.ProjectInvitationMapper;
 import com.flowdesk.mapper.ProjectMapper;
 import com.flowdesk.mapper.ProjectMemberMapper;
@@ -30,8 +31,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -104,6 +107,86 @@ public class ProjectInvitationServiceTest {
     @AfterEach
     void cleanUp() {
         UserContext.remove();
+    }
+
+    @Test
+    void systemAdminCannotBeInvited() {
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        User admin = new User();
+        admin.setId(2L);
+        admin.setUsername("admin");
+        admin.setSystemRole("SYSTEM_ADMIN");
+        admin.setStatus("ACTIVE");
+
+        SendInvitationDTO dto = new SendInvitationDTO();
+        dto.setUsername("admin");
+
+        UserContext.set(new CurrentUser(1L, "USER"));
+
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(userMapper.selectOne(any())).thenReturn(admin);
+
+        BusinessException exception =
+                assertThrows(
+                        BusinessException.class,
+                        () -> projectInvitationService.sendInvitation(4L, dto)
+                );
+
+        assertEquals(403, exception.getCode());
+        assertEquals("不能邀请系统管理员加入项目", exception.getMessage());
+
+        verify(projectInvitationMapper, never())
+                .insert(any(ProjectInvitation.class));
+        verify(projectMemberMapper, never())
+                .insert(any(ProjectMember.class));
+        verify(notificationService, never())
+                .createNotification(any(CreateNotificationDTO.class));
+    }
+
+    @Test
+    void systemAdminCannotAcceptExistingInvitation() {
+
+        ProjectInvitation invitation = new ProjectInvitation();
+        invitation.setId(50L);
+        invitation.setProjectId(4L);
+        invitation.setInviterId(1L);
+        invitation.setInviteeId(2L);
+        invitation.setStatus("PENDING");
+        invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
+
+        User admin = new User();
+        admin.setId(2L);
+        admin.setSystemRole("SYSTEM_ADMIN");
+
+        // 即使登录态仍保留旧角色，也必须以数据库当前角色为准。
+        UserContext.set(new CurrentUser(2L, "USER"));
+
+        when(projectInvitationMapper.selectById(50L))
+                .thenReturn(invitation);
+        when(userMapper.selectById(2L)).thenReturn(admin);
+
+        BusinessException exception =
+                assertThrows(
+                        BusinessException.class,
+                        () -> projectInvitationService.acceptInvitation(50L)
+                );
+
+        assertEquals(403, exception.getCode());
+        assertEquals("系统管理员不能加入项目", exception.getMessage());
+        assertEquals("PENDING", invitation.getStatus());
+
+        verify(projectMemberMapper, never())
+                .insert(any(ProjectMember.class));
+        verify(projectMemberMapper, never())
+                .updateById(any(ProjectMember.class));
+        verify(projectInvitationMapper, never())
+                .updateById(any(ProjectInvitation.class));
+        verify(notificationService, never())
+                .createNotification(any(CreateNotificationDTO.class));
     }
 
     /**

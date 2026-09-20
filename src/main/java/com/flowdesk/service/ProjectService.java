@@ -44,6 +44,10 @@ public class ProjectService {
 
         CurrentUser currentUser = UserContext.get();
 
+        if ("SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+            throw new BusinessException(403, "系统管理员不能创建项目");
+        }
+
         Project project = new Project();
 
         project.setCreatorId(currentUser.getUserId());

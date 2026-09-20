@@ -3,10 +3,12 @@ package com.flowdesk;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CancelProjectDTO;
+import com.flowdesk.dto.CreateProjectDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.ProjectMapper;
 import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.model.Project;
+import com.flowdesk.model.ProjectMember;
 import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.ProjectService;
@@ -20,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,6 +46,30 @@ public class ProjectServiceTest {
     @AfterEach
     void cleanUp() {
         UserContext.remove();
+    }
+
+    @Test
+    void systemAdminCannotCreateProject() {
+
+        UserContext.set(
+                new CurrentUser(1L, "SYSTEM_ADMIN")
+        );
+
+        CreateProjectDTO dto = new CreateProjectDTO();
+        dto.setName("FlowDesk");
+
+        BusinessException exception =
+                assertThrows(
+                        BusinessException.class,
+                        () -> projectService.createProject(dto)
+                );
+
+        assertEquals(403, exception.getCode());
+        assertEquals("系统管理员不能创建项目", exception.getMessage());
+
+        verify(projectMapper, never()).insert(any(Project.class));
+        verify(projectMemberMapper, never())
+                .insert(any(ProjectMember.class));
     }
 
     @Test

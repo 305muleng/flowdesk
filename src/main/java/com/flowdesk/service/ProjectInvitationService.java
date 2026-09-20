@@ -92,6 +92,10 @@ public class ProjectInvitationService {
             throw new BusinessException(404, "被邀请用户不存在");
         }
 
+        if ("SYSTEM_ADMIN".equals(invitee.getSystemRole())) {
+            throw new BusinessException(403, "不能邀请系统管理员加入项目");
+        }
+
         // 3. 被邀请账号必须正常
         if (!"ACTIVE".equals(invitee.getStatus())) {
             throw new BusinessException(409, "被邀请用户账号不可用");
@@ -191,6 +195,13 @@ public class ProjectInvitationService {
         // 4. 检查有没有过期
         if (!invitation.getExpiresAt().isAfter(now)) {
             throw new BusinessException(409, "该邀请已经过期");
+        }
+
+        User invitee = userMapper.selectById(invitation.getInviteeId());
+
+        if (invitee != null
+                && "SYSTEM_ADMIN".equals(invitee.getSystemRole())) {
+            throw new BusinessException(403, "系统管理员不能加入项目");
         }
 
         Project project =
