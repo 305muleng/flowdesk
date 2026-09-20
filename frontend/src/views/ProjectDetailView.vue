@@ -47,7 +47,7 @@ const acceptances = ref<ProjectAcceptance[]>([])
 const logs = ref<OperationLog[]>([])
 const loading = ref(false)
 const saving = ref(false)
-const activeTab = ref('tasks')
+const activeTab = ref(route.query.tab === 'requests' ? 'requests' : 'tasks')
 const taskDialog = ref(false)
 const requestDialog = ref(false)
 const inviteDialog = ref(false)
@@ -59,6 +59,7 @@ const inviteUsername = ref('')
 const currentRole = computed(
   () => members.value.find((item) => item.userId === auth.user?.userId)?.role,
 )
+const focusedRequestId = computed(() => Number(route.query.requestId) || undefined)
 const isManager = computed(() => currentRole.value === 'PROJECT_MANAGER')
 const taskProgress = computed(() =>
   tasks.value.length
@@ -103,6 +104,9 @@ async function load() {
     project.value = detail.data.data
     tasks.value = taskList.data.data
     members.value = memberList.data.data
+    if (activeTab.value === 'requests' && currentRole.value !== 'PROJECT_MANAGER') {
+      activeTab.value = 'tasks'
+    }
     const [acceptanceResult, logResult] = await Promise.allSettled([
       getProjectAcceptancesApi(id.value),
       getProjectLogsApi(id.value, 30),
@@ -352,7 +356,12 @@ onMounted(load)
           >任务申请 <span class="tab-count">{{ pendingRequests }}</span></template
         >
         <div class="request-list">
-          <article v-for="item in requests" :key="item.id" class="surface-card request-card">
+          <article
+            v-for="item in requests"
+            :key="item.id"
+            class="surface-card request-card"
+            :class="{ focused: item.id === focusedRequestId }"
+          >
             <div>
               <div class="request-meta">
                 <StatusTag :value="item.status" /><span
@@ -614,6 +623,10 @@ onMounted(load)
   justify-content: space-between;
   gap: 24px;
   padding: 20px 22px;
+}
+.request-card.focused {
+  border-color: #91a8e8;
+  box-shadow: 0 0 0 3px rgba(49, 91, 216, 0.1);
 }
 .request-meta {
   display: flex;

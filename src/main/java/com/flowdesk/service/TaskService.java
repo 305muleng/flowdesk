@@ -149,6 +149,26 @@ public class TaskService {
                 afterData
         );
 
+        if (task.getAssigneeId() != null
+                && !task.getAssigneeId().equals(currentUser.getUserId())) {
+
+            CreateNotificationDTO notificationDTO =
+                    new CreateNotificationDTO();
+
+            notificationDTO.setRecipientId(task.getAssigneeId());
+            notificationDTO.setActorId(currentUser.getUserId());
+            notificationDTO.setType("TASK_ASSIGNED");
+            notificationDTO.setTitle("任务分配");
+            notificationDTO.setContent(
+                    "你被分配了任务：" + task.getTitle()
+            );
+            notificationDTO.setProjectId(task.getProjectId());
+            notificationDTO.setTargetType("TASK");
+            notificationDTO.setTargetId(task.getId());
+
+            notificationService.createNotification(notificationDTO);
+        }
+
         return task.getId();
     }
 

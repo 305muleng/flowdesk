@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   acceptInvitation,
   getInvitations,
@@ -13,6 +13,8 @@ import StatusTag from '@/components/StatusTag.vue'
 import { formatDateTime } from '@/utils/format'
 
 const router = useRouter()
+const route = useRoute()
+const focusedInvitationId = computed(() => Number(route.query.invitationId) || undefined)
 const list = ref<Invitation[]>([])
 const loading = ref(false)
 async function load() {
@@ -38,7 +40,12 @@ onMounted(load)
   </PageHeader>
   <section v-loading="loading" class="invite-list">
     <el-empty v-if="!loading && !list.length" description="目前没有项目邀请" />
-    <article v-for="item in list" :key="item.id" class="invite-card">
+    <article
+      v-for="item in list"
+      :key="item.id"
+      class="invite-card"
+      :class="{ focused: item.id === focusedInvitationId }"
+    >
       <div class="project-icon">{{ item.projectName.slice(0, 1) }}</div>
       <div class="invite-main">
         <div>
@@ -79,6 +86,10 @@ onMounted(load)
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 17px;
+}
+.invite-card.focused {
+  border-color: #91a8e8;
+  box-shadow: 0 0 0 3px rgba(49, 91, 216, 0.1);
 }
 .project-icon {
   display: grid;

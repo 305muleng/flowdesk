@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -62,6 +63,114 @@ public class TaskServiceTest {
     @AfterEach
     void cleanUp() {
         UserContext.remove();
+    }
+
+    @Test
+    void creatingTaskWithAssigneeNotifiesAssignee() {
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        ProjectMember assignee = new ProjectMember();
+        assignee.setProjectId(4L);
+        assignee.setUserId(2L);
+        assignee.setStatus("ACTIVE");
+
+        CreateTaskDTO dto = new CreateTaskDTO();
+        dto.setTitle("登录接口");
+        dto.setAssigneeId(2L);
+        dto.setPriority("HIGH");
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+
+        UserContext.set(new CurrentUser(1L, "USER"));
+
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMemberMapper.selectOne(any())).thenReturn(assignee);
+        doAnswer(invocation -> {
+            Task task = invocation.getArgument(0);
+            task.setId(9L);
+            return 1;
+        }).when(taskMapper).insert(any(Task.class));
+
+        Long taskId = taskService.createTask(4L, dto);
+
+        assertEquals(9L, taskId);
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(CreateNotificationDTO.class);
+
+        verify(notificationService).createNotification(captor.capture());
+
+        CreateNotificationDTO notification = captor.getValue();
+        assertEquals(2L, notification.getRecipientId());
+        assertEquals(1L, notification.getActorId());
+        assertEquals("TASK_ASSIGNED", notification.getType());
+        assertEquals(4L, notification.getProjectId());
+        assertEquals("TASK", notification.getTargetType());
+        assertEquals(9L, notification.getTargetId());
+    }
+
+    @Test
+    void creatingTaskAssignedToCreatorDoesNotNotifyCreator() {
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        ProjectMember creator = new ProjectMember();
+        creator.setProjectId(4L);
+        creator.setUserId(1L);
+        creator.setStatus("ACTIVE");
+
+        CreateTaskDTO dto = new CreateTaskDTO();
+        dto.setTitle("发布检查");
+        dto.setAssigneeId(1L);
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+
+        UserContext.set(new CurrentUser(1L, "USER"));
+
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMemberMapper.selectOne(any())).thenReturn(creator);
+
+        taskService.createTask(4L, dto);
+
+        verify(notificationService, never())
+                .createNotification(any(CreateNotificationDTO.class));
+    }
+
+    @Test
+    void assigningTaskToCurrentManagerDoesNotNotifyManager() {
+
+        Task task = new Task();
+        task.setId(9L);
+        task.setProjectId(4L);
+        task.setStatus("TODO");
+        task.setTitle("发布检查");
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        ProjectMember manager = new ProjectMember();
+        manager.setProjectId(4L);
+        manager.setUserId(1L);
+        manager.setStatus("ACTIVE");
+
+        AssignTaskDTO dto = new AssignTaskDTO();
+        dto.setAssigneeId(1L);
+
+        UserContext.set(new CurrentUser(1L, "USER"));
+
+        when(taskMapper.selectById(9L)).thenReturn(task);
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMemberMapper.selectOne(any())).thenReturn(manager);
+
+        taskService.assignTask(9L, dto);
+
+        verify(taskMapper).updateById(task);
+        verify(notificationService, never())
+                .createNotification(any(CreateNotificationDTO.class));
     }
 
     @Test

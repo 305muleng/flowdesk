@@ -59,6 +59,12 @@ const router = createRouter({
           meta: { title: '项目邀请' },
         },
         {
+          path: 'notifications',
+          name: 'notifications',
+          component: () => import('@/views/NotificationsView.vue'),
+          meta: { title: '通知中心' },
+        },
+        {
           path: 'tasks',
           name: 'tasks',
           component: () => import('@/views/MyTasksView.vue'),
@@ -81,6 +87,12 @@ const router = createRouter({
           name: 'admin-acceptances',
           component: () => import('@/views/AdminAcceptancesView.vue'),
           meta: { title: '验收审核', systemAdmin: true },
+        },
+        {
+          path: 'admin/users',
+          name: 'admin-users',
+          component: () => import('@/views/AdminUsersView.vue'),
+          meta: { title: '用户管理', systemAdmin: true },
         },
         { path: 'operations', redirect: '/activity' },
       ],

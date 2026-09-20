@@ -2,6 +2,7 @@
 import { DocumentAdd, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { cancelTaskRequestApi, getMyTaskRequestsApi } from '@/api/taskRequests'
@@ -10,6 +11,8 @@ import { formatDateTime } from '@/utils/format'
 import type { Project, TaskRequest } from '@/types/api'
 
 const requests = ref<TaskRequest[]>([])
+const route = useRoute()
+const focusedRequestId = computed(() => Number(route.query.requestId) || undefined)
 const projects = ref<Project[]>([])
 const filter = ref('ALL')
 const loading = ref(false)
@@ -69,7 +72,12 @@ onMounted(load)
     />
   </section>
   <section v-loading="loading" class="request-list">
-    <article v-for="item in requests" :key="item.id" class="surface-card request-card">
+    <article
+      v-for="item in requests"
+      :key="item.id"
+      class="surface-card request-card"
+      :class="{ focused: item.id === focusedRequestId }"
+    >
       <div class="request-main">
         <div class="request-top">
           <StatusTag :value="item.status" /><span>{{
@@ -108,6 +116,10 @@ onMounted(load)
   justify-content: space-between;
   gap: 28px;
   padding: 22px 24px;
+}
+.request-card.focused {
+  border-color: #91a8e8;
+  box-shadow: 0 0 0 3px rgba(49, 91, 216, 0.1);
 }
 .request-main {
   min-width: 0;

@@ -6,10 +6,12 @@ import { useRouter } from 'vue-router'
 import { createProjectApi, getMyProjectsApi } from '@/api/projects'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import { useAuthStore } from '@/stores/auth'
 import type { CreateProjectPayload, Project } from '@/types/api'
 import { formatDate } from '@/utils/format'
 
 const router = useRouter()
+const auth = useAuthStore()
 const projects = ref<Project[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -54,6 +56,7 @@ onMounted(load)
   <PageHeader title="全部项目" description="查看你参与的项目，并快速进入协作空间。">
     <template #actions
       ><el-button :icon="Refresh" circle @click="load" /><el-button
+        v-if="!auth.isSystemAdmin"
         type="primary"
         :icon="Plus"
         @click="openCreate"
@@ -63,7 +66,7 @@ onMounted(load)
   </PageHeader>
   <section v-loading="loading" class="project-grid">
     <el-empty v-if="!loading && projects.length === 0" description="还没有参与任何项目"
-      ><el-button type="primary" @click="openCreate">创建第一个项目</el-button></el-empty
+      ><el-button v-if="!auth.isSystemAdmin" type="primary" @click="openCreate">创建第一个项目</el-button></el-empty
     >
     <article
       v-for="project in projects"

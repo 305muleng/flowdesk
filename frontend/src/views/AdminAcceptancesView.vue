@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Check, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { getAdminAcceptancesApi, reviewAcceptanceApi } from '@/api/acceptances'
@@ -9,6 +10,8 @@ import { formatDateTime } from '@/utils/format'
 import type { ProjectAcceptance } from '@/types/api'
 
 const list = ref<ProjectAcceptance[]>([])
+const route = useRoute()
+const focusedAcceptanceId = computed(() => Number(route.query.acceptanceId) || undefined)
 const filter = ref('PENDING')
 const loading = ref(false)
 
@@ -61,7 +64,12 @@ onMounted(load)
     />
   </section>
   <section v-loading="loading" class="acceptance-grid">
-    <article v-for="item in list" :key="item.id" class="surface-card acceptance-card">
+    <article
+      v-for="item in list"
+      :key="item.id"
+      class="surface-card acceptance-card"
+      :class="{ focused: item.id === focusedAcceptanceId }"
+    >
       <div class="card-top">
         <StatusTag :value="item.reviewStatus" /><span>第 {{ item.acceptanceNo }} 次验收</span>
       </div>
@@ -99,6 +107,10 @@ onMounted(load)
 }
 .acceptance-card {
   padding: 24px;
+}
+.acceptance-card.focused {
+  border-color: #91a8e8;
+  box-shadow: 0 0 0 3px rgba(49, 91, 216, 0.1);
 }
 .card-top {
   display: flex;
