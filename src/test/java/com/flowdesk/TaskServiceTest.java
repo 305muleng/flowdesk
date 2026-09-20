@@ -74,6 +74,16 @@ public class TaskServiceTest {
             user.setSystemRole("USER");
             return user;
         });
+        lenient().when(taskMapper.transitionAssigneeTaskIfCurrent(
+                anyLong(), anyLong(), anyString(), anyString(), any())).thenReturn(1);
+        lenient().when(taskMapper.transitionStatusIfCurrent(
+                anyLong(), anyString(), anyString(), any(), any())).thenReturn(1);
+        lenient().when(taskMapper.reassignTodoIfCurrent(
+                anyLong(), nullable(Long.class), anyLong(), any())).thenReturn(1);
+        lenient().when(taskMapper.cancelIfActive(anyLong(), anyString(), any())).thenReturn(1);
+        lenient().when(taskSubmissionMapper.reviewPendingSubmission(
+                anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any()))
+                .thenReturn(1);
     }
 
     @AfterEach
@@ -215,7 +225,7 @@ public class TaskServiceTest {
 
         taskService.assignTask(9L, dto);
 
-        verify(taskMapper).updateById(task);
+        verify(taskMapper).reassignTodoIfCurrent(eq(9L), isNull(), eq(1L), any());
         verify(notificationService, never())
                 .createNotification(any(CreateNotificationDTO.class));
     }
@@ -274,8 +284,7 @@ public class TaskServiceTest {
         );
 
         // 9. 验证确实执行了数据库更新
-        verify(taskMapper)
-                .updateById(task);
+        verify(taskMapper).reassignTodoIfCurrent(eq(9L), isNull(), eq(2L), any());
 
         // 10. 验证确实写了操作日志
         verify(operationLogService)
@@ -534,8 +543,8 @@ public class TaskServiceTest {
                 task.getStatus()
         );
 
-        verify(taskMapper)
-                .updateById(task);
+        verify(taskMapper).transitionAssigneeTaskIfCurrent(
+                eq(10L), eq(2L), eq("IN_PROGRESS"), eq("REVIEW"), any());
     }
 
     @Test
@@ -964,5 +973,137 @@ public class TaskServiceTest {
                 10L,
                 notification.getTargetId()
         );
+    }
+    @Test
+    void concurrentSubmissionLosesAtomicTransitionAndCreatesNothing() {
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        task.setAssigneeId(2L);
+        task.setStatus("IN_PROGRESS");
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        SubmitTaskDTO dto = new SubmitTaskDTO();
+        dto.setCompletionNote("完成");
+        dto.setTestNote("通过");
+        UserContext.set(new CurrentUser(2L, "USER"));
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(taskMapper.transitionAssigneeTaskIfCurrent(
+                eq(10L), eq(2L), eq("IN_PROGRESS"), eq("REVIEW"), any())).thenReturn(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> taskService.submitTask(10L, dto));
+
+        assertEquals(409, exception.getCode());
+        verify(taskSubmissionMapper, never()).insert(any(TaskSubmission.class));
+        verify(notificationService, never()).createNotification(any());
+    }
+
+    @Test
+    void concurrentSubmissionReviewCannotOverwriteTerminalDecision() {
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        task.setAssigneeId(2L);
+        task.setStatus("REVIEW");
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        TaskSubmission submission = new TaskSubmission();
+        submission.setId(100L);
+        submission.setTaskId(10L);
+        submission.setReviewStatus("PENDING");
+        ReviewTaskDTO dto = new ReviewTaskDTO();
+        dto.setAction("APPROVE");
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+        when(taskMapper.transitionStatusIfCurrent(
+                eq(10L), eq("REVIEW"), eq("DONE"), any(), any())).thenReturn(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> taskService.reviewTask(10L, dto));
+
+        assertEquals(409, exception.getCode());
+        verify(taskSubmissionMapper, never()).reviewPendingSubmission(
+                anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any());
+        verify(notificationService, never()).createNotification(any());
+    }
+
+    @Test
+    void rejectingSubmissionRequiresReviewNote() {
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        task.setStatus("REVIEW");
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        TaskSubmission submission = new TaskSubmission();
+        submission.setId(100L);
+        submission.setTaskId(10L);
+        submission.setReviewStatus("PENDING");
+        ReviewTaskDTO dto = new ReviewTaskDTO();
+        dto.setAction("REJECT");
+        dto.setReviewNote("  ");
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> taskService.reviewTask(10L, dto));
+
+        assertEquals(400, exception.getCode());
+        verify(taskMapper, never()).transitionStatusIfCurrent(
+                anyLong(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void taskDetailFromDeletedProjectIsNotReadable() {
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        Project project = new Project();
+        project.setId(4L);
+        project.setDeletedAt(LocalDateTime.now());
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(projectMapper.selectById(4L)).thenReturn(project);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> taskService.getTaskDetail(10L));
+
+        assertEquals(404, exception.getCode());
+        verify(taskMapper, never()).selectTaskDetail(anyLong());
+    }
+
+    @Test
+    void pendingAcceptanceProjectCannotAddTaskComment() {
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("PENDING_ACCEPTANCE");
+        AddTaskCommentDTO dto = new AddTaskCommentDTO();
+        dto.setContent("继续修改");
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(projectMapper.selectById(4L)).thenReturn(project);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> taskService.addTaskComment(10L, dto));
+
+        assertEquals(409, exception.getCode());
+        verify(taskCommentMapper, never()).insert(any(com.flowdesk.model.TaskComment.class));
+    }
+
+    @Test
+    void systemAdminHasNoPersonalTaskWorklist() {
+        UserContext.set(new CurrentUser(99L, "SYSTEM_ADMIN"));
+
+        assertEquals(List.of(), taskService.getMyTasks());
+        verify(taskMapper, never()).selectMyTasks(anyLong());
     }
 }

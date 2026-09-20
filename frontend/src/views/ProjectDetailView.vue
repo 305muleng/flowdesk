@@ -371,7 +371,12 @@ onMounted(load)
               <h3>{{ item.title }}</h3>
               <p>{{ item.description || item.goal || '未填写补充说明' }}</p>
             </div>
-            <div v-if="item.status === 'PENDING'">
+            <div
+              v-if="
+                item.status === 'PENDING' &&
+                ['PREPARING', 'IN_PROGRESS'].includes(project?.status || '')
+              "
+            >
               <el-button @click="rejectRequest(item)">驳回</el-button
               ><el-button type="primary" @click="openReview(item)">批准并创建任务</el-button>
             </div>

@@ -181,6 +181,7 @@ public class TaskService {
             String status) {
 
         projectPermissionService.requireProjectMember(projectId);
+        requireExistingProject(projectId);
 
         String normalizedScope =
                 scope.trim().toUpperCase();
@@ -224,6 +225,9 @@ public class TaskService {
     }
 
     public List<TaskVO> getMyTasks() {
+        if (!"USER".equals(UserContext.get().getSystemRole())) {
+            return List.of();
+        }
         return taskMapper.selectMyTasks(UserContext.get().getUserId());
     }
 
@@ -288,10 +292,14 @@ public class TaskService {
         String oldStatus = task.getStatus();
 
         // 7. 修改任务状态
+        LocalDateTime now = LocalDateTime.now();
+        int updated = taskMapper.transitionAssigneeTaskIfCurrent(
+                taskId, currentUser.getUserId(), "TODO", "IN_PROGRESS", now);
+        if (updated != 1) {
+            throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
+        }
         task.setStatus("IN_PROGRESS");
-        task.setUpdatedAt(LocalDateTime.now());
-
-        taskMapper.updateById(task);
+        task.setUpdatedAt(now);
 
         Map<String, Object> beforeData = new HashMap<>();
         beforeData.put("status", oldStatus);
@@ -366,6 +374,12 @@ public class TaskService {
 
         LocalDateTime now = LocalDateTime.now();
 
+        int transitioned = taskMapper.transitionAssigneeTaskIfCurrent(
+                taskId, currentUser.getUserId(), "IN_PROGRESS", "REVIEW", now);
+        if (transitioned != 1) {
+            throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
+        }
+
 // 6. 计算这是第几次提交
         Integer maxSubmissionNo =
                 taskSubmissionMapper.selectMaxSubmissionNo(taskId);
@@ -395,8 +409,6 @@ public class TaskService {
 // 8. 任务进入待审核状态
         task.setStatus("REVIEW");
         task.setUpdatedAt(now);
-
-        taskMapper.updateById(task);
 
 // 9. 记录提交任务的操作日志
         Map<String, Object> beforeData = new HashMap<>();
@@ -521,6 +533,11 @@ public class TaskService {
             );
         }
 
+        if ("REJECT".equals(action)
+                && (dto.getReviewNote() == null || dto.getReviewNote().isBlank())) {
+            throw new BusinessException(400, "驳回任务时必须填写修改意见");
+        }
+
         CurrentUser currentUser = UserContext.get();
         LocalDateTime now = LocalDateTime.now();
 
@@ -552,9 +569,18 @@ public class TaskService {
 
         task.setUpdatedAt(now);
 
-        // 10. 更新数据库
-        taskSubmissionMapper.updateById(submission);
-        taskMapper.updateById(task);
+        // 10. 以当前状态为前置条件完成审核，避免重复审核覆盖终态
+        int taskUpdated = taskMapper.transitionStatusIfCurrent(
+                taskId, "REVIEW", task.getStatus(), task.getCompletedAt(), now);
+        if (taskUpdated != 1) {
+            throw new BusinessException(409, "任务已被处理，请刷新后重试");
+        }
+        int submissionUpdated = taskSubmissionMapper.reviewPendingSubmission(
+                submission.getId(), taskId, submission.getReviewStatus(),
+                currentUser.getUserId(), dto.getReviewNote(), now);
+        if (submissionUpdated != 1) {
+            throw new BusinessException(409, "任务提交记录已被处理，请刷新后重试");
+        }
 
         // 11. 准备修改前的数据
         Map<String, Object> beforeData = new HashMap<>();
@@ -681,6 +707,7 @@ public class TaskService {
         projectPermissionService.requireProjectMember(
                 task.getProjectId()
         );
+        requireExistingProject(task.getProjectId());
 
         return taskSubmissionMapper.selectTaskSubmissions(taskId);
     }
@@ -771,15 +798,14 @@ public class TaskService {
         }
 
         // 6. 修改负责人
-        task.setAssigneeId(
-                dto.getAssigneeId()
-        );
-
-        task.setUpdatedAt(
-                LocalDateTime.now()
-        );
-
-        taskMapper.updateById(task);
+        LocalDateTime now = LocalDateTime.now();
+        int updated = taskMapper.reassignTodoIfCurrent(
+                taskId, oldAssigneeId, dto.getAssigneeId(), now);
+        if (updated != 1) {
+            throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
+        }
+        task.setAssigneeId(dto.getAssigneeId());
+        task.setUpdatedAt(now);
 
         // 7. 准备审计日志的修改前数据
         Map<String, Object> beforeData =
@@ -867,6 +893,14 @@ public class TaskService {
                 && "USER".equals(user.getSystemRole());
     }
 
+    private Project requireExistingProject(Long projectId) {
+        Project project = projectMapper.selectById(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        return project;
+    }
+
     public TaskVO getTaskDetail(Long taskId) {
 
         // 1. 先找到任务
@@ -880,6 +914,7 @@ public class TaskService {
         projectPermissionService.requireProjectMember(
                 task.getProjectId()
         );
+        requireExistingProject(task.getProjectId());
 
         // 3. 查询前端需要的详细信息
         TaskVO taskVO =
@@ -922,9 +957,8 @@ public class TaskService {
             );
         }
 
-        if ("COMPLETED".equals(project.getStatus())
-                || "ARCHIVED".equals(project.getStatus())
-                || "CANCELLED".equals(project.getStatus())) {
+        if (!"PREPARING".equals(project.getStatus())
+                && !"IN_PROGRESS".equals(project.getStatus())) {
 
             throw new BusinessException(
                     409,
@@ -981,6 +1015,7 @@ public class TaskService {
         projectPermissionService.requireProjectMember(
                 task.getProjectId()
         );
+        requireExistingProject(task.getProjectId());
 
         return taskCommentMapper.selectTaskComments(taskId);
     }
@@ -1050,7 +1085,13 @@ public class TaskService {
         String oldStatus =
                 task.getStatus();
 
-        // 6. 修改任务
+        int updated = taskMapper.cancelIfActive(
+                taskId, dto.getReason().trim(), now);
+        if (updated != 1) {
+            throw new BusinessException(409, "任务已被处理，请刷新后重试");
+        }
+
+        // 6. 同步内存对象，供日志使用
         task.setStatus("CANCELLED");
 
         task.setCancelReason(
@@ -1060,8 +1101,6 @@ public class TaskService {
         task.setCancelledAt(now);
         task.setCompletedAt(null);
         task.setUpdatedAt(now);
-
-        taskMapper.updateById(task);
 
         // 7. 准备审计日志
         Map<String, Object> beforeData =
@@ -1101,5 +1140,6 @@ public class TaskService {
                 beforeData,
                 afterData
         );
+
     }
 }

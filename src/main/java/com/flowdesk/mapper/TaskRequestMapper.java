@@ -6,11 +6,37 @@ import com.flowdesk.vo.TaskRequestVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 
 @Mapper
 public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
+    @Update("""
+            UPDATE task_request
+            SET status = #{newStatus}, reviewer_id = #{reviewerId},
+                review_note = #{reviewNote}, reviewed_at = #{reviewedAt}
+            WHERE id = #{requestId} AND project_id = #{projectId} AND status = 'PENDING'
+            """)
+    int reviewIfPending(@Param("requestId") Long requestId,
+                        @Param("projectId") Long projectId,
+                        @Param("newStatus") String newStatus,
+                        @Param("reviewerId") Long reviewerId,
+                        @Param("reviewNote") String reviewNote,
+                        @Param("reviewedAt") LocalDateTime reviewedAt);
+
+    @Update("""
+            UPDATE task_request
+            SET status = 'CANCELLED', cancelled_at = #{cancelledAt}
+            WHERE id = #{requestId} AND project_id = #{projectId}
+              AND requester_id = #{requesterId} AND status = 'PENDING'
+            """)
+    int cancelIfPending(@Param("requestId") Long requestId,
+                        @Param("projectId") Long projectId,
+                        @Param("requesterId") Long requesterId,
+                        @Param("cancelledAt") LocalDateTime cancelledAt);
     @Select("""
         SELECT
             tr.id AS id,
@@ -49,7 +75,7 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
                 OR tr.status = #{status}
           )
 
-        ORDER BY tr.created_at DESC
+        ORDER BY tr.created_at DESC, tr.id DESC
         """)
     List<TaskRequestVO> selectProjectTaskRequests(@Param("projectId") Long projectId, @Param("status") String status);
 
@@ -67,7 +93,7 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
         LEFT JOIN `user` reviewer ON tr.reviewer_id = reviewer.id
         WHERE tr.requester_id = #{userId}
           AND (#{status} = 'ALL' OR tr.status = #{status})
-        ORDER BY tr.created_at DESC
+        ORDER BY tr.created_at DESC, tr.id DESC
         """)
     List<TaskRequestVO> selectMyTaskRequests(@Param("userId") Long userId, @Param("status") String status);
 }

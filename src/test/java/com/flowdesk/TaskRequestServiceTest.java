@@ -17,6 +17,7 @@ import com.flowdesk.model.Task;
 import com.flowdesk.model.TaskRequest;
 import com.flowdesk.model.User;
 import com.flowdesk.service.NotificationService;
+import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.TaskRequestService;
 import org.junit.jupiter.api.AfterEach;
@@ -63,6 +64,9 @@ public class TaskRequestServiceTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private OperationLogService operationLogService;
+
     @BeforeEach
     void setUpActiveUsers() {
         lenient().when(userMapper.selectById(anyLong())).thenAnswer(invocation -> {
@@ -71,6 +75,19 @@ public class TaskRequestServiceTest {
             user.setStatus("ACTIVE");
             user.setSystemRole("USER");
             return user;
+        });
+        lenient().when(taskRequestMapper.reviewIfPending(
+                anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any()))
+                .thenReturn(1);
+        lenient().when(taskRequestMapper.cancelIfPending(
+                anyLong(), anyLong(), anyLong(), any())).thenReturn(1);
+        lenient().when(projectMemberMapper.selectOne(any())).thenAnswer(invocation -> {
+            ProjectMember member = new ProjectMember();
+            member.setProjectId(4L);
+            member.setUserId(2L);
+            member.setRole("DEVELOPER");
+            member.setStatus("ACTIVE");
+            return member;
         });
     }
 
@@ -798,5 +815,89 @@ public class TaskRequestServiceTest {
                 99L,
                 assigneeNotification.getTargetId()
         );
+    }
+    @Test
+    void approvingRequestFromInactiveRequesterIsRejected() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        TaskRequest request = new TaskRequest();
+        request.setId(10L);
+        request.setProjectId(4L);
+        request.setRequesterId(2L);
+        request.setStatus("PENDING");
+        ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
+        dto.setAction("APPROVE");
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+        User disabled = new User();
+        disabled.setId(2L);
+        disabled.setStatus("DISABLED");
+        disabled.setSystemRole("USER");
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(taskRequestMapper.selectById(10L)).thenReturn(request);
+        when(userMapper.selectById(2L)).thenReturn(disabled);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> taskRequestService.reviewTaskRequest(4L, 10L, dto));
+
+        assertEquals(409, exception.getCode());
+        verify(taskRequestMapper, never()).reviewIfPending(anyLong(), anyLong(), anyString(),
+                anyLong(), nullable(String.class), any());
+        verify(taskMapper, never()).insert(any(Task.class));
+    }
+
+    @Test
+    void concurrentRequestReviewCreatesNoDuplicateTask() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        TaskRequest request = new TaskRequest();
+        request.setId(10L);
+        request.setProjectId(4L);
+        request.setRequesterId(2L);
+        request.setStatus("PENDING");
+        ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
+        dto.setAction("APPROVE");
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(taskRequestMapper.selectById(10L)).thenReturn(request);
+        when(taskRequestMapper.reviewIfPending(anyLong(), anyLong(), anyString(),
+                anyLong(), nullable(String.class), any())).thenReturn(0);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> taskRequestService.reviewTaskRequest(4L, 10L, dto));
+
+        assertEquals(409, exception.getCode());
+        verify(taskMapper, never()).insert(any(Task.class));
+        verify(notificationService, never()).createNotification(any());
+    }
+
+    @Test
+    void concurrentCancelCannotOverwriteReviewedRequest() {
+        TaskRequest request = new TaskRequest();
+        request.setId(10L);
+        request.setProjectId(4L);
+        request.setRequesterId(2L);
+        request.setStatus("PENDING");
+        UserContext.set(new CurrentUser(2L, "USER"));
+        when(taskRequestMapper.selectById(10L)).thenReturn(request);
+        when(taskRequestMapper.cancelIfPending(eq(10L), eq(4L), eq(2L), any()))
+                .thenReturn(0);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> taskRequestService.cancelTaskRequest(4L, 10L));
+
+        assertEquals(409, exception.getCode());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void systemAdminHasNoPersonalTaskRequestWorklist() {
+        UserContext.set(new CurrentUser(99L, "SYSTEM_ADMIN"));
+
+        assertEquals(List.of(), taskRequestService.getMyTaskRequests("ALL"));
+        verify(taskRequestMapper, never()).selectMyTaskRequests(anyLong(), anyString());
     }
 }

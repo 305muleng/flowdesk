@@ -6,6 +6,9 @@ import com.flowdesk.vo.TaskSubmissionVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 
@@ -29,6 +32,19 @@ public interface TaskSubmissionMapper
         LIMIT 1
         """)
     TaskSubmission selectPendingSubmission(@Param("taskId") Long taskId);
+
+    @Update("""
+            UPDATE task_submission
+            SET review_status = #{reviewStatus}, reviewer_id = #{reviewerId},
+                review_note = #{reviewNote}, reviewed_at = #{reviewedAt}
+            WHERE id = #{submissionId} AND task_id = #{taskId} AND review_status = 'PENDING'
+            """)
+    int reviewPendingSubmission(@Param("submissionId") Long submissionId,
+                                @Param("taskId") Long taskId,
+                                @Param("reviewStatus") String reviewStatus,
+                                @Param("reviewerId") Long reviewerId,
+                                @Param("reviewNote") String reviewNote,
+                                @Param("reviewedAt") LocalDateTime reviewedAt);
 
     @Select("""
         SELECT

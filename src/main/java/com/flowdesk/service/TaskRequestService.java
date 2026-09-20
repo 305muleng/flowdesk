@@ -22,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -35,6 +37,7 @@ public class TaskRequestService {
     private final ProjectMemberMapper projectMemberMapper;
     private final NotificationService notificationService;
     private final UserMapper userMapper;
+    private final OperationLogService operationLogService;
 
     public TaskRequestService(
             TaskRequestMapper taskRequestMapper,
@@ -43,7 +46,8 @@ public class TaskRequestService {
             TaskMapper taskMapper,
             ProjectMemberMapper projectMemberMapper,
             NotificationService notificationService,
-            UserMapper userMapper) {
+            UserMapper userMapper,
+            OperationLogService operationLogService) {
 
         this.taskRequestMapper = taskRequestMapper;
         this.projectMapper = projectMapper;
@@ -52,6 +56,7 @@ public class TaskRequestService {
         this.projectMemberMapper = projectMemberMapper;
         this.notificationService = notificationService;
         this.userMapper = userMapper;
+        this.operationLogService = operationLogService;
     }
 
     @Transactional
@@ -116,6 +121,11 @@ public class TaskRequestService {
 
         taskRequestMapper.insert(request);
 
+        operationLogService.record(
+                projectId, currentUser.getUserId(), "TASK_REQUEST", request.getId(),
+                "CREATE_TASK_REQUEST", "提交任务申请", null,
+                Map.of("status", request.getStatus(), "title", request.getTitle()));
+
         List<ProjectMember> managers =
                 projectMemberMapper.selectList(
                         new LambdaQueryWrapper<ProjectMember>()
@@ -178,6 +188,11 @@ public class TaskRequestService {
         // 只有项目负责人查看整个项目的任务申请
         projectPermissionService.requireProjectManager(projectId);
 
+        Project project = projectMapper.selectById(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+
         String normalizedStatus =
                 status.trim().toUpperCase();
 
@@ -204,6 +219,9 @@ public class TaskRequestService {
 
     public List<TaskRequestVO> getMyTaskRequests(String status) {
         String normalizedStatus = normalizeStatus(status);
+        if (!"USER".equals(UserContext.get().getSystemRole())) {
+            return List.of();
+        }
         return taskRequestMapper.selectMyTaskRequests(
                 UserContext.get().getUserId(),
                 normalizedStatus
@@ -291,12 +309,22 @@ public class TaskRequestService {
         // 4. 拒绝
         if ("REJECT".equals(action)) {
 
+            int updated = taskRequestMapper.reviewIfPending(
+                    requestId, projectId, "REJECTED", currentUser.getUserId(),
+                    dto.getReviewNote(), now);
+            if (updated != 1) {
+                throw new BusinessException(409, "该任务申请已经处理，请刷新后重试");
+            }
+
             request.setStatus("REJECTED");
             request.setReviewerId(currentUser.getUserId());
             request.setReviewNote(dto.getReviewNote());
             request.setReviewedAt(now);
 
-            taskRequestMapper.updateById(request);
+            operationLogService.record(
+                    projectId, currentUser.getUserId(), "TASK_REQUEST", request.getId(),
+                    "REJECT_TASK_REQUEST", "驳回任务申请",
+                    Map.of("status", "PENDING"), Map.of("status", "REJECTED"));
 
             CreateNotificationDTO notificationDTO =
                     new CreateNotificationDTO();
@@ -318,6 +346,15 @@ public class TaskRequestService {
         }
 
         // 下面全部属于 APPROVE
+
+        ProjectMember requesterMembership = projectMemberMapper.selectOne(
+                new LambdaQueryWrapper<ProjectMember>()
+                        .eq(ProjectMember::getProjectId, projectId)
+                        .eq(ProjectMember::getUserId, request.getRequesterId())
+                        .eq(ProjectMember::getStatus, "ACTIVE"));
+        if (requesterMembership == null || !isActiveProjectUser(request.getRequesterId())) {
+            throw new BusinessException(409, "任务申请人已不是该项目的有效成员");
+        }
 
         // 5. 正式任务 deadline 必填
         if (dto.getDeadline() == null) {
@@ -373,6 +410,13 @@ public class TaskRequestService {
             }
         }
 
+        int reviewed = taskRequestMapper.reviewIfPending(
+                requestId, projectId, "APPROVED", currentUser.getUserId(),
+                dto.getReviewNote(), now);
+        if (reviewed != 1) {
+            throw new BusinessException(409, "该任务申请已经处理，请刷新后重试");
+        }
+
         // 8. 创建正式 Task
         Task task = new Task();
 
@@ -404,6 +448,14 @@ public class TaskRequestService {
         request.setReviewedAt(now);
 
         taskRequestMapper.updateById(request);
+
+        Map<String, Object> approvedData = new HashMap<>();
+        approvedData.put("status", "APPROVED");
+        approvedData.put("taskId", task.getId());
+        operationLogService.record(
+                projectId, currentUser.getUserId(), "TASK_REQUEST", request.getId(),
+                "APPROVE_TASK_REQUEST", "批准任务申请并创建正式任务",
+                Map.of("status", "PENDING"), approvedData);
 
         CreateNotificationDTO approvedNotification =
                 new CreateNotificationDTO();
@@ -469,11 +521,14 @@ public class TaskRequestService {
                 && "USER".equals(user.getSystemRole());
     }
 
+    @Transactional
     public void cancelTaskRequest(
             Long projectId,
             Long requestId) {
 
         CurrentUser currentUser = UserContext.get();
+
+        projectPermissionService.requireProjectMember(projectId);
 
         // 1. 查询申请
         TaskRequest request =
@@ -507,10 +562,19 @@ public class TaskRequestService {
             );
         }
 
-        // 4. 修改状态
+        // 4. 以 PENDING 为前置条件撤回，避免与审批并发双重生效
+        LocalDateTime cancelledAt = LocalDateTime.now();
+        int updated = taskRequestMapper.cancelIfPending(
+                requestId, projectId, currentUser.getUserId(), cancelledAt);
+        if (updated != 1) {
+            throw new BusinessException(409, "该任务申请已经处理，请刷新后重试");
+        }
         request.setStatus("CANCELLED");
-        request.setCancelledAt(LocalDateTime.now());
+        request.setCancelledAt(cancelledAt);
 
-        taskRequestMapper.updateById(request);
+        operationLogService.record(
+                projectId, currentUser.getUserId(), "TASK_REQUEST", request.getId(),
+                "CANCEL_TASK_REQUEST", "撤回任务申请",
+                Map.of("status", "PENDING"), Map.of("status", "CANCELLED"));
     }
 }

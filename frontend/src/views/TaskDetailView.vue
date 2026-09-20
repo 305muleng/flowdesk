@@ -3,7 +3,7 @@ import { ArrowLeft, ChatDotRound } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getProjectMembersApi } from '@/api/projects'
+import { getProjectApi, getProjectMembersApi } from '@/api/projects'
 import {
   addTaskCommentApi,
   assignTaskApi,
@@ -17,7 +17,7 @@ import {
 } from '@/api/tasks'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
-import type { ProjectMember, Task, TaskComment, TaskSubmission } from '@/types/api'
+import type { Project, ProjectMember, Task, TaskComment, TaskSubmission } from '@/types/api'
 import { formatDateTime } from '@/utils/format'
 
 const route = useRoute()
@@ -25,6 +25,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const id = computed(() => route.params.taskId as string)
 const task = ref<Task>()
+const project = ref<Project>()
 const members = ref<ProjectMember[]>([])
 const comments = ref<TaskComment[]>([])
 const submissions = ref<TaskSubmission[]>([])
@@ -41,16 +42,22 @@ const myMembership = computed(() =>
 )
 const isManager = computed(() => myMembership.value?.role === 'PROJECT_MANAGER')
 const isAssignee = computed(() => task.value?.assigneeId === auth.user?.userId)
+const projectAllowsPlanning = computed(() =>
+  ['PREPARING', 'IN_PROGRESS'].includes(project.value?.status || ''),
+)
+const projectIsRunning = computed(() => project.value?.status === 'IN_PROGRESS')
 
 async function load() {
   loading.value = true
   try {
     task.value = (await getTaskApi(id.value)).data.data
-    const [memberResponse, commentResponse, submissionResponse] = await Promise.all([
+    const [projectResponse, memberResponse, commentResponse, submissionResponse] = await Promise.all([
+      getProjectApi(task.value.projectId),
       getProjectMembersApi(task.value.projectId),
       getTaskCommentsApi(id.value),
       getTaskSubmissionsApi(id.value),
     ])
+    project.value = projectResponse.data.data
     members.value = memberResponse.data.data
     comments.value = commentResponse.data.data
     submissions.value = submissionResponse.data.data
@@ -148,29 +155,29 @@ onMounted(load)
           <p>{{ task.description || '暂无任务描述' }}</p>
         </div>
         <div class="actions">
-          <el-button v-if="isManager && task.status === 'TODO'" @click="assignVisible = true"
+          <el-button v-if="isManager && projectAllowsPlanning && task.status === 'TODO'" @click="assignVisible = true"
             >分配负责人</el-button
           >
-          <el-button v-if="isAssignee && task.status === 'TODO'" type="primary" @click="start"
+          <el-button v-if="isAssignee && projectIsRunning && task.status === 'TODO'" type="primary" @click="start"
             >开始任务</el-button
           >
           <el-button
-            v-if="isAssignee && task.status === 'IN_PROGRESS'"
+            v-if="isAssignee && projectIsRunning && task.status === 'IN_PROGRESS'"
             type="primary"
             @click="submitVisible = true"
             >提交审核</el-button
           >
           <el-button
-            v-if="isManager && task.status === 'REVIEW'"
+            v-if="isManager && projectIsRunning && task.status === 'REVIEW'"
             type="success"
             @click="review('APPROVE')"
             >审核通过</el-button
           >
-          <el-button v-if="isManager && task.status === 'REVIEW'" @click="review('REJECT')"
+          <el-button v-if="isManager && projectIsRunning && task.status === 'REVIEW'" @click="review('REJECT')"
             >驳回修改</el-button
           >
           <el-button
-            v-if="isManager && ['TODO', 'IN_PROGRESS'].includes(task.status)"
+            v-if="isManager && projectAllowsPlanning && ['TODO', 'IN_PROGRESS'].includes(task.status)"
             type="danger"
             plain
             @click="cancel"
@@ -235,7 +242,7 @@ onMounted(load)
             <h2>协作讨论</h2>
             <span>{{ comments.length }} 条</span>
           </div>
-          <div class="comment-compose">
+          <div v-if="projectAllowsPlanning" class="comment-compose">
             <el-input
               v-model="commentContent"
               type="textarea"
