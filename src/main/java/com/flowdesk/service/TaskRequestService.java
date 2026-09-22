@@ -76,8 +76,9 @@ public class TaskRequestService {
             );
         }
 
-        // 3. 项目必须允许产生新任务
-        Project project = projectMapper.selectById(projectId);
+        // 3. 项目必须允许产生新任务；与验收提交共用项目行锁，
+        // 避免状态切换后仍并发写入新申请。
+        Project project = projectMapper.selectByIdForUpdate(projectId);
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
@@ -247,8 +248,9 @@ public class TaskRequestService {
         projectPermissionService.requireProjectManager(projectId);
 
         // 2. 查询项目
+        // 审批通过会创建正式任务，因此也必须与验收状态切换串行化。
         Project project =
-                projectMapper.selectById(projectId);
+                projectMapper.selectByIdForUpdate(projectId);
 
         if (project == null
                 || project.getDeletedAt() != null) {

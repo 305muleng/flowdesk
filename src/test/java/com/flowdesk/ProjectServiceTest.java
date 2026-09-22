@@ -13,6 +13,7 @@ import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.ProjectService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,11 +23,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectServiceTest {
@@ -45,6 +49,13 @@ public class ProjectServiceTest {
 
     @InjectMocks
     private ProjectService projectService;
+
+    @BeforeEach
+    void setUpAtomicTransitions() {
+        lenient().when(projectMapper.startIfPreparing(anyLong(), any())).thenReturn(1);
+        lenient().when(projectMapper.cancelIfActive(anyLong(), any(), any())).thenReturn(1);
+        lenient().when(projectMapper.archiveIfCompleted(anyLong(), any())).thenReturn(1);
+    }
 
     @AfterEach
     void cleanUp() {
@@ -154,7 +165,7 @@ public class ProjectServiceTest {
         );
 
         verify(projectMapper)
-                .updateById(project);
+                .startIfPreparing(eq(4L), any());
 
         verify(operationLogService)
                 .record(
@@ -191,7 +202,7 @@ public class ProjectServiceTest {
         );
 
         verify(projectMapper)
-                .updateById(project);
+                .archiveIfCompleted(eq(4L), any());
 
         verify(operationLogService)
                 .record(
@@ -240,7 +251,7 @@ public class ProjectServiceTest {
         );
 
         verify(projectMapper)
-                .updateById(project);
+                .cancelIfActive(eq(4L), any(), any());
     }
 
     @Test
@@ -263,5 +274,20 @@ public class ProjectServiceTest {
                 "只有已完成的项目可以归档",
                 exception.getMessage()
         );
+    }
+    @Test
+    void concurrentProjectTransitionDoesNotWriteMisleadingLog() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("COMPLETED");
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.archiveIfCompleted(eq(4L), any())).thenReturn(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> projectService.archiveProject(4L));
+
+        assertEquals(409, exception.getCode());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

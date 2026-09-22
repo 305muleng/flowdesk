@@ -181,7 +181,10 @@ public class ProjectService {
         project.setStartTime(now);
         project.setUpdatedAt(now);
 
-        projectMapper.updateById(project);
+        int updated = projectMapper.startIfPreparing(projectId, now);
+        if (updated != 1) {
+            throw new BusinessException(409, "项目状态已发生变化，请刷新后重试");
+        }
 
         // 6. 准备修改前的数据
         Map<String, Object> beforeData =
@@ -262,7 +265,10 @@ public class ProjectService {
         project.setActualEndTime(null);
         project.setUpdatedAt(now);
 
-        projectMapper.updateById(project);
+        int updated = projectMapper.cancelIfActive(projectId, dto.getReason().trim(), now);
+        if (updated != 1) {
+            throw new BusinessException(409, "项目状态已发生变化，请刷新后重试");
+        }
 
         // 6. 审计日志
         Map<String, Object> beforeData =
@@ -332,7 +338,10 @@ public class ProjectService {
         project.setStatus("ARCHIVED");
         project.setUpdatedAt(now);
 
-        projectMapper.updateById(project);
+        int updated = projectMapper.archiveIfCompleted(projectId, now);
+        if (updated != 1) {
+            throw new BusinessException(409, "项目状态已发生变化，请刷新后重试");
+        }
 
         Map<String, Object> beforeData = new HashMap<>();
         beforeData.put("status", oldStatus);

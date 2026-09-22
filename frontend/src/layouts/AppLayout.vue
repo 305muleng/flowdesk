@@ -24,13 +24,13 @@ onMounted(() => {
   <el-container class="app-shell">
     <el-aside width="252px" class="sidebar">
       <RouterLink class="logo" to="/dashboard"><span>F</span><div>FlowDesk<small>TEAM WORKSPACE</small></div></RouterLink>
-      <p class="nav-label">工作空间</p>
-      <el-menu router :default-active="$route.path" class="nav-menu">
+      <p v-if="!auth.isSystemAdmin" class="nav-label">工作空间</p>
+      <el-menu v-if="!auth.isSystemAdmin" router :default-active="$route.path" class="nav-menu">
         <el-menu-item index="/dashboard"><el-icon><DataAnalysis /></el-icon><span>工作台</span></el-menu-item>
         <el-menu-item index="/projects"><el-icon><FolderOpened /></el-icon><span>项目中心</span></el-menu-item>
         <el-menu-item index="/tasks"><el-icon><List /></el-icon><span>我的任务</span></el-menu-item>
         <el-menu-item index="/task-requests"><el-icon><Document /></el-icon><span>任务申请</span></el-menu-item>
-        <el-menu-item v-if="!auth.isSystemAdmin" index="/invitations"><el-icon><Bell /></el-icon><span>项目邀请</span></el-menu-item>
+        <el-menu-item index="/invitations"><el-icon><Bell /></el-icon><span>项目邀请</span></el-menu-item>
         <el-menu-item index="/activity"><el-icon><Timer /></el-icon><span>项目动态</span></el-menu-item>
       </el-menu>
       <template v-if="auth.isSystemAdmin">

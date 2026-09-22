@@ -111,7 +111,7 @@ public class TaskServiceTest {
 
         UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(projectMemberMapper.selectOne(any())).thenReturn(assignee);
         doAnswer(invocation -> {
             Task task = invocation.getArgument(0);
@@ -155,7 +155,7 @@ public class TaskServiceTest {
         dto.setAssigneeId(2L);
         dto.setDeadline(LocalDateTime.now().plusDays(1));
         UserContext.set(new CurrentUser(1L, "USER"));
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(projectMemberMapper.selectOne(any())).thenReturn(member);
         when(userMapper.selectById(2L)).thenReturn(disabled);
 
@@ -187,7 +187,7 @@ public class TaskServiceTest {
 
         UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(projectMemberMapper.selectOne(any())).thenReturn(creator);
 
         taskService.createTask(4L, dto);

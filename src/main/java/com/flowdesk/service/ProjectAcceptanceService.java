@@ -10,6 +10,7 @@ import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
 import com.flowdesk.vo.ProjectAcceptanceVO;
+import com.flowdesk.vo.ProjectMemberVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ public class ProjectAcceptanceService {
     private final TaskRequestMapper taskRequestMapper;
     private final UserMapper userMapper;
     private final NotificationService notificationService;
+    private final ProjectMemberMapper projectMemberMapper;
 
     public ProjectAcceptanceService(
             ProjectAcceptanceMapper projectAcceptanceMapper,
@@ -39,7 +41,8 @@ public class ProjectAcceptanceService {
             OperationLogService operationLogService,
             TaskRequestMapper taskRequestMapper,
             UserMapper userMapper,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            ProjectMemberMapper projectMemberMapper) {
 
         this.projectAcceptanceMapper = projectAcceptanceMapper;
         this.projectMapper = projectMapper;
@@ -49,6 +52,7 @@ public class ProjectAcceptanceService {
         this.taskRequestMapper = taskRequestMapper;
         this.userMapper = userMapper;
         this.notificationService = notificationService;
+        this.projectMemberMapper = projectMemberMapper;
     }
 
     @Transactional
@@ -59,7 +63,7 @@ public class ProjectAcceptanceService {
         // 1. 只有项目负责人可以提交项目验收
         projectPermissionService.requireProjectManager(projectId);
 
-        Project project = projectMapper.selectById(projectId);
+        Project project = projectMapper.selectByIdForUpdate(projectId);
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
@@ -149,13 +153,16 @@ public class ProjectAcceptanceService {
         acceptance.setReviewStatus("PENDING");
         acceptance.setSubmittedAt(now);
 
+        int transitioned = projectMapper.submitAcceptanceIfInProgress(projectId, now);
+        if (transitioned != 1) {
+            throw new BusinessException(409, "项目状态已发生变化，请刷新后重试");
+        }
+
         projectAcceptanceMapper.insert(acceptance);
 
-// 6. 项目进入待验收状态
+// 6. 项目进入待验收状态（数据库已通过条件更新完成）
         project.setStatus("PENDING_ACCEPTANCE");
         project.setUpdatedAt(now);
-
-        projectMapper.updateById(project);
 
 // 7. 记录项目验收提交日志
         Map<String, Object> beforeData =
@@ -246,6 +253,8 @@ public class ProjectAcceptanceService {
 
     public List<ProjectAcceptanceVO> getAcceptances(String status) {
 
+        requireSystemAdmin();
+
         String normalizedStatus =
                 status.trim().toUpperCase();
 
@@ -269,6 +278,10 @@ public class ProjectAcceptanceService {
 
     public List<ProjectAcceptanceVO> getProjectAcceptances(Long projectId) {
         projectPermissionService.requireProjectMember(projectId);
+        Project project = projectMapper.selectById(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
         return projectAcceptanceMapper.selectProjectAcceptances(projectId);
     }
 
@@ -276,6 +289,8 @@ public class ProjectAcceptanceService {
     public void reviewAcceptance(
             Long acceptanceId,
             ReviewProjectAcceptanceDTO dto) {
+
+        requireSystemAdmin();
 
         ProjectAcceptance acceptance =
                 projectAcceptanceMapper.selectById(acceptanceId);
@@ -296,7 +311,7 @@ public class ProjectAcceptanceService {
         }
 
         Project project =
-                projectMapper.selectById(
+                projectMapper.selectByIdForUpdate(
                         acceptance.getProjectId()
                 );
 
@@ -341,6 +356,11 @@ public class ProjectAcceptanceService {
             );
         }
 
+        if ("REJECT".equals(action)
+                && (dto.getReviewNote() == null || dto.getReviewNote().isBlank())) {
+            throw new BusinessException(400, "驳回项目验收时必须填写原因");
+        }
+
         LocalDateTime now = LocalDateTime.now();
 
         // 先保存修改前的数据
@@ -379,9 +399,18 @@ public class ProjectAcceptanceService {
 
         project.setUpdatedAt(now);
 
-        // 更新数据库
-        projectAcceptanceMapper.updateById(acceptance);
-        projectMapper.updateById(project);
+        // 条件状态更新保证并发 approve/reject 只能成功一个
+        int projectUpdated = projectMapper.reviewAcceptanceIfPending(
+                project.getId(), project.getStatus(), project.getActualEndTime(), now);
+        if (projectUpdated != 1) {
+            throw new BusinessException(409, "项目验收状态已发生变化，请刷新后重试");
+        }
+        int acceptanceUpdated = projectAcceptanceMapper.reviewIfPending(
+                acceptance.getId(), project.getId(), acceptance.getReviewStatus(),
+                currentUser.getUserId(), dto.getReviewNote(), now);
+        if (acceptanceUpdated != 1) {
+            throw new BusinessException(409, "该项目验收已经处理，请刷新后重试");
+        }
 
         // 准备修改前的数据
         Map<String, Object> beforeData =
@@ -444,14 +473,17 @@ public class ProjectAcceptanceService {
                 afterData
         );
 
-        Long submitterId = acceptance.getSubmitterId();
-
-        if (!submitterId.equals(currentUser.getUserId())) {
+        List<ProjectMemberVO> managers = projectMemberMapper.selectActiveMembers(project.getId());
+        for (ProjectMemberVO manager : managers) {
+            if (!"PROJECT_MANAGER".equals(manager.getRole())
+                    || manager.getUserId().equals(currentUser.getUserId())) {
+                continue;
+            }
 
             CreateNotificationDTO notificationDTO =
                     new CreateNotificationDTO();
 
-            notificationDTO.setRecipientId(submitterId);
+            notificationDTO.setRecipientId(manager.getUserId());
             notificationDTO.setActorId(currentUser.getUserId());
 
             if ("APPROVE".equals(action)) {
@@ -494,6 +526,13 @@ public class ProjectAcceptanceService {
             notificationService.createNotification(
                     notificationDTO
             );
+        }
+    }
+
+    private void requireSystemAdmin() {
+        CurrentUser currentUser = UserContext.get();
+        if (currentUser == null || !"SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+            throw new BusinessException(403, "无系统管理员权限");
         }
     }
 }

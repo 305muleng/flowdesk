@@ -337,7 +337,11 @@ onMounted(load)
             <h3>成员与角色</h3>
             <p>项目角色只在当前项目内生效</p>
           </div>
-          <el-button v-if="isManager" type="primary" :icon="UserFilled" @click="inviteDialog = true"
+          <el-button
+            v-if="isManager && ['PREPARING', 'IN_PROGRESS'].includes(project?.status || '')"
+            type="primary"
+            :icon="UserFilled"
+            @click="inviteDialog = true"
             >邀请成员</el-button
           >
         </section>

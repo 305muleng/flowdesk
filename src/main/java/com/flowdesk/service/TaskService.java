@@ -59,8 +59,9 @@ public class TaskService {
 
         CurrentUser currentUser = UserContext.get();
 
-        // 2. 检查项目是否存在以及当前状态
-        Project project = projectMapper.selectById(projectId);
+        // 2. 检查项目是否存在以及当前状态；与验收提交共用项目行锁，
+        // 避免状态切换后仍并发写入新任务。
+        Project project = projectMapper.selectByIdForUpdate(projectId);
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");

@@ -16,6 +16,7 @@ import com.flowdesk.model.ProjectInvitation;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.User;
 import com.flowdesk.service.NotificationService;
+import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectInvitationService;
 import com.flowdesk.service.ProjectPermissionService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -35,6 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -91,6 +94,9 @@ public class ProjectInvitationServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private OperationLogService operationLogService;
+
     private ProjectInvitationService projectInvitationService;
 
     @BeforeEach
@@ -104,6 +110,7 @@ public class ProjectInvitationServiceTest {
                         projectPermissionService,
                         projectMapper,
                         notificationService,
+                        operationLogService,
                         7
                 );
 
@@ -308,6 +315,9 @@ public class ProjectInvitationServiceTest {
                 4L,
                 notification.getProjectId()
         );
+        verify(operationLogService).record(
+                eq(4L), eq(1L), eq("PROJECT_INVITATION"), eq(50L),
+                eq("SEND_PROJECT_INVITATION"), anyString(), isNull(), any());
     }
 
     /**
@@ -353,7 +363,7 @@ public class ProjectInvitationServiceTest {
                 .selectById(50L))
                 .thenReturn(invitation);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         User jack = new User();
@@ -618,7 +628,7 @@ public class ProjectInvitationServiceTest {
         UserContext.set(new CurrentUser(2L, "USER"));
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
         when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
-        when(projectMapper.selectById(4L)).thenReturn(activeProject());
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
         when(projectInvitationMapper.transitionPending(
                 anyLong(), anyString(), any(LocalDateTime.class)
         )).thenReturn(0);
@@ -631,6 +641,7 @@ public class ProjectInvitationServiceTest {
         assertEquals(409, exception.getCode());
         verify(projectMemberMapper, never()).insert(any(ProjectMember.class));
         verify(notificationService, never()).createNotification(any(CreateNotificationDTO.class));
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -642,7 +653,7 @@ public class ProjectInvitationServiceTest {
         UserContext.set(new CurrentUser(2L, "USER"));
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
         when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
-        when(projectMapper.selectById(4L)).thenReturn(activeProject());
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
         when(projectMemberMapper.selectOne(any())).thenReturn(member);
 
         projectInvitationService.acceptInvitation(50L);

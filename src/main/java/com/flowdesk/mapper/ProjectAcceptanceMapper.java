@@ -6,6 +6,9 @@ import com.flowdesk.vo.ProjectAcceptanceVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 
@@ -19,6 +22,20 @@ public interface ProjectAcceptanceMapper
             WHERE project_id = #{projectId}
             """)
     Integer selectMaxAcceptanceNo(@Param("projectId") Long projectId);
+
+    @Update("""
+            UPDATE project_acceptance
+            SET review_status = #{reviewStatus}, reviewer_id = #{reviewerId},
+                review_note = #{reviewNote}, reviewed_at = #{reviewedAt}
+            WHERE id = #{acceptanceId} AND project_id = #{projectId}
+              AND review_status = 'PENDING'
+            """)
+    int reviewIfPending(@Param("acceptanceId") Long acceptanceId,
+                        @Param("projectId") Long projectId,
+                        @Param("reviewStatus") String reviewStatus,
+                        @Param("reviewerId") Long reviewerId,
+                        @Param("reviewNote") String reviewNote,
+                        @Param("reviewedAt") LocalDateTime reviewedAt);
 
     @Select("""
         SELECT
@@ -58,7 +75,7 @@ public interface ProjectAcceptanceMapper
             OR pa.review_status = #{status}
         )
 
-        ORDER BY pa.submitted_at DESC
+        ORDER BY pa.submitted_at DESC, pa.id DESC
         """)
     List<ProjectAcceptanceVO> selectAcceptances(@Param("status") String status);
 

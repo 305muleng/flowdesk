@@ -17,6 +17,7 @@ import com.flowdesk.service.ProjectPermissionService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,6 +30,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -89,6 +95,23 @@ public class ProjectAcceptanceServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private ProjectMemberMapper projectMemberMapper;
+
+    @BeforeEach
+    void setUpAtomicTransitionsAndManager() {
+        lenient().when(projectMapper.submitAcceptanceIfInProgress(anyLong(), any())).thenReturn(1);
+        lenient().when(projectMapper.reviewAcceptanceIfPending(
+                anyLong(), anyString(), nullable(java.time.LocalDateTime.class), any())).thenReturn(1);
+        lenient().when(projectAcceptanceMapper.reviewIfPending(
+                anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any()))
+                .thenReturn(1);
+        com.flowdesk.vo.ProjectMemberVO manager = new com.flowdesk.vo.ProjectMemberVO();
+        manager.setUserId(1L);
+        manager.setRole("PROJECT_MANAGER");
+        lenient().when(projectMemberMapper.selectActiveMembers(anyLong())).thenReturn(List.of(manager));
+    }
+
     @AfterEach
     void cleanUp() {
         UserContext.remove();
@@ -106,7 +129,7 @@ public class ProjectAcceptanceServiceTest {
 
         dto.setSubmissionNote("提交验收");
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskMapper.selectCount(any()))
@@ -142,7 +165,7 @@ public class ProjectAcceptanceServiceTest {
 
         dto.setSubmissionNote("提交验收");
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 没有未完成任务
@@ -185,7 +208,7 @@ public class ProjectAcceptanceServiceTest {
                 new CurrentUser(1L, "USER")
         );
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 没有未完成任务
@@ -220,7 +243,7 @@ public class ProjectAcceptanceServiceTest {
 
         // 应该更新项目状态
         verify(projectMapper)
-                .updateById(project);
+                .submitAcceptanceIfInProgress(eq(4L), any());
 
         // 应该记录审计日志
         verify(operationLogService)
@@ -254,7 +277,7 @@ public class ProjectAcceptanceServiceTest {
                 new CurrentUser(1L, "USER")
         );
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskMapper.selectCount(any()))
@@ -365,7 +388,7 @@ public class ProjectAcceptanceServiceTest {
         when(projectAcceptanceMapper.selectById(50L))
                 .thenReturn(acceptance);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         projectAcceptanceService.reviewAcceptance(
@@ -453,7 +476,7 @@ public class ProjectAcceptanceServiceTest {
         when(projectAcceptanceMapper.selectById(50L))
                 .thenReturn(acceptance);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         projectAcceptanceService.reviewAcceptance(
@@ -501,5 +524,172 @@ public class ProjectAcceptanceServiceTest {
                 50L,
                 notification.getTargetId()
         );
+    }
+    @Test
+    void normalUserCannotReviewAcceptanceEvenWhenCallingServiceDirectly() {
+        UserContext.set(new CurrentUser(1L, "USER"));
+        ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
+        dto.setAction("APPROVE");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> projectAcceptanceService.reviewAcceptance(50L, dto));
+
+        assertEquals(403, exception.getCode());
+        verify(projectAcceptanceMapper, never()).selectById(anyLong());
+    }
+
+    @Test
+    void developerCannotSubmitAcceptance() {
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
+        dto.setSubmissionNote("提交验收");
+        doThrow(new BusinessException(403, "你不是该项目负责人"))
+                .when(projectPermissionService).requireProjectManager(4L);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+
+        assertEquals(403, exception.getCode());
+        verify(projectMapper, never()).selectByIdForUpdate(anyLong());
+    }
+
+    @Test
+    void deletedProjectCannotSubmitAcceptance() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        project.setDeletedAt(java.time.LocalDateTime.now());
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
+        dto.setSubmissionNote("提交验收");
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+
+        assertEquals(404, exception.getCode());
+        verify(projectAcceptanceMapper, never()).insert(any(ProjectAcceptance.class));
+    }
+
+    @Test
+    void concurrentDoubleSubmitCreatesOnlyOnePendingAcceptance() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
+        dto.setSubmissionNote("提交验收");
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+        when(taskMapper.selectCount(any())).thenReturn(0L);
+        when(taskRequestMapper.selectCount(any())).thenReturn(0L);
+        when(projectMapper.submitAcceptanceIfInProgress(eq(4L), any())).thenReturn(0);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+
+        assertEquals(409, exception.getCode());
+        verify(projectAcceptanceMapper, never()).insert(any(ProjectAcceptance.class));
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(notificationService, never()).createNotification(any());
+    }
+
+    @Test
+    void concurrentApproveRejectCannotOverwriteDecision() {
+        ProjectAcceptance acceptance = pendingAcceptance();
+        Project project = pendingProject();
+        ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
+        dto.setAction("REJECT");
+        dto.setReviewNote("需要调整");
+        UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
+        when(projectAcceptanceMapper.selectById(50L)).thenReturn(acceptance);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+        when(projectMapper.reviewAcceptanceIfPending(
+                eq(4L), eq("IN_PROGRESS"), isNull(), any())).thenReturn(0);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> projectAcceptanceService.reviewAcceptance(50L, dto));
+
+        assertEquals(409, exception.getCode());
+        verify(projectAcceptanceMapper, never()).reviewIfPending(
+                anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectingAcceptanceRequiresReason() {
+        ProjectAcceptance acceptance = pendingAcceptance();
+        Project project = pendingProject();
+        ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
+        dto.setAction("REJECT");
+        dto.setReviewNote("  ");
+        UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
+        when(projectAcceptanceMapper.selectById(50L)).thenReturn(acceptance);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> projectAcceptanceService.reviewAcceptance(50L, dto));
+
+        assertEquals(400, exception.getCode());
+        verify(projectMapper, never()).reviewAcceptanceIfPending(anyLong(), anyString(), any(), any());
+    }
+
+    @Test
+    void secondAcceptanceGetsNewHistoryNumber() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
+        dto.setSubmissionNote("第二轮验收");
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+        when(taskMapper.selectCount(any())).thenReturn(0L);
+        when(taskRequestMapper.selectCount(any())).thenReturn(0L);
+        when(projectAcceptanceMapper.selectMaxAcceptanceNo(4L)).thenReturn(1);
+
+        projectAcceptanceService.submitAcceptance(4L, dto);
+
+        ArgumentCaptor<ProjectAcceptance> captor = ArgumentCaptor.forClass(ProjectAcceptance.class);
+        verify(projectAcceptanceMapper).insert(captor.capture());
+        assertEquals(2, captor.getValue().getAcceptanceNo());
+        assertEquals("PENDING", captor.getValue().getReviewStatus());
+    }
+
+    @Test
+    void resultNotificationGoesToCurrentManagerNotFormerSubmitter() {
+        ProjectAcceptance acceptance = pendingAcceptance();
+        Project project = pendingProject();
+        ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
+        dto.setAction("APPROVE");
+        UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
+        com.flowdesk.vo.ProjectMemberVO manager = new com.flowdesk.vo.ProjectMemberVO();
+        manager.setUserId(3L);
+        manager.setRole("PROJECT_MANAGER");
+        when(projectMemberMapper.selectActiveMembers(4L)).thenReturn(List.of(manager));
+        when(projectAcceptanceMapper.selectById(50L)).thenReturn(acceptance);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+
+        projectAcceptanceService.reviewAcceptance(50L, dto);
+
+        ArgumentCaptor<CreateNotificationDTO> captor =
+                ArgumentCaptor.forClass(CreateNotificationDTO.class);
+        verify(notificationService).createNotification(captor.capture());
+        assertEquals(3L, captor.getValue().getRecipientId());
+        assertEquals(50L, captor.getValue().getTargetId());
+    }
+
+    private ProjectAcceptance pendingAcceptance() {
+        ProjectAcceptance acceptance = new ProjectAcceptance();
+        acceptance.setId(50L);
+        acceptance.setProjectId(4L);
+        acceptance.setSubmitterId(1L);
+        acceptance.setAcceptanceNo(1);
+        acceptance.setReviewStatus("PENDING");
+        return acceptance;
+    }
+
+    private Project pendingProject() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setName("FlowDesk");
+        project.setStatus("PENDING_ACCEPTANCE");
+        return project;
     }
 }

@@ -14,6 +14,7 @@ const route = useRoute()
 const focusedAcceptanceId = computed(() => Number(route.query.acceptanceId) || undefined)
 const filter = ref('PENDING')
 const loading = ref(false)
+const processingIds = ref(new Set<number>())
 
 async function load() {
   loading.value = true
@@ -25,15 +26,26 @@ async function load() {
 }
 
 async function review(item: ProjectAcceptance, action: 'APPROVE' | 'REJECT') {
-  const title = action === 'APPROVE' ? '通过项目验收' : '驳回项目验收'
-  const { value } = await ElMessageBox.prompt('填写审核意见', title, {
-    inputType: 'textarea',
-    inputPlaceholder:
-      action === 'APPROVE' ? '确认项目交付满足验收标准' : '说明需要补充或修改的内容',
-  })
-  await reviewAcceptanceApi(item.id, { action, reviewNote: value })
-  ElMessage.success('验收审核已完成')
-  load()
+  if (processingIds.value.has(item.id)) return
+  try {
+    const title = action === 'APPROVE' ? '通过项目验收' : '驳回项目验收'
+    const { value } = await ElMessageBox.prompt('填写审核意见', title, {
+      inputType: 'textarea',
+      inputPlaceholder:
+        action === 'APPROVE' ? '确认项目交付满足验收标准' : '说明需要补充或修改的内容',
+      ...(action === 'REJECT'
+        ? { inputPattern: /\S+/, inputErrorMessage: '请填写驳回原因' }
+        : {}),
+    })
+    processingIds.value.add(item.id)
+    await reviewAcceptanceApi(item.id, { action, reviewNote: value || undefined })
+    ElMessage.success('验收审核已完成')
+    await load()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') throw error
+  } finally {
+    processingIds.value.delete(item.id)
+  }
 }
 
 watch(filter, load)
@@ -89,8 +101,12 @@ onMounted(load)
         <strong>审核意见</strong>{{ item.reviewNote }}
       </div>
       <footer v-if="item.reviewStatus === 'PENDING'">
-        <el-button @click="review(item, 'REJECT')">驳回</el-button
-        ><el-button type="primary" :icon="Check" @click="review(item, 'APPROVE')"
+        <el-button :disabled="processingIds.has(item.id)" @click="review(item, 'REJECT')">驳回</el-button
+        ><el-button
+          type="primary"
+          :icon="Check"
+          :loading="processingIds.has(item.id)"
+          @click="review(item, 'APPROVE')"
           >通过验收</el-button
         >
       </footer>

@@ -114,7 +114,7 @@ public class TaskRequestServiceTest {
         dto.setAction("APPROVE");
 
         // 3. 模拟查询项目
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 4. 调用审批方法
@@ -182,7 +182,7 @@ public class TaskRequestServiceTest {
         );
 
         // 5. 模拟 Mapper 查询结果
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskRequestMapper.selectById(1L))
@@ -364,7 +364,7 @@ public class TaskRequestServiceTest {
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 当前登录用户是 Jack
@@ -465,7 +465,7 @@ public class TaskRequestServiceTest {
         Project project = new Project();
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         ProjectMember manager = new ProjectMember();
         manager.setUserId(1L);
         manager.setRole("PROJECT_MANAGER");
@@ -510,7 +510,7 @@ public class TaskRequestServiceTest {
                 new CurrentUser(1L, "USER")
         );
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskRequestMapper.selectById(10L))
@@ -602,7 +602,7 @@ public class TaskRequestServiceTest {
                 new CurrentUser(1L, "USER")
         );
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskRequestMapper.selectById(10L))
@@ -720,7 +720,7 @@ public class TaskRequestServiceTest {
                 new CurrentUser(1L, "USER")
         );
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskRequestMapper.selectById(10L))
@@ -834,7 +834,7 @@ public class TaskRequestServiceTest {
         disabled.setStatus("DISABLED");
         disabled.setSystemRole("USER");
         UserContext.set(new CurrentUser(1L, "USER"));
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskRequestMapper.selectById(10L)).thenReturn(request);
         when(userMapper.selectById(2L)).thenReturn(disabled);
 
@@ -861,7 +861,7 @@ public class TaskRequestServiceTest {
         dto.setAction("APPROVE");
         dto.setDeadline(LocalDateTime.now().plusDays(1));
         UserContext.set(new CurrentUser(1L, "USER"));
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskRequestMapper.selectById(10L)).thenReturn(request);
         when(taskRequestMapper.reviewIfPending(anyLong(), anyLong(), anyString(),
                 anyLong(), nullable(String.class), any())).thenReturn(0);

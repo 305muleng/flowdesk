@@ -38,25 +38,25 @@ const router = createRouter({
           path: 'projects',
           name: 'projects',
           component: () => import('@/views/ProjectListView.vue'),
-          meta: { title: '项目中心' },
+          meta: { title: '项目中心', ordinaryUser: true },
         },
         {
           path: 'projects/:projectId',
           name: 'project-detail',
           component: () => import('@/views/ProjectDetailView.vue'),
-          meta: { title: '项目详情' },
+          meta: { title: '项目详情', ordinaryUser: true },
         },
         {
           path: 'tasks/:taskId',
           name: 'task-detail',
           component: () => import('@/views/TaskDetailView.vue'),
-          meta: { title: '任务详情' },
+          meta: { title: '任务详情', ordinaryUser: true },
         },
         {
           path: 'invitations',
           name: 'invitations',
           component: () => import('@/views/InvitationView.vue'),
-          meta: { title: '项目邀请' },
+          meta: { title: '项目邀请', ordinaryUser: true },
         },
         {
           path: 'notifications',
@@ -68,19 +68,19 @@ const router = createRouter({
           path: 'tasks',
           name: 'tasks',
           component: () => import('@/views/MyTasksView.vue'),
-          meta: { title: '我的任务' },
+          meta: { title: '我的任务', ordinaryUser: true },
         },
         {
           path: 'task-requests',
           name: 'task-requests',
           component: () => import('@/views/TaskRequestsView.vue'),
-          meta: { title: '任务申请' },
+          meta: { title: '任务申请', ordinaryUser: true },
         },
         {
           path: 'activity',
           name: 'activity',
           component: () => import('@/views/ActivityView.vue'),
-          meta: { title: '项目动态' },
+          meta: { title: '项目动态', ordinaryUser: true },
         },
         {
           path: 'admin/acceptances',
@@ -107,6 +107,7 @@ router.beforeEach((to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   if (to.meta.guestOnly && auth.token) return { name: 'dashboard' }
   if (to.meta.systemAdmin && !auth.isSystemAdmin) return { name: 'dashboard' }
+  if (to.meta.ordinaryUser && auth.isSystemAdmin) return { name: 'admin-acceptances' }
   return true
 })
 

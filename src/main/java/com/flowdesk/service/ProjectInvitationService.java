@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ProjectInvitationService {
@@ -32,6 +33,7 @@ public class ProjectInvitationService {
     private final int expireDays;
     private final ProjectMapper projectMapper;
     private final NotificationService notificationService;
+    private final OperationLogService operationLogService;
 
     public ProjectInvitationService(
             ProjectInvitationMapper projectInvitationMapper,
@@ -40,6 +42,7 @@ public class ProjectInvitationService {
             ProjectPermissionService projectPermissionService,
             ProjectMapper projectMapper,
             NotificationService notificationService,
+            OperationLogService operationLogService,
             @Value("${invitation.expire-days}") int expireDays) {
 
         this.projectInvitationMapper = projectInvitationMapper;
@@ -49,6 +52,7 @@ public class ProjectInvitationService {
         this.expireDays = expireDays;
         this.projectMapper = projectMapper;
         this.notificationService = notificationService;
+        this.operationLogService = operationLogService;
     }
 
     @Transactional
@@ -144,6 +148,11 @@ public class ProjectInvitationService {
 
         projectInvitationMapper.insert(invitation);
 
+        operationLogService.record(
+                projectId, currentUser.getUserId(), "PROJECT_INVITATION", invitation.getId(),
+                "SEND_PROJECT_INVITATION", "发送项目邀请", null,
+                Map.of("status", "PENDING", "inviteeId", invitee.getId()));
+
         CreateNotificationDTO notificationDTO =
                 new CreateNotificationDTO();
 
@@ -212,7 +221,7 @@ public class ProjectInvitationService {
         }
 
         Project project =
-                projectMapper.selectById(
+                projectMapper.selectByIdForUpdate(
                         invitation.getProjectId()
                 );
 
@@ -282,6 +291,12 @@ public class ProjectInvitationService {
 
             projectMemberMapper.updateById(member);
         }
+
+        operationLogService.record(
+                invitation.getProjectId(), currentUser.getUserId(),
+                "PROJECT_INVITATION", invitation.getId(),
+                "ACCEPT_PROJECT_INVITATION", "接受项目邀请",
+                Map.of("status", "PENDING"), Map.of("status", "ACCEPTED"));
 
         CreateNotificationDTO notificationDTO =
                 new CreateNotificationDTO();
@@ -396,6 +411,12 @@ public class ProjectInvitationService {
 
         invitation.setStatus("REJECTED");
         invitation.setRespondedAt(now);
+
+        operationLogService.record(
+                invitation.getProjectId(), currentUser.getUserId(),
+                "PROJECT_INVITATION", invitation.getId(),
+                "REJECT_PROJECT_INVITATION", "拒绝项目邀请",
+                Map.of("status", "PENDING"), Map.of("status", "REJECTED"));
 
         CreateNotificationDTO notificationDTO =
                 new CreateNotificationDTO();
