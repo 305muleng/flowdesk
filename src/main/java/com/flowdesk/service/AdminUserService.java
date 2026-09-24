@@ -10,6 +10,7 @@ import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.User;
 import com.flowdesk.vo.AdminUserVO;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -121,9 +122,10 @@ public class AdminUserService {
         );
     }
 
+    @Transactional
     public void disableUser(Long userId) {
 
-        User user = userMapper.selectById(userId);
+        User user = userMapper.selectByIdForUpdate(userId);
 
         if (user == null) {
             throw new BusinessException(

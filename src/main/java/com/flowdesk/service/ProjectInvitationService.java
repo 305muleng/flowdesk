@@ -265,6 +265,18 @@ public class ProjectInvitationService {
             );
         }
 
+        if (currentMember != null
+                && currentMember.getJoinedAt() != null
+                && invitation.getCreatedAt() != null
+                && currentMember.getJoinedAt()
+                .isAfter(invitation.getCreatedAt())) {
+
+            throw new BusinessException(
+                    409,
+                    "该邀请已因成员身份变化而失效"
+            );
+        }
+
         int accepted = projectInvitationMapper.transitionPending(
                 invitationId,
                 "ACCEPTED",

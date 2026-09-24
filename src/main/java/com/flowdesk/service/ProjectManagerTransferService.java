@@ -410,7 +410,7 @@ public class ProjectManagerTransferService {
 
         // 7. 再次检查目标用户账号
         User targetUser =
-                userMapper.selectById(
+                userMapper.selectByIdForUpdate(
                         currentUser.getUserId()
                 );
 
@@ -491,6 +491,19 @@ public class ProjectManagerTransferService {
                                         currentUser.getUserId()
                                 )
                 );
+
+        if (targetMember != null
+                && "INACTIVE".equals(targetMember.getStatus())
+                && targetMember.getLeftAt() != null
+                && transfer.getCreatedAt() != null
+                && targetMember.getLeftAt()
+                .isAfter(transfer.getCreatedAt())) {
+
+            throw new BusinessException(
+                    409,
+                    "目标用户在转让发起后已退出项目，该负责人转让已失效"
+            );
+        }
 
         // 10. 先正式把转让状态改成 ACCEPTED
         int accepted =

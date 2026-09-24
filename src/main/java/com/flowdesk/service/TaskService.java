@@ -544,17 +544,36 @@ public class TaskService {
 
         // 7. 先保存修改前的状态
         String oldTaskStatus = task.getStatus();
+
         String oldSubmissionReviewStatus =
                 submission.getReviewStatus();
 
-        // 8. 保存审核人、审核意见、审核时间
-        submission.setReviewerId(currentUser.getUserId());
-        submission.setReviewNote(dto.getReviewNote());
+// 一定要先保存原负责人
+        Long oldAssigneeId = task.getAssigneeId();
+
+
+// 8. 保存审核人、审核意见、审核时间
+        submission.setReviewerId(
+                currentUser.getUserId()
+        );
+
+        submission.setReviewNote(
+                dto.getReviewNote()
+        );
+
         submission.setReviewedAt(now);
 
-        // 9. 根据审核结果修改状态
+
+// 判断原任务负责人现在是否仍然有效
+        boolean assigneeStillEffective =
+                oldAssigneeId != null
+                        && isActiveProjectUser(oldAssigneeId);
+
+
+// 9. 根据审核结果修改状态
         if ("APPROVE".equals(action)) {
 
+            // 审核通过
             submission.setReviewStatus("APPROVED");
 
             task.setStatus("DONE");
@@ -562,19 +581,65 @@ public class TaskService {
 
         } else {
 
+            // 审核驳回
             submission.setReviewStatus("REJECTED");
 
-            task.setStatus("IN_PROGRESS");
-            task.setCompletedAt(null);
+            if (assigneeStillEffective) {
+
+                // 原负责人仍然正常
+                // 让他继续修改任务
+                task.setStatus("IN_PROGRESS");
+                task.setCompletedAt(null);
+
+            } else {
+
+                // 原负责人已经失效，例如被管理员禁用
+                // 任务重新回到 TODO，等待 PM 重新分配
+                task.setStatus("TODO");
+                task.setAssigneeId(null);
+                task.setCompletedAt(null);
+            }
         }
 
         task.setUpdatedAt(now);
 
-        // 10. 以当前状态为前置条件完成审核，避免重复审核覆盖终态
-        int taskUpdated = taskMapper.transitionStatusIfCurrent(
-                taskId, "REVIEW", task.getStatus(), task.getCompletedAt(), now);
+
+// 10. 真正修改数据库中的任务
+        int taskUpdated;
+
+        if ("REJECT".equals(action)
+                && !assigneeStillEffective) {
+
+            // 特殊情况：
+            // 审核驳回 + 原负责人已经失效
+            // REVIEW -> TODO，并清空负责人
+            taskUpdated =
+                    taskMapper.rejectToTodoAndUnassign(
+                            taskId,
+                            oldAssigneeId,
+                            now
+                    );
+
+        } else {
+
+            // 正常情况：
+            // APPROVE: REVIEW -> DONE
+            // REJECT且负责人正常: REVIEW -> IN_PROGRESS
+            taskUpdated =
+                    taskMapper.transitionStatusIfCurrent(
+                            taskId,
+                            "REVIEW",
+                            task.getStatus(),
+                            task.getCompletedAt(),
+                            now
+                    );
+        }
+
         if (taskUpdated != 1) {
-            throw new BusinessException(409, "任务已被处理，请刷新后重试");
+            throw new BusinessException(
+                    409,
+                    "任务已被处理，请刷新后重试"
+            );
         }
         int submissionUpdated = taskSubmissionMapper.reviewPendingSubmission(
                 submission.getId(), taskId, submission.getReviewStatus(),

@@ -154,7 +154,8 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
           AND p.status IN (
               'PREPARING',
               'IN_PROGRESS',
-              'PENDING_ACCEPTANCE'
+              'PENDING_ACCEPTANCE',
+              'COMPLETED'
           )
           AND p.deleted_at IS NULL
         """)

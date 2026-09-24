@@ -12,6 +12,7 @@ import com.flowdesk.mapper.*;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.Task;
+import com.flowdesk.model.User;
 import com.flowdesk.vo.ProjectMemberVO;
 import com.flowdesk.vo.ProjectVO;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class ProjectService {
     private final TaskRequestMapper taskRequestMapper;
     private final MemberLeaveRequestMapper memberLeaveRequestMapper;
     private final NotificationService notificationService;
+    private final UserMapper userMapper;
 
     public ProjectService(
             ProjectMapper projectMapper,
@@ -43,7 +45,8 @@ public class ProjectService {
             TaskMapper taskMapper,
             TaskRequestMapper taskRequestMapper,
             MemberLeaveRequestMapper memberLeaveRequestMapper,
-            NotificationService notificationService
+            NotificationService notificationService,
+            UserMapper userMapper
             ) {
 
         this.projectMapper = projectMapper;
@@ -54,6 +57,7 @@ public class ProjectService {
         this.taskRequestMapper = taskRequestMapper;
         this.memberLeaveRequestMapper = memberLeaveRequestMapper;
         this.notificationService = notificationService;
+        this.userMapper = userMapper;
     }
 
     @Transactional
@@ -61,8 +65,30 @@ public class ProjectService {
 
         CurrentUser currentUser = UserContext.get();
 
-        if ("SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
-            throw new BusinessException(403, "系统管理员不能创建项目");
+        User creator =
+                userMapper.selectByIdForUpdate(
+                        currentUser.getUserId()
+                );
+
+        if (creator == null) {
+            throw new BusinessException(
+                    401,
+                    "当前用户不存在"
+            );
+        }
+
+        if (!"ACTIVE".equals(creator.getStatus())) {
+            throw new BusinessException(
+                    403,
+                    "账号已被禁用"
+            );
+        }
+
+        if (!"USER".equals(creator.getSystemRole())) {
+            throw new BusinessException(
+                    403,
+                    "系统管理员不能创建项目"
+            );
         }
 
         Project project = new Project();

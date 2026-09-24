@@ -170,4 +170,21 @@ public interface TaskMapper extends BaseMapper<Task> {
         ORDER BY t.updated_at DESC, t.id DESC
         """)
     List<TaskVO> selectMyTasks(@Param("userId") Long userId);
+
+    @Update("""
+        UPDATE task
+        SET status = 'TODO',
+            assignee_id = NULL,
+            completed_at = NULL,
+            updated_at = #{updatedAt}
+        WHERE id = #{taskId}
+          AND status = 'REVIEW'
+          AND assignee_id = #{expectedAssigneeId}
+          AND deleted_at IS NULL
+        """)
+    int rejectToTodoAndUnassign(
+            @Param("taskId") Long taskId,
+            @Param("expectedAssigneeId") Long expectedAssigneeId,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
 }
