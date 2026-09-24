@@ -1,0 +1,14 @@
+package com.flowdesk.dto;
+
+public class RemoveProjectMemberDTO {
+
+    private String reason;
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+}

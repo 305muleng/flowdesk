@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.flowdesk.common.PageResult;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.exception.BusinessException;
+import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.User;
 import com.flowdesk.vo.AdminUserVO;
@@ -16,9 +17,11 @@ import java.util.List;
 public class AdminUserService {
 
     private final UserMapper userMapper;
+    private final ProjectMemberMapper projectMemberMapper;
 
-    public AdminUserService(UserMapper userMapper) {
+    public AdminUserService(UserMapper userMapper , ProjectMemberMapper projectMemberMapper) {
         this.userMapper = userMapper;
+        this.projectMemberMapper = projectMemberMapper;
     }
 
     public PageResult<AdminUserVO> getUsers(
@@ -141,6 +144,19 @@ public class AdminUserService {
 
         if ("DISABLED".equals(user.getStatus())) {
             return;
+        }
+
+        Long managedProjectCount =
+                projectMemberMapper.countActiveManagedProjects(
+                        userId
+                );
+
+        if (managedProjectCount > 0) {
+
+            throw new BusinessException(
+                    409,
+                    "该用户仍担任活动项目负责人，请先完成项目负责人转让"
+            );
         }
 
         user.setStatus("DISABLED");

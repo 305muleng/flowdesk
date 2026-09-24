@@ -243,6 +243,28 @@ public class ProjectInvitationService {
             );
         }
 
+        ProjectMember currentMember =
+                projectMemberMapper.selectOne(
+                        new LambdaQueryWrapper<ProjectMember>()
+                                .eq(
+                                        ProjectMember::getProjectId,
+                                        invitation.getProjectId()
+                                )
+                                .eq(
+                                        ProjectMember::getUserId,
+                                        currentUser.getUserId()
+                                )
+                );
+
+        if (currentMember != null
+                && "ACTIVE".equals(currentMember.getStatus())) {
+
+            throw new BusinessException(
+                    409,
+                    "你已经是该项目成员，该邀请已失效"
+            );
+        }
+
         int accepted = projectInvitationMapper.transitionPending(
                 invitationId,
                 "ACCEPTED",
@@ -280,17 +302,19 @@ public class ProjectInvitationService {
 
         } else {
 
-            // 7. 如果以前退出过，则重新激活
-            if (!"PROJECT_MANAGER".equals(member.getRole())) {
-                member.setRole("DEVELOPER");
-            }
-            member.setStatus("ACTIVE");
-            member.setJoinedAt(now);
-            member.setLeftAt(null);
-            member.setUpdatedAt(now);
+        int updated =
+                projectMemberMapper.reactivateAsDeveloper(
+                        member.getId(),
+                        now
+                );
 
-            projectMemberMapper.updateById(member);
+        if (updated != 1) {
+            throw new BusinessException(
+                    409,
+                    "成员状态已发生变化，请刷新后重试"
+            );
         }
+    }
 
         operationLogService.record(
                 invitation.getProjectId(), currentUser.getUserId(),

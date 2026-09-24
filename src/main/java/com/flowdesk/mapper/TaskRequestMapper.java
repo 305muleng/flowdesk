@@ -96,4 +96,17 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
         ORDER BY tr.created_at DESC, tr.id DESC
         """)
     List<TaskRequestVO> selectMyTaskRequests(@Param("userId") Long userId, @Param("status") String status);
+
+    @Update("""
+        UPDATE task_request
+        SET status = 'CANCELLED',
+            cancelled_at = #{cancelledAt}
+        WHERE project_id = #{projectId}
+          AND requester_id = #{requesterId}
+          AND status = 'PENDING'
+        """)
+    int cancelPendingByRequester(
+            @Param("projectId") Long projectId,
+            @Param("requesterId") Long requesterId,
+            @Param("cancelledAt") LocalDateTime cancelledAt);
 }

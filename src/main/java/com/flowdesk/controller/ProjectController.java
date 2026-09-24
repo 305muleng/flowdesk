@@ -1,10 +1,7 @@
 package com.flowdesk.controller;
 
 import com.flowdesk.common.Result;
-import com.flowdesk.dto.CancelProjectDTO;
-import com.flowdesk.dto.CreateProjectDTO;
-import com.flowdesk.dto.CreateTaskDTO;
-import com.flowdesk.dto.SendInvitationDTO;
+import com.flowdesk.dto.*;
 import com.flowdesk.service.ProjectInvitationService;
 import com.flowdesk.service.ProjectService;
 import com.flowdesk.service.TaskService;
@@ -101,13 +98,7 @@ public class ProjectController {
             description = "查看项目中的任务列表，可通过 scope 和 status 进行筛选"
     )
     @GetMapping("/{projectId}/tasks")
-    public Result<List<TaskVO>> getProjectTasks(
-            @PathVariable Long projectId,
-            @RequestParam(defaultValue = "ALL")
-            String scope,
-            @RequestParam(defaultValue = "ALL")
-            String status) {
-
+    public Result<List<TaskVO>> getProjectTasks(@PathVariable Long projectId, @RequestParam(defaultValue = "ALL") String scope, @RequestParam(defaultValue = "ALL") String status) {
         List<TaskVO> tasks = taskService.getProjectTasks(projectId, scope, status);
         return Result.success(tasks);
     }
@@ -140,5 +131,15 @@ public class ProjectController {
     public Result<Void> archiveProject(@PathVariable Long projectId) {
         projectService.archiveProject(projectId);
         return Result.success("项目归档成功", null);
+    }
+
+    @Operation(
+            summary = "移除项目成员",
+            description = "项目负责人直接移除开发人员；被移除成员不能存在未完成任务"
+    )
+    @PostMapping("/{projectId}/members/{userId}/remove")
+    public Result<Void> removeProjectMember(@PathVariable Long projectId, @PathVariable Long userId, @RequestBody(required = false) RemoveProjectMemberDTO dto) {
+        projectService.removeProjectMember(projectId, userId, dto);
+        return Result.success("成员移除成功", null);
     }
 }

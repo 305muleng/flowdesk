@@ -1,14 +1,17 @@
 package com.flowdesk.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CancelProjectDTO;
+import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.CreateProjectDTO;
+import com.flowdesk.dto.RemoveProjectMemberDTO;
 import com.flowdesk.exception.BusinessException;
-import com.flowdesk.mapper.ProjectMapper;
-import com.flowdesk.mapper.ProjectMemberMapper;
+import com.flowdesk.mapper.*;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
+import com.flowdesk.model.Task;
 import com.flowdesk.vo.ProjectMemberVO;
 import com.flowdesk.vo.ProjectVO;
 import org.springframework.stereotype.Service;
@@ -18,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class ProjectService {
@@ -26,17 +30,30 @@ public class ProjectService {
     private final ProjectMemberMapper projectMemberMapper;
     private final ProjectPermissionService projectPermissionService;
     private final OperationLogService operationLogService;
+    private final TaskMapper taskMapper;
+    private final TaskRequestMapper taskRequestMapper;
+    private final MemberLeaveRequestMapper memberLeaveRequestMapper;
+    private final NotificationService notificationService;
 
     public ProjectService(
             ProjectMapper projectMapper,
             ProjectMemberMapper projectMemberMapper,
             ProjectPermissionService projectPermissionService,
-            OperationLogService operationLogService) {
+            OperationLogService operationLogService,
+            TaskMapper taskMapper,
+            TaskRequestMapper taskRequestMapper,
+            MemberLeaveRequestMapper memberLeaveRequestMapper,
+            NotificationService notificationService
+            ) {
 
         this.projectMapper = projectMapper;
         this.projectMemberMapper = projectMemberMapper;
         this.projectPermissionService = projectPermissionService;
         this.operationLogService = operationLogService;
+        this.taskMapper = taskMapper;
+        this.taskRequestMapper = taskRequestMapper;
+        this.memberLeaveRequestMapper = memberLeaveRequestMapper;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -358,6 +375,211 @@ public class ProjectService {
                 "归档项目",
                 beforeData,
                 afterData
+        );
+    }
+
+    @Transactional
+    public void removeProjectMember(
+            Long projectId,
+            Long userId,
+            RemoveProjectMemberDTO dto) {
+
+        // 1. 当前操作人必须是项目负责人
+        projectPermissionService.requireProjectManager(projectId);
+
+        CurrentUser currentUser = UserContext.get();
+        LocalDateTime now = LocalDateTime.now();
+
+        // 2. 锁住项目
+        Project project =
+                projectMapper.selectByIdForUpdate(projectId);
+
+        if (project == null
+                || project.getDeletedAt() != null) {
+
+            throw new BusinessException(
+                    404,
+                    "项目不存在"
+            );
+        }
+
+        // 3. 只有准备中 / 进行中可以变更成员
+        if (!"PREPARING".equals(project.getStatus())
+                && !"IN_PROGRESS".equals(project.getStatus())) {
+
+            throw new BusinessException(
+                    409,
+                    "当前项目状态不允许移除成员"
+            );
+        }
+
+        // 4. 查询目标成员
+        ProjectMember targetMember =
+                projectMemberMapper.selectOne(
+                        new LambdaQueryWrapper<ProjectMember>()
+                                .eq(
+                                        ProjectMember::getProjectId,
+                                        projectId
+                                )
+                                .eq(
+                                        ProjectMember::getUserId,
+                                        userId
+                                )
+                                .eq(
+                                        ProjectMember::getStatus,
+                                        "ACTIVE"
+                                )
+                );
+
+        if (targetMember == null) {
+
+            throw new BusinessException(
+                    404,
+                    "该用户不是当前项目的有效成员"
+            );
+        }
+
+        // 5. PM 不能通过这个接口删除自己或其他 PM
+        if (!"DEVELOPER".equals(targetMember.getRole())) {
+
+            throw new BusinessException(
+                    409,
+                    "只能直接移除开发人员"
+            );
+        }
+
+        // 6. 检查未完成任务
+        Long unfinishedTaskCount =
+                taskMapper.selectCount(
+                        new LambdaQueryWrapper<Task>()
+                                .eq(
+                                        Task::getProjectId,
+                                        projectId
+                                )
+                                .eq(
+                                        Task::getAssigneeId,
+                                        userId
+                                )
+                                .in(
+                                        Task::getStatus,
+                                        Set.of(
+                                                "TODO",
+                                                "IN_PROGRESS",
+                                                "REVIEW"
+                                        )
+                                )
+                                .isNull(
+                                        Task::getDeletedAt
+                                )
+                );
+
+        if (unfinishedTaskCount > 0) {
+
+            throw new BusinessException(
+                    409,
+                    "该成员仍有未完成任务，请先完成或重新分配任务"
+            );
+        }
+
+        // 7. 真正移除成员
+        int memberUpdated =
+                projectMemberMapper.deactivateDeveloperIfActive(
+                        projectId,
+                        userId,
+                        now
+                );
+
+        if (memberUpdated != 1) {
+
+            throw new BusinessException(
+                    409,
+                    "成员状态已发生变化，请刷新后重试"
+            );
+        }
+
+        // 8. 自动取消该成员自己的 PENDING Task Request
+        taskRequestMapper.cancelPendingByRequester(
+                projectId,
+                userId,
+                now
+        );
+
+        // 9. 如果他自己还有 PENDING 退出申请，也结束掉
+        memberLeaveRequestMapper.cancelPendingByApplicant(
+                projectId,
+                userId,
+                now
+        );
+
+        // 10. 处理可选原因
+        String reason = null;
+
+        if (dto != null
+                && dto.getReason() != null
+                && !dto.getReason().isBlank()) {
+
+            reason = dto.getReason().trim();
+        }
+
+        // 11. Operation Log
+        operationLogService.record(
+                projectId,
+                currentUser.getUserId(),
+                "PROJECT_MEMBER",
+                targetMember.getId(),
+                "REMOVE_PROJECT_MEMBER",
+                reason == null
+                        ? "移除项目成员"
+                        : "移除项目成员，原因：" + reason,
+                Map.of(
+                        "status",
+                        "ACTIVE",
+                        "role",
+                        "DEVELOPER"
+                ),
+                Map.of(
+                        "status",
+                        "INACTIVE",
+                        "role",
+                        "DEVELOPER"
+                )
+        );
+
+        // 12. 通知被移除的成员
+        CreateNotificationDTO notification =
+                new CreateNotificationDTO();
+
+        notification.setRecipientId(userId);
+        notification.setActorId(
+                currentUser.getUserId()
+        );
+
+        notification.setType(
+                "PROJECT_MEMBER_REMOVED"
+        );
+
+        notification.setTitle(
+                "你已被移出项目"
+        );
+
+        notification.setContent(
+                reason == null
+                        ? "项目负责人已将你移出项目"
+                        : "项目负责人已将你移出项目，原因：" + reason
+        );
+
+        notification.setProjectId(projectId);
+
+        notification.setTargetType(
+                "PROJECT_MEMBER"
+        );
+
+        notification.setTargetId(
+                targetMember.getId()
+        );
+
+        notificationService.createNotification(
+                notification
         );
     }
 }
