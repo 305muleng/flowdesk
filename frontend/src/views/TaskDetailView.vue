@@ -18,7 +18,7 @@ import {
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { Project, ProjectMember, Task, TaskComment, TaskSubmission } from '@/types/api'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, statusLabel } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -297,11 +297,11 @@ onMounted(load)
     </el-dialog>
 
     <el-dialog v-model="assignVisible" title="分配任务负责人" width="440px">
-      <el-select v-model="selectedAssignee" placeholder="选择开发成员" style="width: 100%">
+      <el-select v-model="selectedAssignee" placeholder="选择项目成员" style="width: 100%">
         <el-option
           v-for="member in members.filter((item) => item.effective)"
           :key="member.userId"
-          :label="member.realName + '（' + member.username + '）'"
+          :label="`${member.realName} · ${statusLabel(member.role)} · 未完成任务 ${member.unfinishedTaskCount}`"
           :value="member.userId"
         />
       </el-select>

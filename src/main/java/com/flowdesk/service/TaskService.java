@@ -828,7 +828,15 @@ public class TaskService {
             );
         }
 
-        projectPermissionService.requireProjectManager(task.getProjectId());
+        CurrentUser operator = UserContext.get();
+        ProjectMember operatorMember = projectMemberMapper.selectMemberForUpdate(
+                task.getProjectId(), operator.getUserId());
+        if (!"USER".equals(operator.getSystemRole())
+                || operatorMember == null
+                || !"ACTIVE".equals(operatorMember.getStatus())
+                || !"PROJECT_MANAGER".equals(operatorMember.getRole())) {
+            throw new BusinessException(403, "你不是该项目的有效负责人");
+        }
 
         // 3. 只有 TODO 状态允许分配 / 重新分配
         if (!"TODO".equals(task.getStatus())) {
@@ -841,23 +849,15 @@ public class TaskService {
         // 4. 等待项目锁后使用当前读，避免读到成员退出前的事务快照。
         // 新负责人必须是该项目 ACTIVE 成员。
         ProjectMember member =
-                projectMemberMapper.selectOne(
-                        new LambdaQueryWrapper<ProjectMember>()
-                                .eq(
-                                        ProjectMember::getProjectId,
-                                        task.getProjectId()
-                                )
-                                .eq(
-                                        ProjectMember::getUserId,
-                                        dto.getAssigneeId()
-                                )
-                                .eq(
-                                        ProjectMember::getStatus,
-                                        "ACTIVE"
-                                ).last("FOR UPDATE")
-                );
+                projectMemberMapper.selectMemberForUpdate(task.getProjectId(), dto.getAssigneeId());
 
-        if (member == null || !isActiveProjectUser(dto.getAssigneeId())) {
+        if (member == null || !"ACTIVE".equals(member.getStatus())) {
+            throw new BusinessException(409, "任务负责人不是该项目的有效成员");
+        }
+        User assigneeUser = userMapper.selectByIdForUpdate(dto.getAssigneeId());
+        if (assigneeUser == null
+                || !"ACTIVE".equals(assigneeUser.getStatus())
+                || !"USER".equals(assigneeUser.getSystemRole())) {
             throw new BusinessException(
                     409,
                     "任务负责人不是该项目的有效成员"

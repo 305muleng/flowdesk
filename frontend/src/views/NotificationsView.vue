@@ -39,6 +39,10 @@ const categoryFilter = ref<CategoryFilter>('ALL')
 const readRequests = new Map<number, Promise<void>>()
 const hasUnread = computed(() => notifications.value.some((item) => !item.readAt))
 
+function isManagerTransferNotification(type: string): boolean {
+  return type === 'PROJECT_MANAGER_TRANSFER' || type.startsWith('PROJECT_MANAGER_TRANSFER_')
+}
+
 function categoryFor(type: string): Exclude<CategoryFilter, 'ALL'> | 'OTHER' {
   if (type.startsWith('PROJECT_INVITATION')) return 'PROJECT_INVITATION'
   if (type === 'TASK_ASSIGNED') return 'TASK'
@@ -46,7 +50,7 @@ function categoryFor(type: string): Exclude<CategoryFilter, 'ALL'> | 'OTHER' {
   if (type.startsWith('TASK_SUBMISSION')) return 'TASK_SUBMISSION'
   if (type.startsWith('PROJECT_ACCEPTANCE')) return 'PROJECT_ACCEPTANCE'
   if (type.startsWith('MEMBER_LEAVE_REQUEST_')) return 'MEMBER_LEAVE_REQUEST'
-  if (type.startsWith('PROJECT_MANAGER_TRANSFER_')) return 'PROJECT_MANAGER_TRANSFER'
+  if (isManagerTransferNotification(type)) return 'PROJECT_MANAGER_TRANSFER'
   if (type === 'PROJECT_MEMBER_REMOVED') return 'PROJECT_MEMBER_REMOVED'
   return 'OTHER'
 }
@@ -65,7 +69,7 @@ const filteredNotifications = computed(() =>
 
 function actionFor(item: NotificationItem): NotificationAction | undefined {
   if (item.type === 'PROJECT_MEMBER_REMOVED') return undefined
-  if (item.projectId && item.targetId && (item.type.startsWith('MEMBER_LEAVE_REQUEST_') || item.type.startsWith('PROJECT_MANAGER_TRANSFER_'))) {
+  if (item.projectId && item.targetId && (item.type.startsWith('MEMBER_LEAVE_REQUEST_') || isManagerTransferNotification(item.type))) {
     const kind = item.type.startsWith('MEMBER_LEAVE_REQUEST_') ? 'leave-requests' : 'manager-transfers'
     return { label: '查看详情', to: `/membership/${item.projectId}/${kind}/${item.targetId}` }
   }

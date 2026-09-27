@@ -67,6 +67,22 @@ public class TaskServiceTest {
 
     @BeforeEach
     void setUpActiveUsers() {
+        UserContext.set(new CurrentUser(1L, "USER"));
+        lenient().when(projectMemberMapper.selectMemberForUpdate(4L, 1L)).thenAnswer(invocation -> {
+            ProjectMember manager = new ProjectMember();
+            manager.setProjectId(4L);
+            manager.setUserId(1L);
+            manager.setStatus("ACTIVE");
+            manager.setRole("PROJECT_MANAGER");
+            return manager;
+        });
+        lenient().when(userMapper.selectByIdForUpdate(anyLong())).thenAnswer(invocation -> {
+            User user = new User();
+            user.setId(invocation.getArgument(0));
+            user.setStatus("ACTIVE");
+            user.setSystemRole("USER");
+            return user;
+        });
         lenient().when(userMapper.selectById(anyLong())).thenAnswer(invocation -> {
             User user = new User();
             user.setId(invocation.getArgument(0));
@@ -213,6 +229,7 @@ public class TaskServiceTest {
         manager.setProjectId(4L);
         manager.setUserId(1L);
         manager.setStatus("ACTIVE");
+        manager.setRole("PROJECT_MANAGER");
 
         AssignTaskDTO dto = new AssignTaskDTO();
         dto.setAssigneeId(1L);
@@ -221,7 +238,7 @@ public class TaskServiceTest {
 
         when(taskMapper.selectById(9L)).thenReturn(task);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(projectMemberMapper.selectOne(any())).thenReturn(manager);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 1L)).thenReturn(manager);
 
         taskService.assignTask(9L, dto);
 
@@ -271,7 +288,7 @@ public class TaskServiceTest {
                 .thenReturn(project);
 
         // 查询项目成员时，返回 Jack
-        when(projectMemberMapper.selectOne(any()))
+        when(projectMemberMapper.selectMemberForUpdate(4L, 2L))
                 .thenReturn(member);
 
         // 7. 真正调用被测试的方法
@@ -675,16 +692,10 @@ public class TaskServiceTest {
         when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
-        /*
-         * 这里不需要再模拟“当前用户是不是项目负责人”。
-         *
-         * 因为 projectPermissionService 在这个测试里本身就是 Mock。
-         * requireProjectManager(...) 是 void 方法，
-         * Mockito 默认什么都不做，相当于权限检查直接通过。
-         */
+        // 锁后的操作者 PM 身份由 setUpActiveUsers 的 locking 查询夹具提供。
 
         // 6. Mock：要被分配的 userId=99 不是项目有效成员
-        when(projectMemberMapper.selectOne(any()))
+        when(projectMemberMapper.selectMemberForUpdate(4L, 99L))
                 .thenReturn(null);
 
         // 7. 执行，并期待抛出 BusinessException

@@ -14,6 +14,14 @@ import java.util.List;
 @Mapper
 public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
     @Select("""
+        SELECT * FROM project_member
+        WHERE project_id = #{projectId} AND user_id = #{userId}
+        FOR UPDATE
+        """)
+    ProjectMember selectMemberForUpdate(@Param("projectId") Long projectId,
+                                       @Param("userId") Long userId);
+
+    @Select("""
         SELECT
             pm.user_id AS userId,
             u.username AS username,

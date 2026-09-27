@@ -1,6 +1,5 @@
 package com.flowdesk;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.*;
 import com.flowdesk.dto.*;
 import com.flowdesk.exception.BusinessException;
@@ -55,22 +54,29 @@ class MemberLifecycleRegressionTest {
     Project project() { Project p = new Project(); p.setId(4L); p.setStatus("IN_PROGRESS"); p.setName("FlowDesk"); return p; }
     User user() { User u = new User(); u.setId(2L); u.setStatus("ACTIVE"); u.setSystemRole("USER"); return u; }
     ProjectMember developer() { ProjectMember m = new ProjectMember(); m.setId(8L); m.setUserId(2L); m.setProjectId(4L); m.setRole("DEVELOPER"); m.setStatus("ACTIVE"); return m; }
+    ProjectMember manager() { ProjectMember m = developer(); m.setUserId(1L); m.setRole("PROJECT_MANAGER"); return m; }
     Task task(String status) { Task t = new Task(); t.setId(10L); t.setProjectId(4L); t.setStatus(status); t.setTitle("Task"); return t; }
 
     @Test void assignmentLocksProjectBeforeReadingCandidateAndWritingTask() {
         Task task = task("TODO"); AssignTaskDTO dto = new AssignTaskDTO(); dto.setAssigneeId(2L);
         when(tasks.selectById(10L)).thenReturn(task);
         when(projects.selectByIdForUpdate(4L)).thenReturn(project());
-        when(members.selectOne(any())).thenReturn(developer());
-        when(users.selectById(2L)).thenReturn(user());
+        when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(developer());
+        when(users.selectByIdForUpdate(2L)).thenReturn(user());
         when(tasks.reassignTodoIfCurrent(eq(10L), isNull(), eq(2L), any())).thenReturn(1);
         taskService.assignTask(10L, dto);
-        InOrder order = inOrder(projects, members, tasks);
+        InOrder order = inOrder(projects, members, users, tasks);
         order.verify(tasks).selectById(10L);
         order.verify(projects).selectByIdForUpdate(4L);
-        order.verify(members).selectOne(argThat(wrapper -> ((LambdaQueryWrapper<?>) wrapper).getSqlSegment().contains("FOR UPDATE")));
+        order.verify(members).selectMemberForUpdate(4L, 1L);
+        order.verify(members).selectMemberForUpdate(4L, 2L);
+        order.verify(users).selectByIdForUpdate(2L);
         order.verify(tasks).reassignTodoIfCurrent(eq(10L), isNull(), eq(2L), any());
         verify(projects, never()).selectById(anyLong());
+        verify(members, never()).selectOne(any());
+        verify(users, never()).selectById(anyLong());
+        verify(permissions, times(1)).requireProjectManager(4L);
     }
 
     @Test void departureWinningProjectLockPreventsAssignment() {
@@ -78,7 +84,8 @@ class MemberLifecycleRegressionTest {
         when(tasks.selectById(10L)).thenReturn(task("TODO"));
         when(projects.selectByIdForUpdate(4L)).thenReturn(project());
         // The current membership read after acquiring the lock sees the committed departure.
-        when(members.selectOne(any())).thenReturn(null);
+        when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(null);
         assertEquals(409, assertThrows(BusinessException.class, () -> taskService.assignTask(10L, dto)).getCode());
         verify(tasks, never()).reassignTodoIfCurrent(anyLong(), any(), anyLong(), any());
     }
@@ -87,10 +94,73 @@ class MemberLifecycleRegressionTest {
         AssignTaskDTO dto = new AssignTaskDTO(); dto.setAssigneeId(2L);
         when(tasks.selectById(10L)).thenReturn(task("TODO"));
         when(projects.selectByIdForUpdate(4L)).thenReturn(project());
-        when(members.selectOne(any())).thenReturn(developer());
-        User u = user(); u.setStatus("DISABLED"); when(users.selectById(2L)).thenReturn(u);
+        when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(developer());
+        User u = user(); u.setStatus("DISABLED"); when(users.selectByIdForUpdate(2L)).thenReturn(u);
+        assertEquals(409, assertThrows(BusinessException.class, () -> taskService.assignTask(10L, dto)).getCode());
+        InOrder order = inOrder(projects, members, users);
+        order.verify(projects).selectByIdForUpdate(4L);
+        order.verify(members).selectMemberForUpdate(4L, 1L);
+        order.verify(members).selectMemberForUpdate(4L, 2L);
+        order.verify(users).selectByIdForUpdate(2L);
+        verify(tasks, never()).reassignTodoIfCurrent(anyLong(), any(), anyLong(), any());
+    }
+
+    @Test void operatorDemotedWhileWaitingForProjectLockCannotAssign() {
+        AssignTaskDTO dto = new AssignTaskDTO(); dto.setAssigneeId(2L);
+        when(tasks.selectById(10L)).thenReturn(task("TODO"));
+        when(projects.selectByIdForUpdate(4L)).thenReturn(project());
+        ProjectMember demoted = manager(); demoted.setRole("DEVELOPER");
+        when(members.selectMemberForUpdate(4L, 1L)).thenReturn(demoted);
+        assertEquals(403, assertThrows(BusinessException.class, () -> taskService.assignTask(10L, dto)).getCode());
+        InOrder order = inOrder(permissions, projects, members);
+        order.verify(permissions).requireProjectManager(4L);
+        order.verify(projects).selectByIdForUpdate(4L);
+        order.verify(members).selectMemberForUpdate(4L, 1L);
+        verify(members, never()).selectMemberForUpdate(4L, 2L);
+        verify(users, never()).selectByIdForUpdate(anyLong());
+        verify(tasks, never()).reassignTodoIfCurrent(anyLong(), any(), anyLong(), any());
+    }
+
+    @Test void inactiveAssigneeAfterProjectLockCannotReceiveTask() {
+        AssignTaskDTO dto = new AssignTaskDTO(); dto.setAssigneeId(2L);
+        when(tasks.selectById(10L)).thenReturn(task("TODO"));
+        when(projects.selectByIdForUpdate(4L)).thenReturn(project());
+        when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
+        ProjectMember inactive = developer(); inactive.setStatus("INACTIVE");
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(inactive);
+        assertEquals(409, assertThrows(BusinessException.class, () -> taskService.assignTask(10L, dto)).getCode());
+        InOrder order = inOrder(projects, members);
+        order.verify(projects).selectByIdForUpdate(4L);
+        order.verify(members).selectMemberForUpdate(4L, 1L);
+        order.verify(members).selectMemberForUpdate(4L, 2L);
+        verify(users, never()).selectByIdForUpdate(anyLong());
+        verify(tasks, never()).reassignTodoIfCurrent(anyLong(), any(), anyLong(), any());
+    }
+
+    @Test void administratorAccountCannotBecomeAssignee() {
+        AssignTaskDTO dto = new AssignTaskDTO(); dto.setAssigneeId(2L);
+        when(tasks.selectById(10L)).thenReturn(task("TODO"));
+        when(projects.selectByIdForUpdate(4L)).thenReturn(project());
+        when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(developer());
+        User admin = user(); admin.setSystemRole("SYSTEM_ADMIN");
+        when(users.selectByIdForUpdate(2L)).thenReturn(admin);
         assertEquals(409, assertThrows(BusinessException.class, () -> taskService.assignTask(10L, dto)).getCode());
         verify(tasks, never()).reassignTodoIfCurrent(anyLong(), any(), anyLong(), any());
+    }
+
+    @Test void unchangedAssigneeReturnsWithoutWritingTask() {
+        Task task = task("TODO"); task.setAssigneeId(2L);
+        AssignTaskDTO dto = new AssignTaskDTO(); dto.setAssigneeId(2L);
+        when(tasks.selectById(10L)).thenReturn(task);
+        when(projects.selectByIdForUpdate(4L)).thenReturn(project());
+        when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(developer());
+        when(users.selectByIdForUpdate(2L)).thenReturn(user());
+        taskService.assignTask(10L, dto);
+        verify(tasks, never()).reassignTodoIfCurrent(anyLong(), any(), anyLong(), any());
+        verifyNoInteractions(notifications, logs, leaves);
     }
 
     void pendingRequest(Long requester) {
