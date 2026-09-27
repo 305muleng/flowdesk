@@ -277,6 +277,7 @@ public class ProjectInvitationService {
             );
         }
 
+        now = LocalDateTime.now();
         int accepted = projectInvitationMapper.transitionPending(
                 invitationId,
                 "ACCEPTED",

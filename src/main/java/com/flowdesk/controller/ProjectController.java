@@ -37,6 +37,11 @@ public class ProjectController {
         this.taskService = taskService;
     }
 
+    @GetMapping("/{projectId}/member-candidates")
+    public Result<List<com.flowdesk.vo.MemberCandidateVO>> getMemberCandidates(@PathVariable Long projectId) {
+        return Result.success(projectService.getMemberCandidates(projectId));
+    }
+
     @Operation(
             summary = "创建项目",
             description = "当前登录用户创建新项目，并自动成为该项目的项目负责人"

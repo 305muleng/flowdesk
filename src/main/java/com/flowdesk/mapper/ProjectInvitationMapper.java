@@ -19,6 +19,7 @@ public interface ProjectInvitationMapper
             UPDATE project_invitation
             SET status = #{newStatus}, responded_at = #{respondedAt}
             WHERE id = #{invitationId} AND status = 'PENDING'
+              AND (#{newStatus} != 'ACCEPTED' OR expires_at > #{respondedAt})
             """)
     int transitionPending(
             @Param("invitationId") Long invitationId,

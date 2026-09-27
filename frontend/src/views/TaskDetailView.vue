@@ -299,7 +299,7 @@ onMounted(load)
     <el-dialog v-model="assignVisible" title="分配任务负责人" width="440px">
       <el-select v-model="selectedAssignee" placeholder="选择开发成员" style="width: 100%">
         <el-option
-          v-for="member in members.filter((item) => item.role === 'DEVELOPER')"
+          v-for="member in members.filter((item) => item.effective)"
           :key="member.userId"
           :label="member.realName + '（' + member.username + '）'"
           :value="member.userId"

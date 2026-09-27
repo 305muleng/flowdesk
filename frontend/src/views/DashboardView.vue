@@ -20,7 +20,7 @@ const greeting = computed(() => `${auth.displayName}，下午好`)
 const activeProjects = computed(() => projects.value.filter((item) => ['PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE'].includes(item.status)))
 const openTasks = computed(() => tasks.value.filter((item) => !['DONE', 'CANCELLED'].includes(item.status)))
 const doneTasks = computed(() => tasks.value.filter((item) => item.status === 'DONE'))
-const dueSoon = computed(() => tasks.value.filter((item) => !['DONE', 'CANCELLED'].includes(item.status) && new Date(item.deadline).getTime() - Date.now() < 3 * 86400000).length)
+const dueSoon = computed(() => tasks.value.filter((item) => !['DONE', 'CANCELLED'].includes(item.status) && new Date(item.deadline).getTime() >= Date.now() && new Date(item.deadline).getTime() - Date.now() < 3 * 86400000).length)
 
 const taskOption = computed<EChartsCoreOption>(() => ({
   tooltip: { trigger: 'item' },

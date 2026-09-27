@@ -27,6 +27,11 @@ public class MemberLeaveRequestController {
                 memberLeaveRequestService;
     }
 
+    @GetMapping
+    public Result<java.util.List<MemberLeaveRequestVO>> getPendingLeaveRequests(@PathVariable Long projectId) {
+        return Result.success(memberLeaveRequestService.getPendingLeaveRequests(projectId));
+    }
+
     @Operation(
             summary = "提交退出项目申请",
             description = "开发人员向当前项目负责人提交退出项目申请"

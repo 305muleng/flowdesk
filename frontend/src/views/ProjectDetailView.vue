@@ -3,6 +3,7 @@ import { ArrowLeft, Message, Plus, Refresh, UserFilled } from '@element-plus/ico
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { candidatesApi, leavesApi, createLeaveApi, createTransferApi, removeMemberApi, pendingTransfersApi, type Candidate, type LeaveRequest } from '@/api/membership'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -55,17 +56,65 @@ const reviewDialog = ref(false)
 const taskFormRef = ref()
 const requestFormRef = ref()
 const selectedRequest = ref<TaskRequest>()
-const inviteUsername = ref('')
+const candidates = ref<Candidate[]>([])
+const candidateSearch = ref('')
+const leaveRequests = ref<LeaveRequest[]>([])
+const transferDialog = ref(false)
+const transferForm = ref({ targetUsername: '', currentPassword: '', oldManagerAction: 'STAY' })
+const pendingTransfers = ref<{ id: number; toUserName: string }[]>([])
+const mutable = computed(() => ['PREPARING', 'IN_PROGRESS'].includes(project.value?.status || ''))
+const visibleCandidates = computed(() => candidates.value.filter(item => (item.username + ' ' + item.realName).toLowerCase().includes(candidateSearch.value.trim().toLowerCase())))
+const candidateLabels = { JOINED: '已加入', DISABLED: '账号已禁用', PENDING: '待接受', REINVITE: '重新邀请', INVITE: '邀请' }
+async function openMembers(transfer = false) {
+  candidates.value = (await candidatesApi(id.value)).data.data
+  candidateSearch.value = ''
+  if (transfer) {
+    transferForm.value = { targetUsername: '', currentPassword: '', oldManagerAction: 'STAY' }
+    transferDialog.value = true
+  }
+  else inviteDialog.value = true
+}
+async function sendInvite(item: Candidate) {
+  saving.value = true
+  try {
+    await sendInvitationApi(id.value, item.username)
+    candidates.value = (await candidatesApi(id.value)).data.data
+    ElMessage.success('邀请已发送')
+  } finally { saving.value = false }
+}
+function recordPath(kind: string, recordId: number) { return '/membership/' + id.value + '/' + kind + '/' + recordId }
+async function leaveProject() {
+  const { value } = await ElMessageBox.prompt('退出申请不会冻结成员；真正退出前须完成所有未完成任务。请填写退出原因。', '申请退出', { inputType: 'textarea', inputPattern: /\S+/, inputErrorMessage: '退出原因必填' })
+  const result = await createLeaveApi(id.value, value)
+  await router.push(recordPath('leave-requests', result.data.data))
+}
+async function removeMember(member: ProjectMember) {
+  const { value } = await ElMessageBox.prompt('确认移除 ' + member.realName + '？可填写移除原因。', '移除成员')
+  await removeMemberApi(id.value, member.userId, value)
+  ElMessage.success('成员已移除')
+  await load()
+}
+async function transferManager() {
+  if (!transferForm.value.targetUsername || !transferForm.value.currentPassword) { ElMessage.warning('请选择目标用户并填写当前密码'); return }
+  saving.value = true
+  try {
+    const result = await createTransferApi(id.value, transferForm.value)
+    transferForm.value.currentPassword = ''
+    transferDialog.value = false
+    await router.push(recordPath('manager-transfers', result.data.data))
+  } finally { saving.value = false }
+}
 const currentRole = computed(
   () => members.value.find((item) => item.userId === auth.user?.userId)?.role,
 )
 const focusedRequestId = computed(() => Number(route.query.requestId) || undefined)
 const isManager = computed(() => currentRole.value === 'PROJECT_MANAGER')
+const assignableMembers = computed(() => members.value.filter((member) => member.effective))
 const taskProgress = computed(() =>
-  tasks.value.length
+  tasks.value.filter((item) => item.status !== 'CANCELLED').length
     ? Math.round(
-        (tasks.value.filter((item) => ['DONE', 'CANCELLED'].includes(item.status)).length /
-          tasks.value.length) *
+        (tasks.value.filter((item) => item.status === 'DONE').length /
+          tasks.value.filter((item) => item.status !== 'CANCELLED').length) *
           100,
       )
     : 0,
@@ -114,14 +163,16 @@ async function load() {
     acceptances.value =
       acceptanceResult.status === 'fulfilled' ? acceptanceResult.value.data.data : []
     logs.value = logResult.status === 'fulfilled' ? logResult.value.data.data : []
-    if (
-      members.value.find((item) => item.userId === auth.user?.userId)?.role === 'PROJECT_MANAGER'
-    ) {
-      try {
-        requests.value = (await getProjectTaskRequestsApi(id.value)).data.data
-      } catch {
-        requests.value = []
-      }
+    requests.value = []
+    leaveRequests.value = []
+    pendingTransfers.value = []
+    if (isManager.value) {
+      const [taskRequests, pendingLeaves, transfers] = await Promise.all([
+        getProjectTaskRequestsApi(id.value), leavesApi(id.value), pendingTransfersApi(id.value),
+      ])
+      requests.value = taskRequests.data.data
+      leaveRequests.value = pendingLeaves.data.data
+      pendingTransfers.value = transfers.data.data
     }
   } finally {
     loading.value = false
@@ -157,13 +208,6 @@ async function createRequest() {
   } finally {
     saving.value = false
   }
-}
-async function invite() {
-  if (!inviteUsername.value.trim()) return
-  await sendInvitationApi(id.value, inviteUsername.value.trim())
-  ElMessage.success('项目邀请已发送')
-  inviteDialog.value = false
-  inviteUsername.value = ''
 }
 async function changeProject(action: 'start' | 'cancel' | 'archive') {
   if (action === 'start') await startProjectApi(id.value)
@@ -341,18 +385,32 @@ onMounted(load)
             v-if="isManager && ['PREPARING', 'IN_PROGRESS'].includes(project?.status || '')"
             type="primary"
             :icon="UserFilled"
-            @click="inviteDialog = true"
-            >邀请成员</el-button
+            @click="openMembers()"
+            >添加成员</el-button
           >
         </section>
+        <p v-if="mutable">
+          <el-button v-if="isManager" @click="openMembers(true)">转让项目负责人</el-button>
+          <el-button v-if="currentRole === 'DEVELOPER'" @click="leaveProject">申请退出项目</el-button>
+        </p>
+        <p v-for="transfer in pendingTransfers" :key="transfer.id"><el-button @click="router.push(recordPath('manager-transfers', transfer.id))">待处理负责人转让：{{ transfer.toUserName }}</el-button></p>
+        <div v-if="isManager">
+          <h3>退出申请</h3>
+          <p v-for="item in leaveRequests" :key="item.id"><el-button @click="router.push(recordPath('leave-requests', item.id))">{{ item.applicantName }}：{{ item.reason }} · 待处理</el-button></p>
+          <p v-if="!leaveRequests.length">暂无有效待处理退出申请</p>
+        </div>
         <div class="member-grid">
           <article v-for="member in members" :key="member.userId" class="surface-card member-card">
             <div class="member-avatar">{{ member.realName.slice(0, 1) }}</div>
             <div>
               <strong>{{ member.realName }}</strong
               ><small>@{{ member.username }}</small>
+              <small v-if="member.userStatus === 'DISABLED'">账号已禁用</small>
+              <small>未完成任务：{{ member.unfinishedTaskCount }}</small>
+              <small v-if="leaveRequests.some(item => item.applicantId === member.userId)">退出申请待处理</small>
             </div>
             <StatusTag :value="member.role" />
+            <el-button v-if="isManager && mutable && member.role === 'DEVELOPER'" :disabled="member.unfinishedTaskCount > 0" @click="removeMember(member)">移除</el-button>
           </article></div
       ></el-tab-pane>
       <el-tab-pane v-if="isManager" name="requests"
@@ -423,9 +481,9 @@ onMounted(load)
           <el-form-item label="负责人"
             ><el-select v-model="taskForm.assigneeId" clearable placeholder="暂不分配"
               ><el-option
-                v-for="member in members"
+                v-for="member in assignableMembers"
                 :key="member.userId"
-                :label="member.realName"
+                :label="`${member.realName} · ${statusLabel(member.role)} · 未完成任务 ${member.unfinishedTaskCount}`"
                 :value="member.userId" /></el-select></el-form-item
           ><el-form-item label="优先级"
             ><el-select v-model="taskForm.priority"
@@ -464,21 +522,30 @@ onMounted(load)
         ></template
       ></el-dialog
     >
-    <el-dialog v-model="inviteDialog" title="邀请项目成员" width="min(92vw,460px)"
-      ><p class="dialog-copy">被邀请用户接受后，将以开发成员身份加入项目。</p>
-      <el-input v-model="inviteUsername" placeholder="输入用户名" /><template #footer
-        ><el-button @click="inviteDialog = false">取消</el-button
-        ><el-button type="primary" @click="invite">发送邀请</el-button></template
-      ></el-dialog
-    >
+    <el-dialog v-model="inviteDialog" title="添加成员" width="min(92vw,640px)">
+      <el-input v-model="candidateSearch" placeholder="搜索用户名或姓名" />
+      <el-table :data="visibleCandidates" max-height="400">
+        <el-table-column prop="realName" label="姓名" /><el-table-column prop="username" label="用户名" />
+        <el-table-column label="操作"><template #default="{ row }"><el-button :loading="saving" :disabled="!['INVITE', 'REINVITE'].includes(row.candidateStatus)" @click="sendInvite(row)">{{ candidateLabels[row.candidateStatus as keyof typeof candidateLabels] }}{{ row.candidateStatus === 'JOINED' && row.userStatus === 'DISABLED' ? ' · 账号已禁用' : '' }}</el-button></template></el-table-column>
+      </el-table>
+    </el-dialog>
+    <el-dialog v-model="transferDialog" title="转让项目负责人" width="min(92vw,560px)">
+      <el-form label-position="top">
+        <el-form-item label="目标用户"><el-select v-model="transferForm.targetUsername" filterable><el-option v-for="item in candidates.filter(item => item.userStatus === 'ACTIVE' && item.userId !== auth.user?.userId)" :key="item.userId" :value="item.username" :label="item.realName + ' @' + item.username" /></el-select></el-form-item>
+        <el-form-item label="当前密码"><el-input v-model="transferForm.currentPassword" type="password" show-password /></el-form-item>
+        <el-form-item label="转让后"><el-radio-group v-model="transferForm.oldManagerAction"><el-radio value="STAY">留下成为开发成员</el-radio><el-radio value="LEAVE">退出项目</el-radio></el-radio-group></el-form-item>
+        <p>目标接受后生效。选择退出时，你不能有未完成任务。</p>
+      </el-form>
+      <template #footer><el-button :loading="saving" @click="transferManager">发起转让</el-button></template>
+    </el-dialog>
     <el-dialog v-model="reviewDialog" title="批准任务申请" width="min(92vw,560px)"
       ><el-form :model="reviewForm" label-position="top"
         ><el-form-item label="任务负责人"
           ><el-select v-model="reviewForm.assigneeId" clearable
             ><el-option
-              v-for="member in members"
+              v-for="member in assignableMembers"
               :key="member.userId"
-              :label="member.realName"
+              :label="`${member.realName} · ${statusLabel(member.role)} · 未完成任务 ${member.unfinishedTaskCount}`"
               :value="member.userId" /></el-select
         ></el-form-item>
         <div class="two">
@@ -594,6 +661,7 @@ onMounted(load)
 }
 .member-card {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 17px;

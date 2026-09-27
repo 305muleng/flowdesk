@@ -370,6 +370,15 @@ public class TaskService {
             );
         }
 
+        if (dto.getResultUrl() != null && !dto.getResultUrl().isBlank()) {
+            try {
+                java.net.URI uri = java.net.URI.create(dto.getResultUrl().trim());
+                if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                        || uri.getHost() == null) throw new IllegalArgumentException();
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException(400, "成果链接只允许有效的 http 或 https 地址");
+            }
+        }
 // 保存任务修改前的状态
         String oldStatus = task.getStatus();
 
@@ -397,7 +406,7 @@ public class TaskService {
         submission.setCompletionNote(
                 dto.getCompletionNote().trim()
         );
-        submission.setResultUrl(dto.getResultUrl());
+        submission.setResultUrl(dto.getResultUrl() == null ? null : dto.getResultUrl().trim());
         submission.setTestNote(
                 dto.getTestNote().trim()
         );
@@ -797,7 +806,7 @@ public class TaskService {
         );
 
         Project project =
-                projectMapper.selectById(
+                projectMapper.selectByIdForUpdate(
                         task.getProjectId()
                 );
 
@@ -819,6 +828,8 @@ public class TaskService {
             );
         }
 
+        projectPermissionService.requireProjectManager(task.getProjectId());
+
         // 3. 只有 TODO 状态允许分配 / 重新分配
         if (!"TODO".equals(task.getStatus())) {
             throw new BusinessException(
@@ -827,7 +838,8 @@ public class TaskService {
             );
         }
 
-        // 4. 新负责人必须是该项目 ACTIVE 成员
+        // 4. 等待项目锁后使用当前读，避免读到成员退出前的事务快照。
+        // 新负责人必须是该项目 ACTIVE 成员。
         ProjectMember member =
                 projectMemberMapper.selectOne(
                         new LambdaQueryWrapper<ProjectMember>()
@@ -842,7 +854,7 @@ public class TaskService {
                                 .eq(
                                         ProjectMember::getStatus,
                                         "ACTIVE"
-                                )
+                                ).last("FOR UPDATE")
                 );
 
         if (member == null || !isActiveProjectUser(dto.getAssigneeId())) {

@@ -220,7 +220,7 @@ public class TaskServiceTest {
         UserContext.set(new CurrentUser(1L, "USER"));
 
         when(taskMapper.selectById(9L)).thenReturn(task);
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(projectMemberMapper.selectOne(any())).thenReturn(manager);
 
         taskService.assignTask(9L, dto);
@@ -267,7 +267,7 @@ public class TaskServiceTest {
                 .thenReturn(task);
 
         // 查询项目4时，返回 project
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 查询项目成员时，返回 Jack
@@ -356,7 +356,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(9L))
                 .thenReturn(task);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 5. 调用 assignTask() 时，应该抛 BusinessException
@@ -391,7 +391,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(9L))
                 .thenReturn(task);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         BusinessException exception =
@@ -672,7 +672,7 @@ public class TaskServiceTest {
                 .thenReturn(task);
 
         // 5. Mock：能查到项目
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         /*

@@ -176,6 +176,11 @@ public class ProjectService {
         return vo;
     }
 
+    public List<com.flowdesk.vo.MemberCandidateVO> getMemberCandidates(Long projectId) {
+        projectPermissionService.requireProjectManager(projectId);
+        return userMapper.selectMemberCandidates(projectId, LocalDateTime.now());
+    }
+
     public List<ProjectMemberVO> getProjectMembers(Long projectId) {
         projectPermissionService.requireProjectMember(projectId);
         return projectMemberMapper.selectActiveMembers(projectId);

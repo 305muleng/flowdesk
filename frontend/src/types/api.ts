@@ -38,6 +38,9 @@ export interface Project {
 }
 
 export interface ProjectMember {
+  userStatus: string
+  effective: boolean
+  unfinishedTaskCount: number
   userId: number
   username: string
   realName: string

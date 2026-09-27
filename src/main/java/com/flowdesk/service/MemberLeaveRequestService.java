@@ -57,6 +57,11 @@ public class MemberLeaveRequestService {
         this.taskRequestMapper = taskRequestMapper;
     }
 
+    public java.util.List<MemberLeaveRequestVO> getPendingLeaveRequests(Long projectId) {
+        projectPermissionService.requireProjectManager(projectId);
+        return memberLeaveRequestMapper.selectPendingForProject(projectId, LocalDateTime.now());
+    }
+
     @Transactional
     public Long createLeaveRequest(
             Long projectId,

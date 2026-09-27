@@ -22,6 +22,9 @@ type CategoryFilter =
   | 'TASK_REQUEST'
   | 'TASK_SUBMISSION'
   | 'PROJECT_ACCEPTANCE'
+  | 'MEMBER_LEAVE_REQUEST'
+  | 'PROJECT_MANAGER_TRANSFER'
+  | 'PROJECT_MEMBER_REMOVED'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -31,7 +34,7 @@ const loading = ref(false)
 const error = ref('')
 const processingIds = ref(new Set<number>())
 const markingAll = ref(false)
-const readFilter = ref<ReadFilter>('ALL')
+const readFilter = ref<ReadFilter>('UNREAD')
 const categoryFilter = ref<CategoryFilter>('ALL')
 const readRequests = new Map<number, Promise<void>>()
 const hasUnread = computed(() => notifications.value.some((item) => !item.readAt))
@@ -42,6 +45,9 @@ function categoryFor(type: string): Exclude<CategoryFilter, 'ALL'> | 'OTHER' {
   if (type.startsWith('TASK_REQUEST')) return 'TASK_REQUEST'
   if (type.startsWith('TASK_SUBMISSION')) return 'TASK_SUBMISSION'
   if (type.startsWith('PROJECT_ACCEPTANCE')) return 'PROJECT_ACCEPTANCE'
+  if (type.startsWith('MEMBER_LEAVE_REQUEST_')) return 'MEMBER_LEAVE_REQUEST'
+  if (type.startsWith('PROJECT_MANAGER_TRANSFER_')) return 'PROJECT_MANAGER_TRANSFER'
+  if (type === 'PROJECT_MEMBER_REMOVED') return 'PROJECT_MEMBER_REMOVED'
   return 'OTHER'
 }
 
@@ -58,6 +64,11 @@ const filteredNotifications = computed(() =>
 )
 
 function actionFor(item: NotificationItem): NotificationAction | undefined {
+  if (item.type === 'PROJECT_MEMBER_REMOVED') return undefined
+  if (item.projectId && item.targetId && (item.type.startsWith('MEMBER_LEAVE_REQUEST_') || item.type.startsWith('PROJECT_MANAGER_TRANSFER_'))) {
+    const kind = item.type.startsWith('MEMBER_LEAVE_REQUEST_') ? 'leave-requests' : 'manager-transfers'
+    return { label: '查看详情', to: `/membership/${item.projectId}/${kind}/${item.targetId}` }
+  }
   if (item.type === 'PROJECT_INVITATION') {
     const invitationQuery = item.targetId ? `?invitationId=${item.targetId}` : ''
     return { label: '处理邀请', to: `/invitations${invitationQuery}` }
@@ -194,9 +205,9 @@ onMounted(load)
     <el-segmented
       v-model="readFilter"
       :options="[
-        { label: '全部', value: 'ALL' },
         { label: '未读', value: 'UNREAD' },
         { label: '已读', value: 'READ' },
+        { label: '全部', value: 'ALL' },
       ]"
     />
     <el-select v-model="categoryFilter" class="category-filter" aria-label="通知类别">
@@ -206,6 +217,9 @@ onMounted(load)
       <el-option label="任务申请" value="TASK_REQUEST" />
       <el-option label="任务提交" value="TASK_SUBMISSION" />
       <el-option label="项目验收" value="PROJECT_ACCEPTANCE" />
+      <el-option label="退出申请" value="MEMBER_LEAVE_REQUEST" />
+      <el-option label="负责人转让" value="PROJECT_MANAGER_TRANSFER" />
+      <el-option label="成员移除" value="PROJECT_MEMBER_REMOVED" />
     </el-select>
   </section>
 

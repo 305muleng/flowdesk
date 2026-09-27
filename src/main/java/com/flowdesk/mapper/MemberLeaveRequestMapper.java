@@ -14,6 +14,17 @@ import java.time.LocalDateTime;
 public interface MemberLeaveRequestMapper
         extends BaseMapper<MemberLeaveRequest> {
 
+    @Select("""
+        SELECT r.id, r.project_id AS projectId, r.applicant_id AS applicantId,
+               u.real_name AS applicantName, r.reason, r.status,
+               r.created_at AS createdAt, r.expires_at AS expiresAt
+        FROM member_leave_request r JOIN `user` u ON u.id = r.applicant_id
+        WHERE r.project_id = #{projectId} AND r.status = 'PENDING' AND r.expires_at > #{now}
+        ORDER BY r.created_at, r.id
+        """)
+    java.util.List<MemberLeaveRequestVO> selectPendingForProject(@Param("projectId") Long projectId,
+                                                               @Param("now") LocalDateTime now);
+
     @Update("""
             UPDATE member_leave_request
             SET status = 'CANCELLED',
@@ -97,6 +108,7 @@ public interface MemberLeaveRequestMapper
         WHERE project_id = #{projectId}
           AND applicant_id = #{applicantId}
           AND status = 'PENDING'
+          AND expires_at > #{cancelledAt}
         """)
     int cancelPendingByApplicant(
             @Param("projectId") Long projectId,
