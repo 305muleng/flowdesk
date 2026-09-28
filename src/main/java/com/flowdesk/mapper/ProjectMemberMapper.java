@@ -14,18 +14,30 @@ import java.util.List;
 @Mapper
 public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
     @Select("""
+        SELECT * FROM project_member
+        WHERE project_id = #{projectId} AND user_id = #{userId}
+        FOR UPDATE
+        """)
+    ProjectMember selectMemberForUpdate(@Param("projectId") Long projectId,
+                                       @Param("userId") Long userId);
+
+    @Select("""
         SELECT
             pm.user_id AS userId,
             u.username AS username,
             u.real_name AS realName,
             pm.role AS role,
-            pm.joined_at AS joinedAt
+            pm.joined_at AS joinedAt,
+            u.status AS userStatus,
+            (u.status = 'ACTIVE' AND u.system_role = 'USER') AS effective,
+            (SELECT COUNT(*) FROM task t WHERE t.project_id = pm.project_id
+             AND t.assignee_id = pm.user_id AND t.deleted_at IS NULL
+             AND t.status IN ('TODO', 'IN_PROGRESS', 'REVIEW')) AS unfinishedTaskCount
         FROM project_member pm
         JOIN `user` u
             ON pm.user_id = u.id
         WHERE pm.project_id = #{projectId}
           AND pm.status = 'ACTIVE'
-          AND u.status = 'ACTIVE'
           AND u.system_role = 'USER'
         ORDER BY pm.joined_at ASC
         """)

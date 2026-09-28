@@ -31,16 +31,14 @@ export const useAuthStore = defineStore('auth', () => {
   async function verify() {
     if (!token.value) return false
     const { data } = await getCurrentUserApi()
-    if (user.value) {
-      user.value = {
-        ...user.value,
-        userId: data.data.id,
-        username: data.data.username,
-        realName: data.data.realName,
-        systemRole: data.data.systemRole,
-      }
-      localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+    user.value = {
+      token: token.value,
+      userId: data.data.id,
+      username: data.data.username,
+      realName: data.data.realName,
+      systemRole: data.data.systemRole,
     }
+    localStorage.setItem(USER_KEY, JSON.stringify(user.value))
     return true
   }
   function logout() {

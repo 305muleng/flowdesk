@@ -4,6 +4,15 @@ import java.time.LocalDateTime;
 
 public class ProjectMemberVO {
 
+    private String userStatus;
+    private boolean effective;
+    private long unfinishedTaskCount;
+    public String getUserStatus() { return userStatus; }
+    public void setUserStatus(String value) { userStatus = value; }
+    public boolean isEffective() { return effective; }
+    public void setEffective(boolean value) { effective = value; }
+    public long getUnfinishedTaskCount() { return unfinishedTaskCount; }
+    public void setUnfinishedTaskCount(long value) { unfinishedTaskCount = value; }
     private Long userId;
     private String username;
     private String realName;

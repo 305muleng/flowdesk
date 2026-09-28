@@ -645,9 +645,11 @@ public class ProjectInvitationServiceTest {
     }
 
     @Test
-    void reactivatingFormerManagerDoesNotDemoteRole() {
+    void reactivatingFormerManagerAlwaysBecomesDeveloper() {
+        when(projectMemberMapper.reactivateAsDeveloper(anyLong(), any())).thenReturn(1);
         ProjectInvitation invitation = pendingInvitation();
         ProjectMember member = new ProjectMember();
+        member.setId(70L);
         member.setRole("PROJECT_MANAGER");
         member.setStatus("INACTIVE");
         UserContext.set(new CurrentUser(2L, "USER"));
@@ -658,9 +660,8 @@ public class ProjectInvitationServiceTest {
 
         projectInvitationService.acceptInvitation(50L);
 
-        assertEquals("PROJECT_MANAGER", member.getRole());
-        assertEquals("ACTIVE", member.getStatus());
-        verify(projectMemberMapper).updateById(member);
+        verify(projectMemberMapper).reactivateAsDeveloper(eq(70L), any());
+        verify(projectMemberMapper, never()).updateById(any(ProjectMember.class));
     }
 
     private ProjectInvitation pendingInvitation() {

@@ -22,6 +22,7 @@ const router = createRouter({
       component: () => import('@/layouts/AppLayout.vue'),
       meta: { requiresAuth: true },
       children: [
+        { path: 'membership/:projectId/:kind(leave-requests|manager-transfers)/:recordId', component: () => import('@/views/MembershipDetailView.vue'), meta: { title: '成员流程详情', ordinaryUser: true } },
         {
           path: 'dashboard',
           name: 'dashboard',
@@ -80,7 +81,7 @@ const router = createRouter({
           path: 'activity',
           name: 'activity',
           component: () => import('@/views/ActivityView.vue'),
-          meta: { title: '项目动态', ordinaryUser: true },
+          meta: { title: '项目操作记录', ordinaryUser: true },
         },
         {
           path: 'admin/acceptances',
@@ -101,8 +102,15 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
+  if (auth.token) {
+    try { await auth.verify() } catch (error) {
+      const status = (error as { response?: { status?: number } }).response?.status
+      if (status === 401 || status === 403) auth.logout()
+      else if (to.meta.requiresAuth) return false
+    }
+  }
   if (to.meta.requiresAuth && !auth.token)
     return { name: 'login', query: { redirect: to.fullPath } }
   if (to.meta.guestOnly && auth.token) return { name: 'dashboard' }

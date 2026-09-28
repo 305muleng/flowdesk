@@ -6,7 +6,7 @@ import DashboardChart from '@/components/DashboardChart.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
-import { getMyProjectsApi, getProjectLogsApi } from '@/api/projects'
+import { getMyProjectsApi, getProjectLogsApi, getProjectTasksApi } from '@/api/projects'
 import { getMyTasksApi } from '@/api/tasks'
 import { formatDateTime } from '@/utils/format'
 import type { OperationLog, Project, Task } from '@/types/api'
@@ -16,11 +16,16 @@ const projects = ref<Project[]>([])
 const tasks = ref<Task[]>([])
 const activities = ref<OperationLog[]>([])
 const loading = ref(true)
+const projectLoadFailed = ref(false)
+const taskLoadFailed = ref(false)
+const projectProgress = ref<Record<number, number | null>>({})
 const greeting = computed(() => `${auth.displayName}，下午好`)
+const recentProjects = computed(() => projects.value.slice(0, 5))
 const activeProjects = computed(() => projects.value.filter((item) => ['PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE'].includes(item.status)))
 const openTasks = computed(() => tasks.value.filter((item) => !['DONE', 'CANCELLED'].includes(item.status)))
 const doneTasks = computed(() => tasks.value.filter((item) => item.status === 'DONE'))
-const dueSoon = computed(() => tasks.value.filter((item) => !['DONE', 'CANCELLED'].includes(item.status) && new Date(item.deadline).getTime() - Date.now() < 3 * 86400000).length)
+const currentTaskCount = computed(() => tasks.value.filter((item) => item.status !== 'CANCELLED').length)
+const dueSoon = computed(() => tasks.value.filter((item) => !['DONE', 'CANCELLED'].includes(item.status) && new Date(item.deadline).getTime() >= Date.now() && new Date(item.deadline).getTime() - Date.now() < 3 * 86400000).length)
 
 const taskOption = computed<EChartsCoreOption>(() => ({
   tooltip: { trigger: 'item' },
@@ -41,27 +46,40 @@ const projectOption = computed<EChartsCoreOption>(() => ({
   tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
   grid: { left: 10, right: 14, top: 10, bottom: 24, containLabel: true },
   xAxis: { type: 'value', max: 100, splitLine: { lineStyle: { color: '#edf0f5' } }, axisLabel: { color: '#9aa4b4' } },
-  yAxis: { type: 'category', data: projects.value.slice(0, 5).map((item) => item.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: '#667085', width: 90, overflow: 'truncate' } },
-  series: [{ type: 'bar', barWidth: 12, data: projects.value.slice(0, 5).map((item) => ({ value: item.status === 'COMPLETED' || item.status === 'ARCHIVED' ? 100 : item.status === 'PENDING_ACCEPTANCE' ? 90 : item.status === 'IN_PROGRESS' ? 58 : 18, itemStyle: { color: '#315bd8', borderRadius: 8 } })) }],
+  yAxis: { type: 'category', data: recentProjects.value.map((item) => item.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: '#667085', width: 90, overflow: 'truncate' } },
+  series: [{ type: 'bar', barWidth: 12, data: recentProjects.value.map((item) => ({ value: projectProgress.value[item.id] ?? 0, itemStyle: { color: projectProgress.value[item.id] === null ? '#c4ccd9' : '#315bd8', borderRadius: 8 } })) }],
 }))
+
+function completionRate(items: Task[]) {
+  const current = items.filter((item) => item.status !== 'CANCELLED')
+  return current.length ? Math.round(current.filter((item) => item.status === 'DONE').length / current.length * 100) : 0
+}
 
 async function load() {
   loading.value = true
   try {
-    await auth.verify()
-    const [projectResponse, taskResponse] = await Promise.all([getMyProjectsApi(), getMyTasksApi()])
-    projects.value = projectResponse.data.data
-    tasks.value = taskResponse.data.data
-    const logResults = await Promise.allSettled(
-      projects.value.slice(0, 4).map((project) =>
-        getProjectLogsApi(project.id, 5).then((response) => response.data.data),
-      ),
-    )
-    activities.value = logResults
-      .filter((result): result is PromiseFulfilledResult<OperationLog[]> => result.status === 'fulfilled')
-      .flatMap((result) => result.value)
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-      .slice(0, 7)
+    const [projectResult, taskResult] = await Promise.allSettled([getMyProjectsApi(), getMyTasksApi()])
+    projectLoadFailed.value = projectResult.status === 'rejected'
+    taskLoadFailed.value = taskResult.status === 'rejected'
+    projects.value = projectResult.status === 'fulfilled' ? projectResult.value.data.data : []
+    tasks.value = taskResult.status === 'fulfilled' ? taskResult.value.data.data : []
+    activities.value = []
+    projectProgress.value = {}
+    if (projectResult.status === 'fulfilled') {
+      const [progressResults, logResults] = await Promise.all([
+        Promise.allSettled(recentProjects.value.map((project) => getProjectTasksApi(project.id))),
+        Promise.allSettled(projects.value.slice(0, 4).map((project) => getProjectLogsApi(project.id, 5))),
+      ])
+      recentProjects.value.forEach((project, index) => {
+        const result = progressResults[index]
+        projectProgress.value[project.id] = result?.status === 'fulfilled' ? completionRate(result.value.data.data) : null
+      })
+      activities.value = logResults
+        .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof getProjectLogsApi>>> => result.status === 'fulfilled')
+        .flatMap((result) => result.value.data.data)
+        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+        .slice(0, 7)
+    }
   } finally { loading.value = false }
 }
 
@@ -70,30 +88,34 @@ onMounted(load)
 
 <template>
   <section v-loading="loading">
+    <el-button @click="load">重新加载</el-button>
+    <el-alert v-if="projectLoadFailed" title="项目数据加载失败，请重试" type="error" :closable="false" />
+    <el-alert v-if="taskLoadFailed" title="任务数据加载失败，请重试" type="error" :closable="false" />
+    <el-alert v-if="recentProjects.some((item) => projectProgress[item.id] === null)" title="部分项目进度暂时无法加载" type="warning" :closable="false" />
     <section class="welcome">
       <div><p>WELCOME TO YOUR WORKSPACE</p><h1>{{ greeting }}</h1><span>聚焦最重要的项目、任务与交付节点。</span></div>
       <el-button type="primary" plain :icon="FolderOpened" @click="$router.push('/projects')">查看全部项目</el-button>
     </section>
     <section class="metrics">
-      <MetricCard label="活跃项目" :value="activeProjects.length" note="正在推进或等待验收" tone="blue"><FolderOpened /></MetricCard>
-      <MetricCard label="我的待办" :value="openTasks.length" :note="`${dueSoon} 项三天内到期`" tone="amber"><List /></MetricCard>
-      <MetricCard label="已完成任务" :value="doneTasks.length" note="累计交付并通过审核" tone="green"><CircleCheck /></MetricCard>
-      <MetricCard label="待验收项目" :value="projects.filter((item) => item.status === 'PENDING_ACCEPTANCE').length" note="等待系统管理员确认" tone="violet"><Timer /></MetricCard>
+      <MetricCard label="活跃项目" :value="projectLoadFailed ? '—' : activeProjects.length" :note="projectLoadFailed ? '项目数据加载失败' : '正在推进或等待验收'" tone="blue"><FolderOpened /></MetricCard>
+      <MetricCard label="我的待办" :value="taskLoadFailed ? '—' : openTasks.length" :note="taskLoadFailed ? '任务数据加载失败' : `${dueSoon} 项三天内到期`" tone="amber"><List /></MetricCard>
+      <MetricCard label="已完成任务" :value="taskLoadFailed ? '—' : doneTasks.length" :note="taskLoadFailed ? '任务数据加载失败' : '累计交付并通过审核'" tone="green"><CircleCheck /></MetricCard>
+      <MetricCard label="待验收项目" :value="projectLoadFailed ? '—' : projects.filter((item) => item.status === 'PENDING_ACCEPTANCE').length" :note="projectLoadFailed ? '项目数据加载失败' : '等待系统管理员确认'" tone="violet"><Timer /></MetricCard>
     </section>
     <section class="dashboard-grid">
-      <article class="surface-card chart-panel"><div class="panel-head"><div><h3>任务状态分布</h3><p>当前分配给你的任务</p></div><span>{{ tasks.length }} 项</span></div><DashboardChart :option="taskOption" /></article>
-      <article class="surface-card chart-panel"><div class="panel-head"><div><h3>项目推进概览</h3><p>最近更新的五个项目</p></div></div><DashboardChart :option="projectOption" /></article>
+      <article class="surface-card chart-panel"><div class="panel-head"><div><h3>任务状态分布</h3><p>当前分配给你的任务</p></div><span>{{ taskLoadFailed ? '加载失败' : `${currentTaskCount} 项` }}</span></div><DashboardChart v-if="!taskLoadFailed" :option="taskOption" /></article>
+      <article class="surface-card chart-panel"><div class="panel-head"><div><h3>项目推进概览</h3><p>最近更新的五个项目 · 任务完成率</p></div></div><DashboardChart v-if="!projectLoadFailed" :option="projectOption" /></article>
     </section>
     <section class="lower-grid">
       <article class="surface-card list-panel">
         <div class="panel-head"><div><h3>优先处理</h3><p>按截止时间排列的未完成任务</p></div><el-button link type="primary" @click="$router.push('/tasks')">查看全部</el-button></div>
         <button v-for="task in openTasks.slice().sort((a,b)=>+new Date(a.deadline)-+new Date(b.deadline)).slice(0,5)" :key="task.id" class="task-row" @click="$router.push(`/tasks/${task.id}`)"><span class="task-dot" /><div><strong>{{ task.title }}</strong><small>{{ new Date(task.deadline).toLocaleDateString('zh-CN') }} 截止</small></div><StatusTag :value="task.status" /></button>
-        <el-empty v-if="!openTasks.length" description="当前没有待处理任务" :image-size="72" />
+        <el-empty v-if="!taskLoadFailed && !openTasks.length" description="当前没有待处理任务" :image-size="72" />
       </article>
       <article class="surface-card list-panel">
         <div class="panel-head"><div><h3>近期动态</h3><p>你参与项目的关键操作</p></div><el-button link type="primary" @click="$router.push('/activity')">查看全部</el-button></div>
         <div v-for="activity in activities" :key="activity.id" class="activity-row"><span /><div><strong>{{ activity.actorName }} · {{ activity.description }}</strong><small>{{ formatDateTime(activity.createdAt) }}</small></div></div>
-        <el-empty v-if="!activities.length" description="还没有项目动态" :image-size="72" />
+        <el-empty v-if="!projectLoadFailed && !activities.length" description="还没有项目动态" :image-size="72" />
       </article>
     </section>
   </section>

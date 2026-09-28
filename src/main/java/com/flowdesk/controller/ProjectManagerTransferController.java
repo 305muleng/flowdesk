@@ -25,6 +25,11 @@ public class ProjectManagerTransferController {
         this.transferService = transferService;
     }
 
+    @GetMapping
+    public Result<java.util.List<ProjectManagerTransferVO>> getPendingTransfers(@PathVariable Long projectId) {
+        return Result.success(transferService.getPendingTransfers(projectId));
+    }
+
     @Operation(
             summary = "发起项目负责人转让",
             description = "当前项目负责人发起负责人转让，目标用户确认后才真正完成转让"

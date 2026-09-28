@@ -47,11 +47,23 @@ public class ProjectServiceTest {
     @Mock
     private OperationLogService operationLogService;
 
+    @Mock private com.flowdesk.mapper.UserMapper userMapper;
+    @Mock private com.flowdesk.mapper.TaskMapper taskMapper;
+    @Mock private com.flowdesk.mapper.TaskRequestMapper taskRequestMapper;
+    @Mock private com.flowdesk.mapper.MemberLeaveRequestMapper memberLeaveRequestMapper;
+    @Mock private com.flowdesk.service.NotificationService notificationService;
     @InjectMocks
     private ProjectService projectService;
 
     @BeforeEach
     void setUpAtomicTransitions() {
+        lenient().when(userMapper.selectByIdForUpdate(anyLong())).thenAnswer(invocation -> {
+            com.flowdesk.model.User user = new com.flowdesk.model.User();
+            user.setId(invocation.getArgument(0));
+            user.setStatus("ACTIVE");
+            user.setSystemRole(UserContext.get().getSystemRole());
+            return user;
+        });
         lenient().when(projectMapper.startIfPreparing(anyLong(), any())).thenReturn(1);
         lenient().when(projectMapper.cancelIfActive(anyLong(), any(), any())).thenReturn(1);
         lenient().when(projectMapper.archiveIfCompleted(anyLong(), any())).thenReturn(1);

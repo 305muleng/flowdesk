@@ -2,14 +2,18 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getMyTasksApi } from '@/api/tasks'
+import { getMyProjectsApi } from '@/api/projects'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import type { Task, TaskStatus } from '@/types/api'
+import type { Project, Task, TaskStatus } from '@/types/api'
 import { formatDateTime, isOverdue } from '@/utils/format'
 
 const router = useRouter()
 const tasks = ref<Task[]>([])
+const projects = ref<Project[]>([])
+const projectMap = computed(() => new Map(projects.value.map((item) => [item.id, item.name])))
 const loading = ref(false)
+const taskLoadFailed = ref(false)
 const filter = ref<'ALL' | TaskStatus>('ALL')
 const keyword = ref('')
 const filteredTasks = computed(() =>
@@ -23,7 +27,10 @@ const filteredTasks = computed(() =>
 async function load() {
   loading.value = true
   try {
-    tasks.value = (await getMyTasksApi()).data.data
+    const [taskResult, projectResult] = await Promise.allSettled([getMyTasksApi(), getMyProjectsApi()])
+    taskLoadFailed.value = taskResult.status === 'rejected'
+    tasks.value = taskResult.status === 'fulfilled' ? taskResult.value.data.data : []
+    projects.value = projectResult.status === 'fulfilled' ? projectResult.value.data.data : []
   } finally {
     loading.value = false
   }
@@ -45,11 +52,13 @@ onMounted(load)
         { label: '进行中', value: 'IN_PROGRESS' },
         { label: '待审核', value: 'REVIEW' },
         { label: '已完成', value: 'DONE' },
+        { label: '已取消', value: 'CANCELLED' },
       ]"
     />
   </section>
   <section v-loading="loading" class="task-list">
-    <el-empty v-if="!loading && !filteredTasks.length" description="当前筛选下没有任务" />
+    <el-alert v-if="taskLoadFailed" title="任务数据加载失败，请重试" type="error" :closable="false"><el-button link type="primary" @click="load">重新加载</el-button></el-alert>
+    <el-empty v-if="!loading && !taskLoadFailed && !filteredTasks.length" description="当前筛选下没有任务" />
     <article
       v-for="task in filteredTasks"
       :key="task.id"
@@ -65,7 +74,7 @@ onMounted(load)
         <p>{{ task.description || task.goal || '暂无任务说明' }}</p>
       </div>
       <div class="meta">
-        <span>负责人</span><strong>{{ task.assigneeName || '待分配' }}</strong>
+        <span>所属项目</span><strong>{{ projectMap.get(task.projectId) || '项目 #' + task.projectId }}</strong>
       </div>
       <div class="meta">
         <span>截止时间</span

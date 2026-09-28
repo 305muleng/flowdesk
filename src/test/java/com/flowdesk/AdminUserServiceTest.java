@@ -26,6 +26,11 @@ public class AdminUserServiceTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock private com.flowdesk.mapper.ProjectMemberMapper projectMemberMapper;
+    @org.junit.jupiter.api.BeforeEach
+    void setUpMemberships() {
+        org.mockito.Mockito.lenient().when(projectMemberMapper.countActiveManagedProjects(any())).thenReturn(0L);
+    }
     @InjectMocks
     private AdminUserService adminUserService;
 
@@ -53,7 +58,7 @@ public class AdminUserServiceTest {
                 )
         );
 
-        when(userMapper.selectById(2L))
+        when(userMapper.selectByIdForUpdate(2L))
                 .thenReturn(user);
 
         adminUserService.disableUser(2L);
@@ -117,7 +122,7 @@ public class AdminUserServiceTest {
                 )
         );
 
-        when(userMapper.selectById(1L))
+        when(userMapper.selectByIdForUpdate(1L))
                 .thenReturn(admin);
 
         BusinessException exception =
@@ -140,7 +145,7 @@ public class AdminUserServiceTest {
         user.setId(2L);
         user.setStatus("DISABLED");
         UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
-        when(userMapper.selectById(2L)).thenReturn(user);
+        when(userMapper.selectByIdForUpdate(2L)).thenReturn(user);
 
         adminUserService.disableUser(2L);
 

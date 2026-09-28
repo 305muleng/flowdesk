@@ -63,6 +63,15 @@ public class ProjectManagerTransferService {
         this.memberLeaveRequestMapper = memberLeaveRequestMapper;
     }
 
+    public java.util.List<ProjectManagerTransferVO> getPendingTransfers(Long projectId) {
+        projectPermissionService.requireProjectManager(projectId);
+        return transferMapper.selectList(new LambdaQueryWrapper<ProjectManagerTransfer>()
+                .eq(ProjectManagerTransfer::getProjectId, projectId)
+                .eq(ProjectManagerTransfer::getStatus, "PENDING")
+                .gt(ProjectManagerTransfer::getExpiresAt, LocalDateTime.now()))
+                .stream().map(item -> getTransferDetail(projectId, item.getId())).toList();
+    }
+
     @Transactional
     public Long createTransfer(
             Long projectId,
@@ -592,6 +601,8 @@ public class ProjectManagerTransferService {
                     "目标用户当前项目角色异常，无法完成负责人转让"
             );
         }
+
+        taskRequestMapper.cancelPendingByRequester(projectId, currentUser.getUserId(), now);
 
         memberLeaveRequestMapper.cancelPendingByApplicant(
                 projectId,

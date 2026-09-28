@@ -18,7 +18,7 @@ import {
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { Project, ProjectMember, Task, TaskComment, TaskSubmission } from '@/types/api'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, statusLabel } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +30,9 @@ const members = ref<ProjectMember[]>([])
 const comments = ref<TaskComment[]>([])
 const submissions = ref<TaskSubmission[]>([])
 const loading = ref(false)
+const commentsLoadFailed = ref(false)
+const submissionsLoadFailed = ref(false)
+const actionBusy = ref(false)
 const commentContent = ref('')
 const submittingComment = ref(false)
 const submitVisible = ref(false)
@@ -51,79 +54,116 @@ async function load() {
   loading.value = true
   try {
     task.value = (await getTaskApi(id.value)).data.data
-    const [projectResponse, memberResponse, commentResponse, submissionResponse] = await Promise.all([
+    const [projectResponse, memberResponse] = await Promise.all([
       getProjectApi(task.value.projectId),
       getProjectMembersApi(task.value.projectId),
-      getTaskCommentsApi(id.value),
-      getTaskSubmissionsApi(id.value),
     ])
     project.value = projectResponse.data.data
     members.value = memberResponse.data.data
-    comments.value = commentResponse.data.data
-    submissions.value = submissionResponse.data.data
     selectedAssignee.value = task.value.assigneeId
+    await Promise.all([loadComments(), loadSubmissions()])
   } finally {
     loading.value = false
   }
 }
+async function loadComments() {
+  try {
+    comments.value = (await getTaskCommentsApi(id.value)).data.data
+    commentsLoadFailed.value = false
+  } catch {
+    comments.value = []
+    commentsLoadFailed.value = true
+  }
+}
+async function loadSubmissions() {
+  try {
+    submissions.value = (await getTaskSubmissionsApi(id.value)).data.data
+    submissionsLoadFailed.value = false
+  } catch {
+    submissions.value = []
+    submissionsLoadFailed.value = true
+  }
+}
 
 async function start() {
-  await startTaskApi(id.value)
-  ElMessage.success('任务已开始')
-  await load()
+  if (actionBusy.value) return
+  actionBusy.value = true
+  try {
+    await startTaskApi(id.value)
+    ElMessage.success('任务已开始')
+    await load()
+  } finally { actionBusy.value = false }
 }
 
 async function submitTask() {
+  if (actionBusy.value) return
   if (!submitForm.completionNote.trim() || !submitForm.testNote.trim()) {
     ElMessage.warning('请填写完成说明和测试说明')
     return
   }
-  await submitTaskApi(id.value, {
-    completionNote: submitForm.completionNote.trim(),
-    resultUrl: submitForm.resultUrl.trim() || undefined,
-    testNote: submitForm.testNote.trim(),
-  })
-  submitVisible.value = false
-  Object.assign(submitForm, { completionNote: '', resultUrl: '', testNote: '' })
-  ElMessage.success('已提交审核')
-  await load()
+  actionBusy.value = true
+  try {
+    await submitTaskApi(id.value, {
+      completionNote: submitForm.completionNote.trim(),
+      resultUrl: submitForm.resultUrl.trim() || undefined,
+      testNote: submitForm.testNote.trim(),
+    })
+    submitVisible.value = false
+    Object.assign(submitForm, { completionNote: '', resultUrl: '', testNote: '' })
+    ElMessage.success('已提交审核')
+    await load()
+  } finally { actionBusy.value = false }
 }
 
 async function review(action: 'APPROVE' | 'REJECT') {
+  if (actionBusy.value) return
   try {
     const result = await ElMessageBox.prompt(
       action === 'APPROVE' ? '可填写审核备注' : '请说明需要修改的内容',
       action === 'APPROVE' ? '通过任务' : '驳回任务',
       action === 'REJECT' ? { inputPattern: /\S+/, inputErrorMessage: '请填写驳回原因' } : {},
     )
-    await reviewTaskApi(id.value, { action, reviewNote: result.value || undefined })
-    ElMessage.success(action === 'APPROVE' ? '任务已通过' : '任务已驳回')
-    await load()
+    if (actionBusy.value) return
+    actionBusy.value = true
+    try {
+      await reviewTaskApi(id.value, { action, reviewNote: result.value || undefined })
+      ElMessage.success(action === 'APPROVE' ? '任务已通过' : '任务已驳回')
+      await load()
+    } finally { actionBusy.value = false }
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') throw error
   }
 }
 
 async function cancel() {
+  if (actionBusy.value) return
   try {
     const result = await ElMessageBox.prompt('请填写取消原因', '取消任务', {
       inputPattern: /\S+/,
       inputErrorMessage: '请填写取消原因',
     })
-    await cancelTaskApi(id.value, { reason: result.value })
-    ElMessage.success('任务已取消')
-    await load()
+    if (actionBusy.value) return
+    actionBusy.value = true
+    try {
+      await cancelTaskApi(id.value, { reason: result.value })
+      ElMessage.success('任务已取消')
+      await load()
+    } finally { actionBusy.value = false }
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') throw error
   }
 }
 
 async function assign() {
+  if (actionBusy.value) return
   if (!selectedAssignee.value) return ElMessage.warning('请选择负责人')
-  await assignTaskApi(id.value, selectedAssignee.value)
-  assignVisible.value = false
-  ElMessage.success('负责人已更新')
-  await load()
+  actionBusy.value = true
+  try {
+    await assignTaskApi(id.value, selectedAssignee.value)
+    assignVisible.value = false
+    ElMessage.success('负责人已更新')
+    await load()
+  } finally { actionBusy.value = false }
 }
 
 async function addComment() {
@@ -155,31 +195,34 @@ onMounted(load)
           <p>{{ task.description || '暂无任务描述' }}</p>
         </div>
         <div class="actions">
-          <el-button v-if="isManager && projectAllowsPlanning && task.status === 'TODO'" @click="assignVisible = true"
+          <el-button v-if="isManager && projectAllowsPlanning && task.status === 'TODO'" :disabled="actionBusy" @click="assignVisible = true"
             >分配负责人</el-button
           >
-          <el-button v-if="isAssignee && projectIsRunning && task.status === 'TODO'" type="primary" @click="start"
+          <el-button v-if="isAssignee && projectIsRunning && task.status === 'TODO'" type="primary" :loading="actionBusy" @click="start"
             >开始任务</el-button
           >
           <el-button
             v-if="isAssignee && projectIsRunning && task.status === 'IN_PROGRESS'"
             type="primary"
+            :disabled="actionBusy"
             @click="submitVisible = true"
             >提交审核</el-button
           >
           <el-button
             v-if="isManager && projectIsRunning && task.status === 'REVIEW'"
             type="success"
+            :loading="actionBusy"
             @click="review('APPROVE')"
             >审核通过</el-button
           >
-          <el-button v-if="isManager && projectIsRunning && task.status === 'REVIEW'" @click="review('REJECT')"
+          <el-button v-if="isManager && projectIsRunning && task.status === 'REVIEW'" :disabled="actionBusy" @click="review('REJECT')"
             >驳回修改</el-button
           >
           <el-button
             v-if="isManager && projectAllowsPlanning && ['TODO', 'IN_PROGRESS'].includes(task.status)"
             type="danger"
             plain
+            :loading="actionBusy"
             @click="cancel"
             >取消任务</el-button
           >
@@ -207,7 +250,8 @@ onMounted(load)
             <h2>提交记录</h2>
             <span>{{ submissions.length }} 次</span>
           </div>
-          <el-empty v-if="!submissions.length" description="还没有提交记录" :image-size="80" />
+          <el-alert v-if="submissionsLoadFailed" title="提交记录加载失败" type="error" :closable="false"><el-button link type="primary" @click="loadSubmissions">重新加载</el-button></el-alert>
+          <el-empty v-if="!submissionsLoadFailed && !submissions.length" description="还没有提交记录" :image-size="80" />
           <div v-else class="timeline">
             <article v-for="submission in submissions" :key="submission.id" class="timeline-item">
               <div class="timeline-dot" />
@@ -259,8 +303,9 @@ onMounted(load)
               >发布评论</el-button
             >
           </div>
+          <el-alert v-if="commentsLoadFailed" title="讨论记录加载失败" type="error" :closable="false"><el-button link type="primary" @click="loadComments">重新加载</el-button></el-alert>
           <el-empty
-            v-if="!comments.length"
+            v-if="!commentsLoadFailed && !comments.length"
             description="暂无讨论，来写第一条评论吧"
             :image-size="72"
           />
@@ -292,22 +337,22 @@ onMounted(load)
       </el-form>
       <template #footer
         ><el-button @click="submitVisible = false">取消</el-button
-        ><el-button type="primary" @click="submitTask">提交审核</el-button></template
+        ><el-button type="primary" :loading="actionBusy" @click="submitTask">提交审核</el-button></template
       >
     </el-dialog>
 
     <el-dialog v-model="assignVisible" title="分配任务负责人" width="440px">
-      <el-select v-model="selectedAssignee" placeholder="选择开发成员" style="width: 100%">
+      <el-select v-model="selectedAssignee" placeholder="选择项目成员" style="width: 100%">
         <el-option
-          v-for="member in members.filter((item) => item.role === 'DEVELOPER')"
+          v-for="member in members.filter((item) => item.effective)"
           :key="member.userId"
-          :label="member.realName + '（' + member.username + '）'"
+          :label="`${member.realName} · ${statusLabel(member.role)} · 未完成任务 ${member.unfinishedTaskCount}`"
           :value="member.userId"
         />
       </el-select>
       <template #footer
         ><el-button @click="assignVisible = false">取消</el-button
-        ><el-button type="primary" @click="assign">确认分配</el-button></template
+        ><el-button type="primary" :loading="actionBusy" @click="assign">确认分配</el-button></template
       >
     </el-dialog>
   </section>

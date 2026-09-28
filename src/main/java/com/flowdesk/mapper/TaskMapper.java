@@ -152,23 +152,31 @@ public interface TaskMapper extends BaseMapper<Task> {
     TaskVO selectTaskDetail(@Param("taskId") Long taskId);
 
     @Select("""
-        SELECT t.id, t.project_id AS projectId, t.creator_id AS creatorId,
-               creator.real_name AS creatorName, t.assignee_id AS assigneeId,
-               assignee.real_name AS assigneeName, t.title, t.description, t.goal,
-               t.status, t.priority, t.deadline, t.completed_at AS completedAt,
-               t.created_at AS createdAt, t.updated_at AS updatedAt
-        FROM task t
-        JOIN `user` creator ON t.creator_id = creator.id
-        LEFT JOIN `user` assignee ON t.assignee_id = assignee.id
-        JOIN project p ON p.id = t.project_id AND p.deleted_at IS NULL
-        JOIN project_member pm
-          ON pm.project_id = t.project_id AND pm.user_id = #{userId} AND pm.status = 'ACTIVE'
-        JOIN `user` current_user
-          ON current_user.id = #{userId}
-         AND current_user.status = 'ACTIVE' AND current_user.system_role = 'USER'
-        WHERE t.assignee_id = #{userId} AND t.deleted_at IS NULL
-        ORDER BY t.updated_at DESC, t.id DESC
-        """)
+    SELECT t.id, t.project_id AS projectId, t.creator_id AS creatorId,
+           creator.real_name AS creatorName, t.assignee_id AS assigneeId,
+           assignee.real_name AS assigneeName, t.title, t.description, t.goal,
+           t.status, t.priority, t.deadline, t.completed_at AS completedAt,
+           t.created_at AS createdAt, t.updated_at AS updatedAt
+    FROM task t
+    JOIN `user` creator
+      ON t.creator_id = creator.id
+    LEFT JOIN `user` assignee
+      ON t.assignee_id = assignee.id
+    JOIN project p
+      ON p.id = t.project_id
+     AND p.deleted_at IS NULL
+    JOIN project_member pm
+      ON pm.project_id = t.project_id
+     AND pm.user_id = #{userId}
+     AND pm.status = 'ACTIVE'
+    JOIN `user` current_account
+      ON current_account.id = #{userId}
+     AND current_account.status = 'ACTIVE'
+     AND current_account.system_role = 'USER'
+    WHERE t.assignee_id = #{userId}
+      AND t.deleted_at IS NULL
+    ORDER BY t.updated_at DESC, t.id DESC
+    """)
     List<TaskVO> selectMyTasks(@Param("userId") Long userId);
 
     @Update("""

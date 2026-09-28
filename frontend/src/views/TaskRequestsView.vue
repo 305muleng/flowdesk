@@ -16,6 +16,7 @@ const focusedRequestId = computed(() => Number(route.query.requestId) || undefin
 const projects = ref<Project[]>([])
 const filter = ref('ALL')
 const loading = ref(false)
+const requestLoadFailed = ref(false)
 const projectMap = computed(() => new Map(projects.value.map((item) => [item.id, item.name])))
 
 async function load() {
@@ -25,6 +26,7 @@ async function load() {
       getMyTaskRequestsApi(filter.value),
       getMyProjectsApi(),
     ])
+    requestLoadFailed.value = requestResult.status === 'rejected'
     requests.value = requestResult.status === 'fulfilled' ? requestResult.value.data.data : []
     projects.value = projectResult.status === 'fulfilled' ? projectResult.value.data.data : []
   } finally {
@@ -33,9 +35,14 @@ async function load() {
 }
 
 async function cancel(item: TaskRequest) {
-  await ElMessageBox.confirm('撤回后不能重新提交这条申请，确认继续吗？', '撤回任务申请', {
-    type: 'warning',
-  })
+  try {
+    await ElMessageBox.confirm('撤回后不能重新提交这条申请，确认继续吗？', '撤回任务申请', {
+      type: 'warning',
+    })
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    throw error
+  }
   await cancelTaskRequestApi(item.projectId, item.id)
   ElMessage.success('任务申请已撤回')
   load()
@@ -68,10 +75,14 @@ onMounted(load)
         { label: '待处理', value: 'PENDING' },
         { label: '已通过', value: 'APPROVED' },
         { label: '已驳回', value: 'REJECTED' },
+        { label: '已撤回', value: 'CANCELLED' },
       ]"
     />
   </section>
   <section v-loading="loading" class="request-list">
+    <el-alert v-if="requestLoadFailed" title="任务申请加载失败，请重试" type="error" :closable="false">
+      <el-button link type="primary" @click="load">重新加载</el-button>
+    </el-alert>
     <article
       v-for="item in requests"
       :key="item.id"
@@ -101,7 +112,7 @@ onMounted(load)
         >
       </div>
     </article>
-    <el-empty v-if="!loading && !requests.length" description="暂无符合条件的任务申请" />
+    <el-empty v-if="!loading && !requestLoadFailed && !requests.length" description="暂无符合条件的任务申请" />
   </section>
 </template>
 

@@ -294,6 +294,18 @@ public class TaskRequestService {
             );
         }
 
+        if (currentUser.getUserId().equals(request.getRequesterId())) {
+            throw new BusinessException(403, "不能审批自己的任务申请");
+        }
+        ProjectMember requesterMembership = projectMemberMapper.selectOne(
+                new LambdaQueryWrapper<ProjectMember>()
+                        .eq(ProjectMember::getProjectId, projectId)
+                        .eq(ProjectMember::getUserId, request.getRequesterId())
+                        .eq(ProjectMember::getStatus, "ACTIVE"));
+        if (requesterMembership == null || !"DEVELOPER".equals(requesterMembership.getRole()) || !isActiveProjectUser(request.getRequesterId())) {
+            throw new BusinessException(409, "任务申请人已不是该项目的有效成员");
+        }
+
         String action =
                 dto.getAction().trim().toUpperCase();
 
@@ -348,15 +360,6 @@ public class TaskRequestService {
         }
 
         // 下面全部属于 APPROVE
-
-        ProjectMember requesterMembership = projectMemberMapper.selectOne(
-                new LambdaQueryWrapper<ProjectMember>()
-                        .eq(ProjectMember::getProjectId, projectId)
-                        .eq(ProjectMember::getUserId, request.getRequesterId())
-                        .eq(ProjectMember::getStatus, "ACTIVE"));
-        if (requesterMembership == null || !isActiveProjectUser(request.getRequesterId())) {
-            throw new BusinessException(409, "任务申请人已不是该项目的有效成员");
-        }
 
         // 5. 正式任务 deadline 必填
         if (dto.getDeadline() == null) {

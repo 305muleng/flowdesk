@@ -25,7 +25,7 @@ request.interceptors.response.use(
           ? '你没有执行此操作的权限'
           : '网络请求失败，请稍后重试'
     const message = error.response?.data?.message || fallback
-    if (status === 401) {
+    if (status === 401 || (status === 403 && error.config?.url === '/users/me')) {
       localStorage.removeItem('flowdesk_token')
       localStorage.removeItem('flowdesk_user')
       if (location.pathname !== '/login') location.replace('/login')
