@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -30,6 +30,14 @@ async function respond(item: Invitation, accepted: boolean) {
   if (processingIds.value.has(item.id)) return
   processingIds.value.add(item.id)
   try {
+    if (!accepted) {
+      try {
+        await ElMessageBox.confirm(`确认拒绝“${item.projectName}”的邀请吗？`, '拒绝邀请', { type: 'warning' })
+      } catch (error) {
+        if (error === 'cancel' || error === 'close') return
+        throw error
+      }
+    }
     await (accepted ? acceptInvitation(item.id) : rejectInvitation(item.id))
     ElMessage.success(accepted ? '已加入项目' : '已拒绝邀请')
     await load()

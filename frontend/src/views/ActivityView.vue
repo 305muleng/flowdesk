@@ -10,6 +10,11 @@ const projects = ref<Project[]>([])
 const projectId = ref<number>()
 const logs = ref<OperationLog[]>([])
 const loading = ref(false)
+const targetNames: Record<string, string> = {
+  PROJECT: '项目', TASK: '任务', PROJECT_MEMBER: '项目成员',
+  TASK_REQUEST: '任务申请', PROJECT_ACCEPTANCE: '项目验收',
+  MEMBER_LEAVE_REQUEST: '退出申请', PROJECT_MANAGER_TRANSFER: '负责人转让',
+}
 
 async function loadLogs() {
   if (!projectId.value) {
@@ -34,8 +39,8 @@ watch(projectId, loadLogs)
 <template>
   <PageHeader
     eyebrow="ACTIVITY LOG"
-    title="项目动态"
-    description="查看项目生命周期中的关键业务操作与审计记录。"
+    title="项目操作记录"
+    description="查看项目中的关键操作记录。"
   >
     <el-select v-model="projectId" placeholder="选择项目" filterable style="width: 220px"
       ><el-option
@@ -54,7 +59,7 @@ watch(projectId, loadLogs)
           <strong>{{ log.description }}</strong
           ><span>{{ log.actorName }}</span>
         </div>
-        <p>{{ log.targetType }} #{{ log.targetId }} · {{ log.action }}</p>
+        <p>{{ targetNames[log.targetType] || '记录' }} · 记录 #{{ log.targetId }}</p>
       </div>
       <time>{{ formatDateTime(log.createdAt) }}</time>
     </div>

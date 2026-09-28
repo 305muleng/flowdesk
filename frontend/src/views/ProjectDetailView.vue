@@ -48,6 +48,7 @@ const acceptances = ref<ProjectAcceptance[]>([])
 const logs = ref<OperationLog[]>([])
 const loading = ref(false)
 const saving = ref(false)
+const actionBusy = ref(false)
 const activeTab = ref(route.query.tab === 'requests' ? 'requests' : 'tasks')
 const taskDialog = ref(false)
 const requestDialog = ref(false)
@@ -84,12 +85,18 @@ async function sendInvite(item: Candidate) {
 }
 function recordPath(kind: string, recordId: number) { return '/membership/' + id.value + '/' + kind + '/' + recordId }
 async function leaveProject() {
-  const { value } = await ElMessageBox.prompt('退出申请不会冻结成员；真正退出前须完成所有未完成任务。请填写退出原因。', '申请退出', { inputType: 'textarea', inputPattern: /\S+/, inputErrorMessage: '退出原因必填' })
+  let value: string
+  try {
+    value = (await ElMessageBox.prompt('退出申请不会冻结成员；真正退出前须完成所有未完成任务。请填写退出原因。', '申请退出', { inputType: 'textarea', inputPattern: /\S+/, inputErrorMessage: '退出原因必填' })).value
+  } catch (error) { if (isDismissed(error)) return; throw error }
   const result = await createLeaveApi(id.value, value)
   await router.push(recordPath('leave-requests', result.data.data))
 }
 async function removeMember(member: ProjectMember) {
-  const { value } = await ElMessageBox.prompt('确认移除 ' + member.realName + '？可填写移除原因。', '移除成员')
+  let value: string
+  try {
+    value = (await ElMessageBox.prompt('确认移除 ' + member.realName + '？可填写移除原因。', '移除成员')).value
+  } catch (error) { if (isDismissed(error)) return; throw error }
   await removeMemberApi(id.value, member.userId, value)
   ElMessage.success('成员已移除')
   await load()
@@ -130,6 +137,15 @@ const taskForm = ref<CreateTaskPayload>({
   deadline: '',
 })
 const requestForm = ref({ title: '', description: '', goal: '', suggestedDeadline: '' })
+function resetRequestForm() {
+  requestForm.value = { title: '', description: '', goal: '', suggestedDeadline: '' }
+  requestFormRef.value?.clearValidate()
+}
+function openRequest() {
+  resetRequestForm()
+  requestDialog.value = true
+}
+function isDismissed(error: unknown) { return error === 'cancel' || error === 'close' }
 const reviewForm = ref<{
   assigneeId?: number
   priority: Priority
@@ -205,33 +221,49 @@ async function createRequest() {
     })
     ElMessage.success('任务申请已提交')
     requestDialog.value = false
+    resetRequestForm()
   } finally {
     saving.value = false
   }
 }
 async function changeProject(action: 'start' | 'cancel' | 'archive') {
-  if (action === 'start') await startProjectApi(id.value)
-  if (action === 'archive') await archiveProjectApi(id.value)
-  if (action === 'cancel') {
-    const { value } = await ElMessageBox.prompt('请填写取消原因', '取消项目', {
-      inputPattern: /\S+/,
-      inputErrorMessage: '取消原因不能为空',
-      type: 'warning',
-    })
-    await cancelProjectApi(id.value, value)
-  }
-  ElMessage.success('项目状态已更新')
-  load()
+  if (actionBusy.value) return
+  let reason = ''
+  try {
+    if (action === 'archive') await ElMessageBox.confirm('归档后项目将进入只读状态，确认继续归档？', '归档项目', { type: 'warning' })
+    if (action === 'cancel') {
+      const result = await ElMessageBox.prompt('请填写取消原因', '取消项目', {
+        inputPattern: /\S+/, inputErrorMessage: '取消原因不能为空', type: 'warning',
+      })
+      reason = result.value
+    }
+  } catch (error) { if (isDismissed(error)) return; throw error }
+  if (actionBusy.value) return
+  actionBusy.value = true
+  try {
+    if (action === 'start') await startProjectApi(id.value)
+    if (action === 'archive') await archiveProjectApi(id.value)
+    if (action === 'cancel') await cancelProjectApi(id.value, reason)
+    ElMessage.success('项目状态已更新')
+    await load()
+  } finally { actionBusy.value = false }
 }
 async function submitAcceptance() {
-  const { value } = await ElMessageBox.prompt(
-    '说明本次项目交付范围、测试情况与验收依据',
-    '提交项目验收',
-    { inputType: 'textarea', inputPattern: /\S+/, inputErrorMessage: '验收说明不能为空' },
-  )
-  await submitAcceptanceApi(id.value, value)
-  ElMessage.success('项目已提交验收')
-  load()
+  if (actionBusy.value) return
+  let value: string
+  try {
+    value = (await ElMessageBox.prompt(
+      '说明本次项目交付范围、测试情况与验收依据', '提交项目验收',
+      { inputType: 'textarea', inputPattern: /\S+/, inputErrorMessage: '验收说明不能为空' },
+    )).value
+  } catch (error) { if (isDismissed(error)) return; throw error }
+  if (actionBusy.value) return
+  actionBusy.value = true
+  try {
+    await submitAcceptanceApi(id.value, value)
+    ElMessage.success('项目已提交验收')
+    await load()
+  } finally { actionBusy.value = false }
 }
 function openReview(item: TaskRequest) {
   selectedRequest.value = item
@@ -239,25 +271,36 @@ function openReview(item: TaskRequest) {
   reviewDialog.value = true
 }
 async function approveRequest() {
+  if (actionBusy.value) return
   if (!selectedRequest.value || !reviewForm.value.deadline) {
     ElMessage.warning('请设置正式截止时间')
     return
   }
-  await reviewTaskRequestApi(id.value, selectedRequest.value.id, {
-    action: 'APPROVE',
-    ...reviewForm.value,
-  })
-  ElMessage.success('任务申请已批准并生成正式任务')
-  reviewDialog.value = false
-  load()
+  actionBusy.value = true
+  try {
+    await reviewTaskRequestApi(id.value, selectedRequest.value.id, {
+      action: 'APPROVE', ...reviewForm.value,
+    })
+    ElMessage.success('任务申请已批准并生成正式任务')
+    reviewDialog.value = false
+    await load()
+  } finally { actionBusy.value = false }
 }
 async function rejectRequest(item: TaskRequest) {
-  const { value } = await ElMessageBox.prompt('填写驳回原因', '驳回任务申请', {
-    inputType: 'textarea',
-  })
-  await reviewTaskRequestApi(id.value, item.id, { action: 'REJECT', reviewNote: value })
-  ElMessage.success('任务申请已驳回')
-  load()
+  if (actionBusy.value) return
+  let value: string
+  try {
+    value = (await ElMessageBox.prompt('填写驳回原因', '驳回任务申请', {
+      inputType: 'textarea', inputPattern: /\S+/, inputErrorMessage: '请填写驳回原因',
+    })).value
+  } catch (error) { if (isDismissed(error)) return; throw error }
+  if (actionBusy.value) return
+  actionBusy.value = true
+  try {
+    await reviewTaskRequestApi(id.value, item.id, { action: 'REJECT', reviewNote: value })
+    ElMessage.success('任务申请已驳回')
+    await load()
+  } finally { actionBusy.value = false }
 }
 
 onMounted(load)
@@ -277,19 +320,23 @@ onMounted(load)
         <el-button :icon="Refresh" circle @click="load" /><el-button
           v-if="isManager && project.status === 'PREPARING'"
           type="primary"
+          :loading="actionBusy"
           @click="changeProject('start')"
           >启动项目</el-button
         ><el-button
           v-if="isManager && ['PREPARING', 'IN_PROGRESS'].includes(project.status)"
+          :disabled="actionBusy"
           @click="changeProject('cancel')"
           >取消项目</el-button
         ><el-button
           v-if="isManager && project.status === 'IN_PROGRESS'"
           type="primary"
+          :loading="actionBusy"
           @click="submitAcceptance"
           >提交验收</el-button
         ><el-button
           v-if="isManager && project.status === 'COMPLETED'"
+          :loading="actionBusy"
           @click="changeProject('archive')"
           >归档项目</el-button
         >
@@ -332,7 +379,7 @@ onMounted(load)
                 ['PREPARING', 'IN_PROGRESS'].includes(project?.status || '')
               "
               :icon="Message"
-              @click="requestDialog = true"
+              @click="openRequest"
               >提交任务申请</el-button
             ><el-button
               v-if="isManager && ['PREPARING', 'IN_PROGRESS'].includes(project?.status || '')"
@@ -389,29 +436,35 @@ onMounted(load)
             >添加成员</el-button
           >
         </section>
-        <p v-if="mutable">
-          <el-button v-if="isManager" @click="openMembers(true)">转让项目负责人</el-button>
-          <el-button v-if="currentRole === 'DEVELOPER'" @click="leaveProject">申请退出项目</el-button>
-        </p>
-        <p v-for="transfer in pendingTransfers" :key="transfer.id"><el-button @click="router.push(recordPath('manager-transfers', transfer.id))">待处理负责人转让：{{ transfer.toUserName }}</el-button></p>
-        <div v-if="isManager">
-          <h3>退出申请</h3>
-          <p v-for="item in leaveRequests" :key="item.id"><el-button @click="router.push(recordPath('leave-requests', item.id))">{{ item.applicantName }}：{{ item.reason }} · 待处理</el-button></p>
-          <p v-if="!leaveRequests.length">暂无有效待处理退出申请</p>
-        </div>
         <div class="member-grid">
           <article v-for="member in members" :key="member.userId" class="surface-card member-card">
             <div class="member-avatar">{{ member.realName.slice(0, 1) }}</div>
             <div>
               <strong>{{ member.realName }}</strong
               ><small>@{{ member.username }}</small>
-              <small v-if="member.userStatus === 'DISABLED'">账号已禁用</small>
+              <el-tag v-if="member.userStatus === 'DISABLED'" type="danger" size="small">账号已禁用</el-tag>
               <small>未完成任务：{{ member.unfinishedTaskCount }}</small>
-              <small v-if="leaveRequests.some(item => item.applicantId === member.userId)">退出申请待处理</small>
+              <el-tag v-if="leaveRequests.some(item => item.applicantId === member.userId)" type="warning" size="small">退出申请待处理</el-tag>
             </div>
             <StatusTag :value="member.role" />
-            <el-button v-if="isManager && mutable && member.role === 'DEVELOPER'" :disabled="member.unfinishedTaskCount > 0" @click="removeMember(member)">移除</el-button>
-          </article></div
+            <el-tooltip v-if="isManager && mutable && member.role === 'DEVELOPER'" :disabled="member.unfinishedTaskCount === 0" :content="`还有 ${member.unfinishedTaskCount} 个未完成任务，暂不能移除`">
+              <span><el-button :disabled="member.unfinishedTaskCount > 0" @click="removeMember(member)">移除</el-button></span>
+            </el-tooltip>
+          </article></div>
+        <div v-if="mutable" class="member-actions">
+          <h3>成员管理</h3>
+          <el-button v-if="isManager" @click="openMembers(true)">转让项目负责人</el-button>
+          <el-button v-if="currentRole === 'DEVELOPER'" @click="leaveProject">申请退出项目</el-button>
+        </div>
+        <div v-if="pendingTransfers.length" class="member-actions">
+          <h3>待处理负责人转让</h3>
+          <p v-for="transfer in pendingTransfers" :key="transfer.id"><el-button @click="router.push(recordPath('manager-transfers', transfer.id))">转让目标：{{ transfer.toUserName }}</el-button></p>
+        </div>
+        <div v-if="isManager" class="member-actions">
+          <h3>退出申请</h3>
+          <p v-for="item in leaveRequests" :key="item.id"><el-button @click="router.push(recordPath('leave-requests', item.id))">{{ item.applicantName }}：{{ item.reason }} · 待处理</el-button></p>
+          <p v-if="!leaveRequests.length">暂无有效待处理退出申请</p>
+        </div
       ></el-tab-pane>
       <el-tab-pane v-if="isManager" name="requests"
         ><template #label
@@ -439,8 +492,8 @@ onMounted(load)
                 ['PREPARING', 'IN_PROGRESS'].includes(project?.status || '')
               "
             >
-              <el-button @click="rejectRequest(item)">驳回</el-button
-              ><el-button type="primary" @click="openReview(item)">批准并创建任务</el-button>
+              <el-button :loading="actionBusy" @click="rejectRequest(item)">驳回</el-button
+              ><el-button type="primary" :disabled="actionBusy" @click="openReview(item)">批准并创建任务</el-button>
             </div>
           </article>
           <el-empty v-if="!requests.length" description="暂无任务申请" /></div
@@ -568,7 +621,7 @@ onMounted(load)
             :rows="3" /></el-form-item></el-form
       ><template #footer
         ><el-button @click="reviewDialog = false">取消</el-button
-        ><el-button type="primary" @click="approveRequest">批准并创建任务</el-button></template
+        ><el-button type="primary" :loading="actionBusy" @click="approveRequest">批准并创建任务</el-button></template
       ></el-dialog
     >
   </section>
@@ -659,6 +712,8 @@ onMounted(load)
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 12px;
 }
+.member-actions { margin-top: 24px; }
+.member-actions h3 { font-size: 15px; }
 .member-card {
   display: flex;
   flex-wrap: wrap;

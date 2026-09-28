@@ -29,10 +29,15 @@ async function load() {
 }
 async function act(action: string) {
   let note = ''
-  if (isLeave.value && action !== 'cancel') {
-    const result = await ElMessageBox.prompt('填写审批意见', action === 'APPROVE' ? '批准退出' : '拒绝退出', { inputType: 'textarea', ...(action === 'REJECT' ? { inputPattern: /\S+/, inputErrorMessage: '请填写拒绝原因' } : {}) })
-    note = result.value
-  } else await ElMessageBox.confirm('确认执行此操作？', '确认')
+  try {
+    if (isLeave.value && action !== 'cancel') {
+      const result = await ElMessageBox.prompt('填写审批意见', action === 'APPROVE' ? '批准退出' : '拒绝退出', { inputType: 'textarea', ...(action === 'REJECT' ? { inputPattern: /\S+/, inputErrorMessage: '请填写拒绝原因' } : {}) })
+      note = result.value
+    } else await ElMessageBox.confirm('确认执行此操作？', '确认')
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    throw error
+  }
   busy.value = true
   try {
     if (isLeave.value) await leaveActionApi(projectId.value, recordId.value, action, note)

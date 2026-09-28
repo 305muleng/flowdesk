@@ -81,7 +81,7 @@ const router = createRouter({
           path: 'activity',
           name: 'activity',
           component: () => import('@/views/ActivityView.vue'),
-          meta: { title: '项目动态', ordinaryUser: true },
+          meta: { title: '项目操作记录', ordinaryUser: true },
         },
         {
           path: 'admin/acceptances',

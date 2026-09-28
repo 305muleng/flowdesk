@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { Bell, Check, DataAnalysis, Document, FolderOpened, List, SwitchButton, Timer, User, UserFilled } from '@element-plus/icons-vue'
-import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
 import { statusLabel } from '@/utils/format'
 
 const router = useRouter()
+const route = useRoute()
+const activeMenu = computed(() => {
+  const path = route.path
+  if (path === '/projects' || path.startsWith('/projects/')) return '/projects'
+  if (path === '/tasks' || path.startsWith('/tasks/')) return '/tasks'
+  if (path.startsWith('/membership/')) return ''
+  return path
+})
 const auth = useAuthStore()
 const notifications = useNotificationStore()
 function logout() { notifications.reset(); auth.logout(); router.replace('/login') }
@@ -25,17 +33,17 @@ onMounted(() => {
     <el-aside width="252px" class="sidebar">
       <RouterLink class="logo" to="/dashboard"><span>F</span><div>FlowDesk<small>TEAM WORKSPACE</small></div></RouterLink>
       <p v-if="!auth.isSystemAdmin" class="nav-label">工作空间</p>
-      <el-menu v-if="!auth.isSystemAdmin" router :default-active="$route.path" class="nav-menu">
+      <el-menu v-if="!auth.isSystemAdmin" router :default-active="activeMenu" class="nav-menu">
         <el-menu-item index="/dashboard"><el-icon><DataAnalysis /></el-icon><span>工作台</span></el-menu-item>
         <el-menu-item index="/projects"><el-icon><FolderOpened /></el-icon><span>项目中心</span></el-menu-item>
         <el-menu-item index="/tasks"><el-icon><List /></el-icon><span>我的任务</span></el-menu-item>
         <el-menu-item index="/task-requests"><el-icon><Document /></el-icon><span>任务申请</span></el-menu-item>
         <el-menu-item index="/invitations"><el-icon><Bell /></el-icon><span>项目邀请</span></el-menu-item>
-        <el-menu-item index="/activity"><el-icon><Timer /></el-icon><span>项目动态</span></el-menu-item>
+        <el-menu-item index="/activity"><el-icon><Timer /></el-icon><span>项目操作记录</span></el-menu-item>
       </el-menu>
       <template v-if="auth.isSystemAdmin">
         <p class="nav-label admin-label">系统管理</p>
-        <el-menu router :default-active="$route.path" class="nav-menu">
+        <el-menu router :default-active="activeMenu" class="nav-menu">
           <el-menu-item index="/admin/acceptances"><el-icon><Check /></el-icon><span>验收审核</span></el-menu-item>
           <el-menu-item index="/admin/users"><el-icon><UserFilled /></el-icon><span>用户管理</span></el-menu-item>
         </el-menu>
