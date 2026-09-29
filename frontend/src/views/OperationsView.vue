@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { apiGet, apiPatch, apiPost } from '@/api/operations'
+import { submitAcceptanceApi, type SubmitAcceptancePayload } from '@/api/projects'
+import AcceptanceSubmissionDialog from '@/components/AcceptanceSubmissionDialog.vue'
 const projectId = ref('')
 const taskId = ref('')
 const requestId = ref('')
@@ -9,12 +11,25 @@ const acceptanceId = ref('')
 const username = ref('')
 const text = ref('')
 const result = ref('')
+const acceptanceDialog = ref(false)
+const acceptanceBusy = ref(false)
 async function run(label: string, call: () => Promise<{ data: { data: unknown } }>) {
   try {
     const response = await call()
     result.value = JSON.stringify(response.data.data, null, 2)
     ElMessage.success(`${label}成功`)
   } catch {}
+}
+async function submitAcceptance(payload: SubmitAcceptancePayload) {
+  if (acceptanceBusy.value) return
+  acceptanceBusy.value = true
+  try {
+    const response = await submitAcceptanceApi(projectId.value, payload)
+    result.value = JSON.stringify(response.data.data, null, 2)
+    ElMessage.success('提交验收成功')
+  } finally {
+    acceptanceBusy.value = false
+  }
 }
 </script>
 <template>
@@ -113,12 +128,7 @@ async function run(label: string, call: () => Promise<{ data: { data: unknown } 
     </article>
     <article>
       <h4>项目验收与管理员</h4>
-      <el-button
-        @click="
-          run('提交验收', () =>
-            apiPost(`/projects/${projectId}/acceptances`, { submissionNote: text }),
-          )
-        "
+      <el-button :loading="acceptanceBusy" @click="acceptanceDialog = true"
         >提交验收</el-button
       ><el-button @click="run('验收列表', () => apiGet('/admin/project-acceptances'))"
         >验收列表</el-button
@@ -149,6 +159,7 @@ async function run(label: string, call: () => Promise<{ data: { data: unknown } 
     <h4>接口返回</h4>
     <pre>{{ result || '执行操作后，返回数据会显示在这里。' }}</pre>
   </section>
+  <AcceptanceSubmissionDialog v-model="acceptanceDialog" :submit-action="submitAcceptance" />
 </template>
 <style scoped>
 .intro {

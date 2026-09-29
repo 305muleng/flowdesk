@@ -3,6 +3,7 @@ package com.flowdesk.controller;
 import com.flowdesk.common.Result;
 import com.flowdesk.dto.ReviewProjectAcceptanceDTO;
 import com.flowdesk.service.ProjectAcceptanceService;
+import com.flowdesk.vo.ProjectAcceptanceDetailVO;
 import com.flowdesk.vo.ProjectAcceptanceVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,5 +46,21 @@ public class AdminProjectAcceptanceController {
     public Result<Void> reviewAcceptance(@PathVariable Long acceptanceId, @Valid @RequestBody ReviewProjectAcceptanceDTO dto) {
         projectAcceptanceService.reviewAcceptance(acceptanceId, dto);
         return Result.success("项目验收审核完成", null);
+    }
+
+    @Operation(
+            summary = "查看项目验收详情",
+            description = "系统管理员查看指定验收申请的项目、任务、成员贡献、取消任务和历史验收信息"
+    )
+    @GetMapping("/{acceptanceId}")
+    public Result<ProjectAcceptanceDetailVO> getAcceptanceDetail(
+            @PathVariable Long acceptanceId) {
+
+        return Result.success(
+                projectAcceptanceService
+                        .getAcceptanceDetail(
+                                acceptanceId
+                        )
+        );
     }
 }

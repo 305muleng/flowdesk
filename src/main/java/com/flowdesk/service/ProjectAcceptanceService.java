@@ -9,16 +9,14 @@ import com.flowdesk.dto.SubmitProjectAcceptanceDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
-import com.flowdesk.vo.ProjectAcceptanceVO;
-import com.flowdesk.vo.ProjectMemberVO;
+import com.flowdesk.vo.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.*;
 
 @Service
 public class ProjectAcceptanceService {
@@ -120,6 +118,24 @@ public class ProjectAcceptanceService {
             );
         }
 
+        String repositoryUrl = trimToNull(dto.getRepositoryUrl());
+        String deployUrl = trimToNull(dto.getDeployUrl());
+        String documentUrl = trimToNull(dto.getDocumentUrl());
+
+        if (repositoryUrl == null
+                && deployUrl == null
+                && documentUrl == null) {
+
+            throw new BusinessException(
+                    400,
+                    "提交项目验收时至少需要填写一个交付链接"
+            );
+        }
+
+        validateDeliveryUrl(repositoryUrl, "代码仓库");
+        validateDeliveryUrl(deployUrl, "部署地址");
+        validateDeliveryUrl(documentUrl, "项目文档");
+
         CurrentUser currentUser = UserContext.get();
         LocalDateTime now = LocalDateTime.now();
 
@@ -153,7 +169,13 @@ public class ProjectAcceptanceService {
         acceptance.setReviewStatus("PENDING");
         acceptance.setSubmittedAt(now);
 
-        int transitioned = projectMapper.submitAcceptanceIfInProgress(projectId, now);
+        int transitioned = projectMapper.submitAcceptanceIfInProgress(
+                projectId,
+                repositoryUrl,
+                deployUrl,
+                documentUrl,
+                now
+        );
         if (transitioned != 1) {
             throw new BusinessException(409, "项目状态已发生变化，请刷新后重试");
         }
@@ -163,6 +185,7 @@ public class ProjectAcceptanceService {
 // 6. 项目进入待验收状态（数据库已通过条件更新完成）
         project.setStatus("PENDING_ACCEPTANCE");
         project.setUpdatedAt(now);
+
 
 // 7. 记录项目验收提交日志
         Map<String, Object> beforeData =
@@ -534,5 +557,312 @@ public class ProjectAcceptanceService {
         if (currentUser == null || !"SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
             throw new BusinessException(403, "无系统管理员权限");
         }
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectAcceptanceDetailVO getAcceptanceDetail(
+            Long acceptanceId) {
+
+        requireSystemAdmin();
+
+        // 1. 验收 + 项目基本信息
+        ProjectAcceptanceDetailVO detail =
+                projectAcceptanceMapper
+                        .selectAcceptanceDetail(acceptanceId);
+
+        if (detail == null) {
+            throw new BusinessException(
+                    404,
+                    "项目验收记录不存在"
+            );
+        }
+
+        Long projectId = detail.getProjectId();
+
+        // 2. 一次查出项目所有有效任务
+        List<Task> tasks = taskMapper.selectList(
+                new LambdaQueryWrapper<Task>()
+                        .eq(Task::getProjectId, projectId)
+                        .isNull(Task::getDeletedAt)
+        );
+
+        int completedTaskCount = 0;
+        int cancelledTaskCount = 0;
+
+        // 每个人完成了哪些任务
+        Map<Long, List<TaskSimpleVO>> completedTasksByUser =
+                new HashMap<>();
+
+        // 暂时保存取消任务
+        List<Task> cancelledTaskEntities =
+                new ArrayList<>();
+
+        for (Task task : tasks) {
+
+            if ("DONE".equals(task.getStatus())) {
+
+                completedTaskCount++;
+
+                if (task.getAssigneeId() != null) {
+
+                    TaskSimpleVO taskVO =
+                            new TaskSimpleVO();
+
+                    taskVO.setTaskId(task.getId());
+                    taskVO.setTitle(task.getTitle());
+                    taskVO.setCompletedAt(
+                            task.getCompletedAt()
+                    );
+
+                    completedTasksByUser
+                            .computeIfAbsent(
+                                    task.getAssigneeId(),
+                                    key -> new ArrayList<>()
+                            )
+                            .add(taskVO);
+                }
+
+            } else if ("CANCELLED".equals(
+                    task.getStatus())) {
+
+                cancelledTaskCount++;
+                cancelledTaskEntities.add(task);
+            }
+        }
+
+        // 3. 任务统计
+        int totalTaskCount = tasks.size();
+
+        detail.setTotalTaskCount(totalTaskCount);
+        detail.setCompletedTaskCount(
+                completedTaskCount
+        );
+        detail.setCancelledTaskCount(
+                cancelledTaskCount
+        );
+
+        int rateDenominator = completedTaskCount + cancelledTaskCount;
+        double completionRate =
+                rateDenominator == 0
+                        ? 0.0
+                        : Math.round(
+                        completedTaskCount
+                                * 10000.0
+                                / rateDenominator
+                ) / 100.0;
+
+        detail.setCompletionRate(completionRate);
+
+        // 4. 查询历史项目成员
+        List<MemberAcceptanceVO> members =
+                projectMemberMapper
+                        .selectAcceptanceMembers(projectId);
+
+        Map<Long, String> memberNames =
+                new HashMap<>();
+
+        for (MemberAcceptanceVO member : members) {
+
+            List<TaskSimpleVO> memberTasks =
+                    completedTasksByUser.getOrDefault(
+                            member.getUserId(),
+                            List.of()
+                    );
+
+            member.setCompletedTasks(memberTasks);
+
+            member.setCompletedTaskCount(
+                    memberTasks.size()
+            );
+
+            memberNames.put(
+                    member.getUserId(),
+                    member.getUserName()
+            );
+        }
+
+        detail.setMembers(members);
+
+        // 5. 组装取消任务
+        List<CancelledTaskVO> cancelledTasks =
+                new ArrayList<>();
+
+        for (Task task : cancelledTaskEntities) {
+
+            CancelledTaskVO taskVO =
+                    new CancelledTaskVO();
+
+            taskVO.setTaskId(task.getId());
+            taskVO.setTitle(task.getTitle());
+            taskVO.setCancelReason(
+                    task.getCancelReason()
+            );
+            taskVO.setCancelledAt(
+                    task.getCancelledAt()
+            );
+
+            taskVO.setAssigneeId(
+                    task.getAssigneeId()
+            );
+
+            if (task.getAssigneeId() != null) {
+                taskVO.setAssigneeName(
+                        memberNames.get(
+                                task.getAssigneeId()
+                        )
+                );
+            }
+
+            cancelledTasks.add(taskVO);
+        }
+
+        detail.setCancelledTasks(cancelledTasks);
+
+        // 6. 历次验收记录
+        detail.setAcceptanceHistory(
+                projectAcceptanceMapper
+                        .selectProjectAcceptances(
+                                projectId
+                        )
+        );
+
+        return detail;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return value.trim();
+    }
+
+    private void validateDeliveryUrl(String value, String label) {
+        if (value == null) {
+            return;
+        }
+        if (!isValidHttpUrl(value)) {
+            throw new BusinessException(400, label + "必须是有效的 http:// 或 https:// 链接");
+        }
+    }
+
+    private boolean isValidHttpUrl(String value) {
+        int schemeLength;
+        if (value.regionMatches(true, 0, "https://", 0, 8)) {
+            schemeLength = 8;
+        } else if (value.regionMatches(true, 0, "http://", 0, 7)) {
+            schemeLength = 7;
+        } else {
+            return false;
+        }
+
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (Character.isWhitespace(ch) || Character.isSpaceChar(ch)
+                    || Character.isISOControl(ch) || ch == '\\'
+                    || ch == '"' || ch == '<' || ch == '>') {
+                return false;
+            }
+            if (ch == '%' && (i + 2 >= value.length()
+                    || !isAsciiHex(value.charAt(i + 1))
+                    || !isAsciiHex(value.charAt(i + 2)))) {
+                return false;
+            }
+        }
+
+        int authorityEnd = value.length();
+        for (int i = schemeLength; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '/' || ch == '?' || ch == '#') {
+                authorityEnd = i;
+                break;
+            }
+        }
+        String authority = value.substring(schemeLength, authorityEnd);
+        if (authority.isEmpty()) {
+            return false;
+        }
+
+        String host;
+        String port = null;
+        if (authority.startsWith("[")) {
+            int closing = authority.indexOf(']');
+            if (closing < 0) {
+                return false;
+            }
+            host = authority.substring(1, closing);
+            if (!host.contains(":") || !host.matches("[0-9A-Fa-f:.]+")) {
+                return false;
+            }
+            try {
+                InetAddress.getByName(host);
+            } catch (UnknownHostException e) {
+                return false;
+            }
+            if (closing + 1 < authority.length()) {
+                if (authority.charAt(closing + 1) != ':') {
+                    return false;
+                }
+                port = authority.substring(closing + 2);
+            }
+        } else {
+            int colon = authority.indexOf(':');
+            if (colon >= 0) {
+                if (colon != authority.lastIndexOf(':')) {
+                    return false;
+                }
+                host = authority.substring(0, colon);
+                port = authority.substring(colon + 1);
+            } else {
+                host = authority;
+            }
+            if (!isValidAsciiHost(host)) {
+                return false;
+            }
+        }
+
+        if (port != null) {
+            if (!port.matches("[0-9]+")) {
+                return false;
+            }
+            try {
+                int number = Integer.parseInt(port);
+                return number >= 1 && number <= 65535;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isValidAsciiHost(String host) {
+        if (host.isEmpty() || host.length() > 253 || !host.chars().allMatch(ch -> ch < 128)) {
+            return false;
+        }
+        if (host.matches("[0-9.]+")) {
+            String[] octets = host.split("\\.", -1);
+            if (octets.length != 4) {
+                return false;
+            }
+            for (String octet : octets) {
+                if (!octet.matches("0|[1-9][0-9]{0,2}")
+                        || Integer.parseInt(octet) > 255) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        for (String label : host.split("\\.", -1)) {
+            if (!label.matches("(?i)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isAsciiHex(char ch) {
+        return (ch >= '0' && ch <= '9')
+                || (ch >= 'a' && ch <= 'f')
+                || (ch >= 'A' && ch <= 'F');
     }
 }

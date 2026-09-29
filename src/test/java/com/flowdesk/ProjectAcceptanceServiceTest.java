@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -100,7 +102,7 @@ public class ProjectAcceptanceServiceTest {
 
     @BeforeEach
     void setUpAtomicTransitionsAndManager() {
-        lenient().when(projectMapper.submitAcceptanceIfInProgress(anyLong(), any())).thenReturn(1);
+        lenient().when(projectMapper.submitAcceptanceIfInProgress(anyLong(), nullable(String.class), nullable(String.class), nullable(String.class), any())).thenReturn(1);
         lenient().when(projectMapper.reviewAcceptanceIfPending(
                 anyLong(), anyString(), nullable(java.time.LocalDateTime.class), any())).thenReturn(1);
         lenient().when(projectAcceptanceMapper.reviewIfPending(
@@ -128,6 +130,10 @@ public class ProjectAcceptanceServiceTest {
                 new SubmitProjectAcceptanceDTO();
 
         dto.setSubmissionNote("提交验收");
+
+        dto.setRepositoryUrl(
+                "https://github.com/test/project"
+        );
 
         when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
@@ -165,6 +171,10 @@ public class ProjectAcceptanceServiceTest {
 
         dto.setSubmissionNote("提交验收");
 
+        dto.setRepositoryUrl(
+                "https://github.com/test/project"
+        );
+
         when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
@@ -201,6 +211,10 @@ public class ProjectAcceptanceServiceTest {
 
         dto.setSubmissionNote(
                 "Backend V1 已完成，提交验收"
+        );
+
+        dto.setRepositoryUrl(
+                "https://github.com/test/project"
         );
 
         // 模拟当前登录用户 Tom
@@ -243,7 +257,13 @@ public class ProjectAcceptanceServiceTest {
 
         // 应该更新项目状态
         verify(projectMapper)
-                .submitAcceptanceIfInProgress(eq(4L), any());
+                .submitAcceptanceIfInProgress(
+                        eq(4L),
+                        nullable(String.class),
+                        nullable(String.class),
+                        nullable(String.class),
+                        any()
+                );
 
         // 应该记录审计日志
         verify(operationLogService)
@@ -271,6 +291,10 @@ public class ProjectAcceptanceServiceTest {
                 new SubmitProjectAcceptanceDTO();
 
         dto.setSubmissionNote("项目开发完成，提交验收");
+
+        dto.setRepositoryUrl(
+                "https://github.com/test/project"
+        );
 
         // Tom：项目负责人
         UserContext.set(
@@ -542,6 +566,9 @@ public class ProjectAcceptanceServiceTest {
     void developerCannotSubmitAcceptance() {
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
+        dto.setRepositoryUrl(
+                "https://github.com/test/project"
+        );
         doThrow(new BusinessException(403, "你不是该项目负责人"))
                 .when(projectPermissionService).requireProjectManager(4L);
 
@@ -560,6 +587,9 @@ public class ProjectAcceptanceServiceTest {
         project.setDeletedAt(java.time.LocalDateTime.now());
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
+        dto.setRepositoryUrl(
+                "https://github.com/test/project"
+        );
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         BusinessException exception = assertThrows(BusinessException.class,
@@ -576,11 +606,14 @@ public class ProjectAcceptanceServiceTest {
         project.setStatus("IN_PROGRESS");
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
+        dto.setRepositoryUrl(
+                "https://github.com/test/project"
+        );
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskMapper.selectCount(any())).thenReturn(0L);
         when(taskRequestMapper.selectCount(any())).thenReturn(0L);
-        when(projectMapper.submitAcceptanceIfInProgress(eq(4L), any())).thenReturn(0);
+        when(projectMapper.submitAcceptanceIfInProgress(eq(4L), nullable(String.class), nullable(String.class), nullable(String.class), any())).thenReturn(0);
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> projectAcceptanceService.submitAcceptance(4L, dto));
@@ -638,6 +671,9 @@ public class ProjectAcceptanceServiceTest {
         project.setStatus("IN_PROGRESS");
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("第二轮验收");
+        dto.setRepositoryUrl(
+                "https://github.com/test/project"
+        );
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskMapper.selectCount(any())).thenReturn(0L);
@@ -673,6 +709,125 @@ public class ProjectAcceptanceServiceTest {
         verify(notificationService).createNotification(captor.capture());
         assertEquals(3L, captor.getValue().getRecipientId());
         assertEquals(50L, captor.getValue().getTargetId());
+    }
+
+    @Test
+    void submissionRequiresAtLeastOneDeliveryUrl() {
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
+        dto.setSubmissionNote("提交验收");
+        dto.setRepositoryUrl("  ");
+        dto.setDeployUrl("");
+        dto.setDocumentUrl(null);
+        prepareSubmission();
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+
+        assertEquals(400, exception.getCode());
+        verify(projectMapper, never()).submitAcceptanceIfInProgress(
+                anyLong(), nullable(String.class), nullable(String.class), nullable(String.class), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "https://github.com/test/project",
+            "http://localhost:8080",
+            "https://127.0.0.1:8443/path",
+            "https://example.com/path?x=1",
+            "http://[::1]:8080"
+    })
+    void submissionAcceptsValidHttpRepositoryUrl(String url) {
+        assertValidRepositoryUrl(url);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "ftp://example.com",
+            "javascript:alert(1)",
+            "example.com",
+            "https://例子.中国/path",
+            "https://example.com:65536",
+            "https://example.com:0",
+            "http://[:::]:8080"
+    })
+    void submissionRejectsInvalidRepositoryUrl(String url) {
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
+        dto.setSubmissionNote("提交验收");
+        dto.setRepositoryUrl(url);
+        prepareSubmission();
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+
+        assertEquals(400, exception.getCode());
+        verify(projectMapper, never()).submitAcceptanceIfInProgress(
+                anyLong(), nullable(String.class), nullable(String.class), nullable(String.class), any());
+    }
+
+    @Test
+    void blankRepositoryUrlIsAllowedWhenAnotherLinkIsValid() {
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
+        dto.setSubmissionNote("提交验收");
+        dto.setRepositoryUrl("  ");
+        dto.setDeployUrl("https://example.com/app");
+        prepareSubmission();
+
+        projectAcceptanceService.submitAcceptance(4L, dto);
+
+        verify(projectMapper).submitAcceptanceIfInProgress(
+                eq(4L), isNull(), eq("https://example.com/app"), isNull(), any());
+    }
+
+    @Test
+    void detailCompletionRateExcludesUnfinishedTasksFromDenominator() {
+        com.flowdesk.vo.ProjectAcceptanceDetailVO detail =
+                new com.flowdesk.vo.ProjectAcceptanceDetailVO();
+        detail.setId(50L);
+        detail.setProjectId(4L);
+        Task done = new Task();
+        done.setId(1L);
+        done.setStatus("DONE");
+        Task cancelled = new Task();
+        cancelled.setId(2L);
+        cancelled.setStatus("CANCELLED");
+        Task todo = new Task();
+        todo.setId(3L);
+        todo.setStatus("TODO");
+        UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
+        when(projectAcceptanceMapper.selectAcceptanceDetail(50L)).thenReturn(detail);
+        when(taskMapper.selectList(any())).thenReturn(List.of(done, cancelled, todo));
+        when(projectMemberMapper.selectAcceptanceMembers(4L)).thenReturn(List.of());
+        when(projectAcceptanceMapper.selectProjectAcceptances(4L)).thenReturn(List.of());
+
+        com.flowdesk.vo.ProjectAcceptanceDetailVO result =
+                projectAcceptanceService.getAcceptanceDetail(50L);
+
+        assertEquals(3, result.getTotalTaskCount());
+        assertEquals(1, result.getCompletedTaskCount());
+        assertEquals(1, result.getCancelledTaskCount());
+        assertEquals(50.0, result.getCompletionRate());
+    }
+
+    private void assertValidRepositoryUrl(String url) {
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
+        dto.setSubmissionNote("提交验收");
+        dto.setRepositoryUrl("  " + url + "  ");
+        prepareSubmission();
+
+        projectAcceptanceService.submitAcceptance(4L, dto);
+
+        verify(projectMapper).submitAcceptanceIfInProgress(
+                eq(4L), eq(url), isNull(), isNull(), any());
+    }
+
+    private void prepareSubmission() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+        when(taskMapper.selectCount(any())).thenReturn(0L);
+        when(taskRequestMapper.selectCount(any())).thenReturn(0L);
     }
 
     private ProjectAcceptance pendingAcceptance() {

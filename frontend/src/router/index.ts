@@ -90,6 +90,12 @@ const router = createRouter({
           meta: { title: '验收审核', systemAdmin: true },
         },
         {
+          path: 'admin/acceptances/:acceptanceId',
+          name: 'admin-acceptance-detail',
+          component: () => import('@/views/AdminAcceptanceDetailView.vue'),
+          meta: { title: '验收详情', systemAdmin: true },
+        },
+        {
           path: 'admin/users',
           name: 'admin-users',
           component: () => import('@/views/AdminUsersView.vue'),

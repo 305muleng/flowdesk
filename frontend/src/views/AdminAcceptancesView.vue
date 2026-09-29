@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Check, Refresh } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import { getAdminAcceptancesApi, reviewAcceptanceApi } from '@/api/acceptances'
+import { getAdminAcceptancesApi } from '@/api/acceptances'
 import { formatDateTime } from '@/utils/format'
+import { promptReviewAcceptance } from '@/utils/reviewAcceptance'
 import type { ProjectAcceptance } from '@/types/api'
 
 const list = ref<ProjectAcceptance[]>([])
@@ -27,22 +27,9 @@ async function load() {
 
 async function review(item: ProjectAcceptance, action: 'APPROVE' | 'REJECT') {
   if (processingIds.value.has(item.id)) return
+  processingIds.value.add(item.id)
   try {
-    const title = action === 'APPROVE' ? '通过项目验收' : '驳回项目验收'
-    const { value } = await ElMessageBox.prompt('填写审核意见', title, {
-      inputType: 'textarea',
-      inputPlaceholder:
-        action === 'APPROVE' ? '确认项目交付满足验收标准' : '说明需要补充或修改的内容',
-      ...(action === 'REJECT'
-        ? { inputPattern: /\S+/, inputErrorMessage: '请填写驳回原因' }
-        : {}),
-    })
-    processingIds.value.add(item.id)
-    await reviewAcceptanceApi(item.id, { action, reviewNote: value || undefined })
-    ElMessage.success('验收审核已完成')
-    await load()
-  } catch (error) {
-    if (error !== 'cancel' && error !== 'close') throw error
+    if (await promptReviewAcceptance(item.id, action)) await load()
   } finally {
     processingIds.value.delete(item.id)
   }
@@ -100,15 +87,16 @@ onMounted(load)
       <div v-if="item.reviewNote" class="review-note">
         <strong>审核意见</strong>{{ item.reviewNote }}
       </div>
-      <footer v-if="item.reviewStatus === 'PENDING'">
-        <el-button :disabled="processingIds.has(item.id)" @click="review(item, 'REJECT')">驳回</el-button
+      <footer>
+        <el-button @click="$router.push({ name: 'admin-acceptance-detail', params: { acceptanceId: item.id } })">查看详情</el-button>
+        <template v-if="item.reviewStatus === 'PENDING'"><el-button :disabled="processingIds.has(item.id)" @click="review(item, 'REJECT')">驳回</el-button
         ><el-button
           type="primary"
           :icon="Check"
           :loading="processingIds.has(item.id)"
           @click="review(item, 'APPROVE')"
           >通过验收</el-button
-        >
+        ></template>
       </footer>
     </article>
     <el-empty v-if="!loading && !list.length" description="当前没有验收申请" />
