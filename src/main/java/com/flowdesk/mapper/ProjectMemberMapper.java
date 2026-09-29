@@ -2,6 +2,7 @@ package com.flowdesk.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.flowdesk.model.ProjectMember;
+import com.flowdesk.vo.MemberAcceptanceVO;
 import com.flowdesk.vo.ProjectMemberVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -173,5 +174,24 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
         """)
     Long countActiveManagedProjects(
             @Param("userId") Long userId
+    );
+
+    @Select("""
+    SELECT
+        pm.user_id AS userId,
+        u.real_name AS userName,
+        pm.role AS role
+
+    FROM project_member pm
+
+    JOIN `user` u
+        ON pm.user_id = u.id
+
+    WHERE pm.project_id = #{projectId}
+
+    ORDER BY pm.joined_at ASC, pm.id ASC
+    """)
+    List<MemberAcceptanceVO> selectAcceptanceMembers(
+            @Param("projectId") Long projectId
     );
 }

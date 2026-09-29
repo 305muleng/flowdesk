@@ -5,6 +5,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { candidatesApi, leavesApi, createLeaveApi, createTransferApi, removeMemberApi, pendingTransfersApi, type Candidate, type LeaveRequest } from '@/api/membership'
 import StatusTag from '@/components/StatusTag.vue'
+import AcceptanceSubmissionDialog from '@/components/AcceptanceSubmissionDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   archiveProjectApi,
@@ -18,6 +19,7 @@ import {
   sendInvitationApi,
   startProjectApi,
   submitAcceptanceApi,
+  type SubmitAcceptancePayload,
 } from '@/api/projects'
 import {
   createTaskRequestApi,
@@ -54,6 +56,7 @@ const taskDialog = ref(false)
 const requestDialog = ref(false)
 const inviteDialog = ref(false)
 const reviewDialog = ref(false)
+const acceptanceDialog = ref(false)
 const taskFormRef = ref()
 const requestFormRef = ref()
 const selectedRequest = ref<TaskRequest>()
@@ -248,21 +251,14 @@ async function changeProject(action: 'start' | 'cancel' | 'archive') {
     await load()
   } finally { actionBusy.value = false }
 }
-async function submitAcceptance() {
-  if (actionBusy.value) return
-  let value: string
-  try {
-    value = (await ElMessageBox.prompt(
-      '说明本次项目交付范围、测试情况与验收依据', '提交项目验收',
-      { inputType: 'textarea', inputPattern: /\S+/, inputErrorMessage: '验收说明不能为空' },
-    )).value
-  } catch (error) { if (isDismissed(error)) return; throw error }
+async function submitAcceptance(payload: SubmitAcceptancePayload) {
   if (actionBusy.value) return
   actionBusy.value = true
   try {
-    await submitAcceptanceApi(id.value, value)
+    await submitAcceptanceApi(id.value, payload)
     ElMessage.success('项目已提交验收')
-    await load()
+    // A refresh failure should not keep the completed submission form open for resubmission.
+    await load().catch(() => {})
   } finally { actionBusy.value = false }
 }
 function openReview(item: TaskRequest) {
@@ -332,7 +328,7 @@ onMounted(load)
           v-if="isManager && project.status === 'IN_PROGRESS'"
           type="primary"
           :loading="actionBusy"
-          @click="submitAcceptance"
+          @click="acceptanceDialog = true"
           >提交验收</el-button
         ><el-button
           v-if="isManager && project.status === 'COMPLETED'"
@@ -624,6 +620,7 @@ onMounted(load)
         ><el-button type="primary" :loading="actionBusy" @click="approveRequest">批准并创建任务</el-button></template
       ></el-dialog
     >
+    <AcceptanceSubmissionDialog v-model="acceptanceDialog" :submit-action="submitAcceptance" />
   </section>
 </template>
 <style scoped>

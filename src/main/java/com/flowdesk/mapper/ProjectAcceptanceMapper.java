@@ -2,6 +2,7 @@ package com.flowdesk.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.flowdesk.model.ProjectAcceptance;
+import com.flowdesk.vo.ProjectAcceptanceDetailVO;
 import com.flowdesk.vo.ProjectAcceptanceVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -95,4 +96,50 @@ public interface ProjectAcceptanceMapper
         ORDER BY pa.acceptance_no DESC
         """)
     List<ProjectAcceptanceVO> selectProjectAcceptances(@Param("projectId") Long projectId);
+
+    @Select("""
+    SELECT
+        pa.id AS id,
+        pa.acceptance_no AS acceptanceNo,
+
+        pa.submitter_id AS submitterId,
+        submitter.real_name AS submitterName,
+
+        pa.submission_note AS submissionNote,
+        pa.review_status AS reviewStatus,
+        pa.submitted_at AS submittedAt,
+
+        pa.reviewer_id AS reviewerId,
+        reviewer.real_name AS reviewerName,
+        pa.review_note AS reviewNote,
+        pa.reviewed_at AS reviewedAt,
+
+        p.id AS projectId,
+        p.name AS projectName,
+        p.description AS projectDescription,
+        p.goal AS projectGoal,
+        p.status AS projectStatus,
+
+        p.repository_url AS repositoryUrl,
+        p.deploy_url AS deployUrl,
+        p.document_url AS documentUrl
+
+    FROM project_acceptance pa
+
+    JOIN project p
+        ON pa.project_id = p.id
+
+    JOIN `user` submitter
+        ON pa.submitter_id = submitter.id
+
+    LEFT JOIN `user` reviewer
+        ON pa.reviewer_id = reviewer.id
+
+    WHERE pa.id = #{acceptanceId}
+
+    LIMIT 1
+    """)
+    ProjectAcceptanceDetailVO selectAcceptanceDetail(
+            @Param("acceptanceId") Long acceptanceId
+    );
 }

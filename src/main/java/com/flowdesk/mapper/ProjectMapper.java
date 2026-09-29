@@ -43,12 +43,23 @@ public interface ProjectMapper extends BaseMapper<Project> {
                            @Param("archivedAt") LocalDateTime archivedAt);
 
     @Update("""
-            UPDATE project
-            SET status = 'PENDING_ACCEPTANCE', updated_at = #{submittedAt}
-            WHERE id = #{projectId} AND status = 'IN_PROGRESS' AND deleted_at IS NULL
-            """)
-    int submitAcceptanceIfInProgress(@Param("projectId") Long projectId,
-                                     @Param("submittedAt") LocalDateTime submittedAt);
+        UPDATE project
+        SET status = 'PENDING_ACCEPTANCE',
+            repository_url = #{repositoryUrl},
+            deploy_url = #{deployUrl},
+            document_url = #{documentUrl},
+            updated_at = #{submittedAt}
+        WHERE id = #{projectId}
+          AND status = 'IN_PROGRESS'
+          AND deleted_at IS NULL
+        """)
+    int submitAcceptanceIfInProgress(
+            @Param("projectId") Long projectId,
+            @Param("repositoryUrl") String repositoryUrl,
+            @Param("deployUrl") String deployUrl,
+            @Param("documentUrl") String documentUrl,
+            @Param("submittedAt") LocalDateTime submittedAt
+    );
 
     @Update("""
             UPDATE project

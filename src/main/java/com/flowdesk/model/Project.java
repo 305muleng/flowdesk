@@ -17,6 +17,9 @@ public class Project {
     private String description;
     private String goal;
     private String status;
+    private String repositoryUrl;
+    private String deployUrl;
+    private String documentUrl;
 
     private LocalDateTime startTime;
     private LocalDateTime expectedEndTime;
@@ -28,6 +31,30 @@ public class Project {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
+
+    public String getDeployUrl() {
+        return deployUrl;
+    }
+
+    public void setDeployUrl(String deployUrl) {
+        this.deployUrl = deployUrl;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
+    }
+
+    public String getRepositoryUrl() {
+        return repositoryUrl;
+    }
+
+    public void setRepositoryUrl(String repositoryUrl) {
+        this.repositoryUrl = repositoryUrl;
+    }
 
     public Long getId() {
         return id;

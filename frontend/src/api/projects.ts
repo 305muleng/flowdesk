@@ -29,8 +29,15 @@ export const cancelProjectApi = (projectId: string | number, reason: string) =>
   request.post<ApiResult<void>>(`/projects/${projectId}/cancel`, { reason })
 export const archiveProjectApi = (projectId: string | number) =>
   request.post<ApiResult<void>>(`/projects/${projectId}/archive`)
-export const submitAcceptanceApi = (projectId: string | number, submissionNote: string) =>
-  request.post<ApiResult<number>>(`/projects/${projectId}/acceptances`, { submissionNote })
+export interface SubmitAcceptancePayload {
+  submissionNote: string
+  repositoryUrl: string | null
+  deployUrl: string | null
+  documentUrl: string | null
+}
+
+export const submitAcceptanceApi = (projectId: string | number, payload: SubmitAcceptancePayload) =>
+  request.post<ApiResult<number>>(`/projects/${projectId}/acceptances`, payload)
 export const getProjectAcceptancesApi = (projectId: string | number) =>
   request.get<ApiResult<ProjectAcceptance[]>>(`/projects/${projectId}/acceptances`)
 export const getProjectLogsApi = (projectId: string | number, limit = 50) =>
