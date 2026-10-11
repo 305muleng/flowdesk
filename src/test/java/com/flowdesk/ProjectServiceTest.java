@@ -16,9 +16,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,6 +34,9 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 public class ProjectServiceTest {
@@ -229,12 +235,13 @@ public class ProjectServiceTest {
                 );
     }
 
-    @Test
-    void inProgressProjectCanBeCancelled() {
+    @ParameterizedTest
+    @ValueSource(strings = {"PREPARING", "IN_PROGRESS"})
+    void activeProjectCanBeCancelled(String initialStatus) {
 
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(initialStatus);
 
         UserContext.set(
                 new CurrentUser(1L, "USER")
@@ -243,7 +250,7 @@ public class ProjectServiceTest {
         CancelProjectDTO dto = new CancelProjectDTO();
         dto.setReason("测试取消项目");
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         projectService.cancelProject(4L, dto);
@@ -262,8 +269,30 @@ public class ProjectServiceTest {
                 project.getCancelledAt()
         );
 
-        verify(projectMapper)
-                .cancelIfActive(eq(4L), any(), any());
+        InOrder order = inOrder(projectMapper);
+        order.verify(projectMapper).selectByIdForUpdate(4L);
+        order.verify(projectMapper).cancelIfActive(eq(4L), any(), any());
+        verifyNoMoreInteractions(projectMapper);
+        verifyNoInteractions(taskMapper);
+    }
+
+    @Test
+    void cancelledProjectCannotBeCancelledAgain() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("CANCELLED");
+        CancelProjectDTO dto = new CancelProjectDTO();
+        dto.setReason("重复取消");
+        UserContext.set(new CurrentUser(1L, "USER"));
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> projectService.cancelProject(4L, dto));
+
+        assertEquals(409, exception.getCode());
+        verify(projectMapper).selectByIdForUpdate(4L);
+        verifyNoMoreInteractions(projectMapper);
+        verifyNoInteractions(taskMapper, operationLogService);
     }
 
     @Test

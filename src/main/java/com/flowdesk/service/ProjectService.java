@@ -278,8 +278,8 @@ public class ProjectService {
         // 1. 只有项目负责人可以取消项目
         projectPermissionService.requireProjectManager(projectId);
 
-        // 2. 查询项目
-        Project project = projectMapper.selectById(projectId);
+        // 2. 先锁定项目，与任务写操作使用同一把锁，取消仅冻结项目
+        Project project = projectMapper.selectByIdForUpdate(projectId);
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(

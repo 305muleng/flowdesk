@@ -205,7 +205,7 @@ class MemberLifecycleRegressionTest {
     @Test void disabledAssigneeReviewRejectionReturnsTodoAndClearsAssignee() {
         Task task = task("REVIEW"); task.setAssigneeId(2L);
         when(tasks.selectById(10L)).thenReturn(task);
-        when(projects.selectById(4L)).thenReturn(project());
+        when(projects.selectByIdForUpdate(4L)).thenReturn(project());
         TaskSubmission submission = new TaskSubmission(); submission.setId(30L); submission.setSubmitterId(2L); submission.setReviewStatus("PENDING");
         when(submissions.selectPendingSubmission(10L)).thenReturn(submission);
         User u = user(); u.setStatus("DISABLED"); when(users.selectById(2L)).thenReturn(u);
@@ -214,6 +214,7 @@ class MemberLifecycleRegressionTest {
         ReviewTaskDTO dto = new ReviewTaskDTO(); dto.setAction("REJECT"); dto.setReviewNote("需要修改");
         taskService.reviewTask(10L, dto);
         assertEquals("TODO", task.getStatus()); assertNull(task.getAssigneeId());
+        verify(projects).selectByIdForUpdate(4L);
         verify(tasks).rejectToTodoAndUnassign(eq(10L), eq(2L), any());
     }
     @Test void projectCandidateQueryRequiresCurrentManager() {
@@ -257,7 +258,7 @@ class MemberLifecycleRegressionTest {
     @Test void resultUrlRejectsNonHttpSchemesBeforeChangingTask() {
         Task task = task("IN_PROGRESS"); task.setAssigneeId(1L);
         when(tasks.selectById(10L)).thenReturn(task);
-        when(projects.selectById(4L)).thenReturn(project());
+        when(projects.selectByIdForUpdate(4L)).thenReturn(project());
         SubmitTaskDTO dto = new SubmitTaskDTO(); dto.setCompletionNote("完成"); dto.setTestNote("测试通过");
         for (String value : List.of("javascript:alert(1)", "data:text/html,test", "file:///tmp/test", "ftp://example.com", "https://", "/relative")) {
             dto.setResultUrl(value);
@@ -269,7 +270,7 @@ class MemberLifecycleRegressionTest {
     @Test void resultUrlAcceptsHttpAndHttps() {
         Task task = task("IN_PROGRESS"); task.setAssigneeId(1L);
         when(tasks.selectById(10L)).thenReturn(task);
-        when(projects.selectById(4L)).thenReturn(project());
+        when(projects.selectByIdForUpdate(4L)).thenReturn(project());
         when(tasks.transitionAssigneeTaskIfCurrent(eq(10L), eq(1L), eq("IN_PROGRESS"), eq("REVIEW"), any())).thenReturn(1);
         when(submissions.selectMaxSubmissionNo(10L)).thenReturn(0);
         SubmitTaskDTO dto = new SubmitTaskDTO(); dto.setCompletionNote("完成"); dto.setTestNote("测试通过");

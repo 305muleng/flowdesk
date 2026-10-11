@@ -9,6 +9,7 @@ import com.flowdesk.mapper.*;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.Task;
+import com.flowdesk.model.TaskComment;
 import com.flowdesk.model.TaskSubmission;
 import com.flowdesk.model.User;
 import com.flowdesk.service.NotificationService;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -29,6 +32,7 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -441,7 +445,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(9L))
                 .thenReturn(task);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         BusinessException exception =
@@ -491,7 +495,7 @@ public class TaskServiceTest {
                 .thenReturn(task);
 
         // 6. Service 查询项目时，让 Mock 返回我们准备的 project
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 7. 模拟第一次提交
@@ -587,7 +591,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(9L))
                 .thenReturn(task);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 4. 执行开始任务，应该被拒绝
@@ -640,7 +644,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(9L))
                 .thenReturn(task);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         // 4. 再次提交应该失败
@@ -755,7 +759,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(10L))
                 .thenReturn(task);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskSubmissionMapper.selectMaxSubmissionNo(10L))
@@ -847,7 +851,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(10L))
                 .thenReturn(task);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskSubmissionMapper.selectPendingSubmission(10L))
@@ -936,7 +940,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(10L))
                 .thenReturn(task);
 
-        when(projectMapper.selectById(4L))
+        when(projectMapper.selectByIdForUpdate(4L))
                 .thenReturn(project);
 
         when(taskSubmissionMapper.selectPendingSubmission(10L))
@@ -1000,7 +1004,7 @@ public class TaskServiceTest {
         dto.setTestNote("通过");
         UserContext.set(new CurrentUser(2L, "USER"));
         when(taskMapper.selectById(10L)).thenReturn(task);
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskMapper.transitionAssigneeTaskIfCurrent(
                 eq(10L), eq(2L), eq("IN_PROGRESS"), eq("REVIEW"), any())).thenReturn(0);
 
@@ -1030,7 +1034,7 @@ public class TaskServiceTest {
         dto.setAction("APPROVE");
         UserContext.set(new CurrentUser(1L, "USER"));
         when(taskMapper.selectById(10L)).thenReturn(task);
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
         when(taskMapper.transitionStatusIfCurrent(
                 eq(10L), eq("REVIEW"), eq("DONE"), any(), any())).thenReturn(0);
@@ -1061,7 +1065,7 @@ public class TaskServiceTest {
         dto.setAction("REJECT");
         dto.setReviewNote("  ");
         when(taskMapper.selectById(10L)).thenReturn(task);
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
 
         BusinessException exception = assertThrows(
@@ -1101,7 +1105,7 @@ public class TaskServiceTest {
         AddTaskCommentDTO dto = new AddTaskCommentDTO();
         dto.setContent("继续修改");
         when(taskMapper.selectById(10L)).thenReturn(task);
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         BusinessException exception = assertThrows(
                 BusinessException.class, () -> taskService.addTaskComment(10L, dto));
@@ -1116,5 +1120,140 @@ public class TaskServiceTest {
 
         assertEquals(List.of(), taskService.getMyTasks());
         verify(taskMapper, never()).selectMyTasks(anyLong());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "START, TODO", "SUBMIT, IN_PROGRESS", "APPROVE, REVIEW",
+            "REJECT, REVIEW", "CANCEL, TODO", "COMMENT, DONE"
+    })
+    void cancelledProjectRejectsTaskWrites(String operation, String taskStatus) {
+        Task task = mockTaskWriteContext(taskStatus, "CANCELLED");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> performTaskWrite(operation));
+
+        assertEquals(409, exception.getCode());
+        assertEquals(taskStatus, task.getStatus());
+        verify(projectMapper).selectByIdForUpdate(4L);
+        verifyNoMoreInteractions(projectMapper);
+        verify(taskMapper).selectById(10L);
+        verifyNoMoreInteractions(taskMapper);
+        verifyNoInteractions(taskSubmissionMapper, taskCommentMapper,
+                operationLogService, notificationService);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "START, TODO, IN_PROGRESS", "SUBMIT, IN_PROGRESS, IN_PROGRESS",
+            "APPROVE, REVIEW, IN_PROGRESS", "REJECT, REVIEW, IN_PROGRESS",
+            "CANCEL, TODO, IN_PROGRESS", "CANCEL, IN_PROGRESS, PREPARING",
+            "COMMENT, DONE, IN_PROGRESS", "COMMENT, TODO, PREPARING"
+    })
+    void activeProjectLocksBeforeTaskWrite(
+            String operation, String taskStatus, String projectStatus) {
+        Task task = mockTaskWriteContext(taskStatus, projectStatus);
+        if ("SUBMIT".equals(operation)) {
+            when(taskSubmissionMapper.selectMaxSubmissionNo(10L)).thenReturn(0);
+        }
+        if ("APPROVE".equals(operation) || "REJECT".equals(operation)) {
+            TaskSubmission submission = new TaskSubmission();
+            submission.setId(100L);
+            submission.setTaskId(10L);
+            submission.setReviewStatus("PENDING");
+            when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+        }
+
+        performTaskWrite(operation);
+
+        org.mockito.InOrder order = inOrder(
+                projectMapper, taskMapper, taskSubmissionMapper, taskCommentMapper);
+        order.verify(projectMapper).selectByIdForUpdate(4L);
+        switch (operation) {
+            case "START" -> {
+                order.verify(taskMapper).transitionAssigneeTaskIfCurrent(
+                        eq(10L), eq(1L), eq("TODO"), eq("IN_PROGRESS"), any());
+                assertEquals("IN_PROGRESS", task.getStatus());
+            }
+            case "SUBMIT" -> {
+                order.verify(taskMapper).transitionAssigneeTaskIfCurrent(
+                        eq(10L), eq(1L), eq("IN_PROGRESS"), eq("REVIEW"), any());
+                order.verify(taskSubmissionMapper).insert(any(TaskSubmission.class));
+                assertEquals("REVIEW", task.getStatus());
+            }
+            case "APPROVE", "REJECT" -> {
+                String nextStatus = "APPROVE".equals(operation) ? "DONE" : "IN_PROGRESS";
+                String reviewStatus = "APPROVE".equals(operation) ? "APPROVED" : "REJECTED";
+                order.verify(taskMapper).transitionStatusIfCurrent(
+                        eq(10L), eq("REVIEW"), eq(nextStatus), any(), any());
+                order.verify(taskSubmissionMapper).reviewPendingSubmission(
+                        eq(100L), eq(10L), eq(reviewStatus), eq(1L), eq("审核意见"), any());
+                assertEquals(nextStatus, task.getStatus());
+            }
+            case "CANCEL" -> {
+                order.verify(taskMapper).cancelIfActive(eq(10L), eq("取消原因"), any());
+                assertEquals("CANCELLED", task.getStatus());
+            }
+            case "COMMENT" -> {
+                ArgumentCaptor<TaskComment> captor = ArgumentCaptor.forClass(TaskComment.class);
+                order.verify(taskCommentMapper).insert(captor.capture());
+                assertEquals(10L, captor.getValue().getTaskId());
+                assertEquals("评论内容", captor.getValue().getContent());
+                assertEquals(taskStatus, task.getStatus());
+            }
+            default -> throw new IllegalArgumentException(operation);
+        }
+        // 只查询一次项目，且不使用可能读到旧快照的普通查询。
+        verify(projectMapper).selectByIdForUpdate(4L);
+        verifyNoMoreInteractions(projectMapper);
+    }
+
+    @Test
+    void addingTaskCommentHasTransactionalBoundary() throws Exception {
+        assertNotNull(TaskService.class.getMethod("addTaskComment", Long.class, AddTaskCommentDTO.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class));
+    }
+
+    private Task mockTaskWriteContext(String taskStatus, String projectStatus) {
+        Task task = new Task();
+        task.setId(10L);
+        task.setProjectId(4L);
+        task.setAssigneeId(1L);
+        task.setStatus(taskStatus);
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus(projectStatus);
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+        return task;
+    }
+
+    private void performTaskWrite(String operation) {
+        switch (operation) {
+            case "START" -> taskService.startTask(10L);
+            case "SUBMIT" -> {
+                SubmitTaskDTO dto = new SubmitTaskDTO();
+                dto.setCompletionNote("完成任务");
+                dto.setTestNote("测试通过");
+                taskService.submitTask(10L, dto);
+            }
+            case "APPROVE", "REJECT" -> {
+                ReviewTaskDTO dto = new ReviewTaskDTO();
+                dto.setAction(operation);
+                dto.setReviewNote("审核意见");
+                taskService.reviewTask(10L, dto);
+            }
+            case "CANCEL" -> {
+                CancelTaskDTO dto = new CancelTaskDTO();
+                dto.setReason("取消原因");
+                taskService.cancelTask(10L, dto);
+            }
+            case "COMMENT" -> {
+                AddTaskCommentDTO dto = new AddTaskCommentDTO();
+                dto.setContent(" 评论内容 ");
+                taskService.addTaskComment(10L, dto);
+            }
+            default -> throw new IllegalArgumentException(operation);
+        }
     }
 }

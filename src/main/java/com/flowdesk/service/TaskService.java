@@ -249,9 +249,9 @@ public class TaskService {
 
         CurrentUser currentUser = UserContext.get();
 
-        // 3. 检查项目当前状态
+        // 3. 锁定项目后检查状态，与取消项目协调，锁持有到事务结束
         Project project =
-                projectMapper.selectById(task.getProjectId());
+                projectMapper.selectByIdForUpdate(task.getProjectId());
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
@@ -349,7 +349,7 @@ public class TaskService {
 
         // 4. 项目必须正在进行
         Project project =
-                projectMapper.selectById(task.getProjectId());
+                projectMapper.selectByIdForUpdate(task.getProjectId());
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
@@ -498,7 +498,7 @@ public class TaskService {
 
         // 3. 项目必须处于进行中
         Project project =
-                projectMapper.selectById(task.getProjectId());
+                projectMapper.selectByIdForUpdate(task.getProjectId());
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
@@ -1005,6 +1005,7 @@ public class TaskService {
         return taskVO;
     }
 
+    @Transactional
     public Long addTaskComment(
             Long taskId,
             AddTaskCommentDTO dto) {
@@ -1022,7 +1023,7 @@ public class TaskService {
         );
 
         Project project =
-                projectMapper.selectById(
+                projectMapper.selectByIdForUpdate(
                         task.getProjectId()
                 );
 
@@ -1120,7 +1121,7 @@ public class TaskService {
 
         // 3. 检查项目
         Project project =
-                projectMapper.selectById(
+                projectMapper.selectByIdForUpdate(
                         task.getProjectId()
                 );
 
