@@ -141,4 +141,21 @@ class UserServiceTest {
         assertEquals("token", result.getToken());
         verify(jwtUtil).generateToken(2L);
     }
+
+    @Test
+    void nonexistentUserCannotLogin() {
+        LoginDTO dto = new LoginDTO();
+        dto.setUsername("bob");
+        dto.setPassword("test-password");
+
+        when(userMapper.selectOne(any())).thenReturn(null);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> userService.login(dto)
+        );
+
+        assertEquals(401, exception.getCode());
+        verify(jwtUtil, never()).generateToken(any());
+    }
 }
