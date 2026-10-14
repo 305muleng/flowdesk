@@ -151,7 +151,7 @@ public class TaskServiceTest {
         UserContext.set(new CurrentUser(1L, "USER"));
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(projectMemberMapper.selectOne(any())).thenReturn(assignee);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 2L)).thenReturn(assignee);
         doAnswer(invocation -> {
             Task task = invocation.getArgument(0);
             task.setId(9L);
@@ -196,7 +196,7 @@ public class TaskServiceTest {
         dto.setDeadline(LocalDateTime.now().plusDays(1));
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(projectMemberMapper.selectOne(any())).thenReturn(member);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 2L)).thenReturn(member);
         when(userMapper.selectById(2L)).thenReturn(disabled);
 
         BusinessException exception = assertThrows(BusinessException.class, () -> taskService.createTask(4L, dto));
@@ -224,7 +224,7 @@ public class TaskServiceTest {
         UserContext.set(new CurrentUser(1L, "USER"));
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(projectMemberMapper.selectOne(any())).thenReturn(creator);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 1L)).thenReturn(creator);
 
         taskService.createTask(4L, dto);
 
@@ -985,6 +985,78 @@ public class TaskServiceTest {
                 .getAnnotation(org.springframework.transaction.annotation.Transactional.class)
         );
     }
+
+
+    @Test
+    void createTaskChecksManagerAfterProjectLock() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        when(projectMapper.selectByIdForUpdate(4L))
+                .thenReturn(project);
+
+        CreateTaskDTO dto = new CreateTaskDTO();
+        dto.setTitle("并发测试任务");
+        dto.setDescription("测试描述");
+        dto.setGoal("测试目标");
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+
+        taskService.createTask(4L, dto);
+
+        // 验证执行顺序
+        org.mockito.InOrder order = inOrder(
+                projectMapper,
+                projectPermissionService,
+                taskMapper
+        );
+
+        order.verify(projectMapper)
+                .selectByIdForUpdate(4L);
+
+        order.verify(projectPermissionService)
+                .requireProjectManagerForUpdate(4L);
+
+        order.verify(taskMapper)
+                .insert(any(Task.class));
+
+        // 不允许再使用加锁前的普通权限检查
+        verify(projectPermissionService, never())
+                .requireProjectManager(4L);
+    }
+
+    @Test
+    void demotedManagerCannotCreateTask() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        when(projectMapper.selectByIdForUpdate(4L))
+                .thenReturn(project);
+
+        // 模拟负责人在获得项目锁之前已经被降级
+        doThrow(new BusinessException(403, "你不是该项目负责人"))
+                .when(projectPermissionService)
+                .requireProjectManagerForUpdate(4L);
+
+        CreateTaskDTO dto = new CreateTaskDTO();
+        dto.setTitle("并发测试任务");
+        dto.setDescription("测试描述");
+        dto.setGoal("测试目标");
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> taskService.createTask(4L, dto)
+        );
+
+        assertEquals(403, exception.getCode());
+
+        // 权限失败，不能创建任务
+        verify(taskMapper, never())
+                .insert(any(Task.class));
+    }
+
 
     private Task mockTaskWriteContext(String taskStatus, String projectStatus) {
         Task task = new Task();

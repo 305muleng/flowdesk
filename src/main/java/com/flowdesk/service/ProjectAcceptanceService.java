@@ -64,10 +64,6 @@ public class ProjectAcceptanceService {
 
         projectPermissionService.requireProjectManagerForUpdate(projectId);
 
-        if (project == null || project.getDeletedAt() != null) {
-            throw new BusinessException(404, "项目不存在");
-        }
-
         // 2. 项目必须正在进行
         if (!"IN_PROGRESS".equals(project.getStatus())) {
             throw new BusinessException(409, "只有进行中的项目可以提交验收");

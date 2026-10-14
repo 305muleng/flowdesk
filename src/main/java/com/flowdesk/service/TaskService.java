@@ -53,18 +53,17 @@ public class TaskService {
 
     @Transactional
     public Long createTask(Long projectId, CreateTaskDTO dto) {
-        // 1. 只有项目负责人才能创建正式任务
-        projectPermissionService.requireProjectManager(projectId);
-
         CurrentUser currentUser = UserContext.get();
 
-        // 2. 检查项目是否存在以及当前状态；与验收提交共用项目行锁，
-        // 避免状态切换后仍并发写入新任务。
+        // 先获取项目锁
         Project project = projectMapper.selectByIdForUpdate(projectId);
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
+
+        // 加锁后，重新确认当前用户仍是有效项目负责人
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
 
         if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许创建任务");
@@ -94,15 +93,20 @@ public class TaskService {
 
         // 5. 如果指定负责人，负责人必须是项目 ACTIVE 成员
         if (dto.getAssigneeId() != null) {
-            ProjectMember assignee = projectMemberMapper.selectOne(
-                new LambdaQueryWrapper<ProjectMember>()
-                    .eq(ProjectMember::getProjectId, projectId)
-                    .eq(ProjectMember::getUserId, dto.getAssigneeId())
-                    .eq(ProjectMember::getStatus, "ACTIVE")
-            );
+            ProjectMember assignee =
+                    projectMemberMapper.selectMemberForUpdate(
+                            projectId,
+                            dto.getAssigneeId()
+                    );
 
-            if (assignee == null || !isActiveProjectUser(dto.getAssigneeId())) {
-                throw new BusinessException(409, "任务负责人不是该项目的有效成员");
+            if (assignee == null
+                    || !"ACTIVE".equals(assignee.getStatus())
+                    || !isActiveProjectUser(dto.getAssigneeId())) {
+
+                throw new BusinessException(
+                        409,
+                        "任务负责人不是该项目的有效开发成员"
+                );
             }
         }
 

@@ -12,8 +12,10 @@ public class CreateTaskDTO {
     @Size(max = 200, message = "任务标题不能超过200个字符")
     private String title;
 
+    @NotNull(message = "任务描述不能为null")
     private String description;
 
+    @NotNull(message = "任务目标不能为null")
     private String goal;
 
     private Long assigneeId;
