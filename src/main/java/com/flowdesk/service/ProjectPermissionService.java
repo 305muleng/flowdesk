@@ -47,4 +47,27 @@ public class ProjectPermissionService {
 
         return member;
     }
+
+    public ProjectMember requireProjectManagerForUpdate(Long projectId) {
+        CurrentUser currentUser = UserContext.get();
+
+        if (currentUser == null ||
+                "SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+            throw new BusinessException(403, "系统管理员不能参与普通项目");
+        }
+
+        ProjectMember member =
+                projectMemberMapper.selectMemberForUpdate(
+                        projectId, currentUser.getUserId());
+
+        if (member == null || !"ACTIVE".equals(member.getStatus())) {
+            throw new BusinessException(403, "你不是该项目的有效成员");
+        }
+
+        if (!"PROJECT_MANAGER".equals(member.getRole())) {
+            throw new BusinessException(403, "你不是该项目负责人");
+        }
+
+        return member;
+    }
 }

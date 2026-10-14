@@ -56,9 +56,13 @@ public class ProjectAcceptanceService {
     @Transactional
     public Long submitAcceptance(Long projectId, SubmitProjectAcceptanceDTO dto) {
         // 1. 只有项目负责人可以提交项目验收
-        projectPermissionService.requireProjectManager(projectId);
-
         Project project = projectMapper.selectByIdForUpdate(projectId);
+
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
