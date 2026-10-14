@@ -31,8 +31,10 @@ class OperationLogServiceTest {
 
     @Mock
     private OperationLogMapper operationLogMapper;
+
     @Mock
     private ProjectPermissionService projectPermissionService;
+
     @Mock
     private ProjectMapper projectMapper;
 
@@ -44,11 +46,9 @@ class OperationLogServiceTest {
     @Test
     void nonMemberCannotReadProjectLogs() {
         OperationLogService service = service();
-        doThrow(new BusinessException(403, "你不是该项目的有效成员"))
-                .when(projectPermissionService).requireProjectMember(4L);
+        doThrow(new BusinessException(403, "你不是该项目的有效成员")).when(projectPermissionService).requireProjectMember(4L);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class, () -> service.getProjectLogs(4L, 50));
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.getProjectLogs(4L, 50));
 
         assertEquals(403, exception.getCode());
         verify(operationLogMapper, never()).selectProjectLogs(any(), anyInt());
@@ -62,8 +62,7 @@ class OperationLogServiceTest {
         project.setDeletedAt(java.time.LocalDateTime.now());
         when(projectMapper.selectById(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class, () -> service.getProjectLogs(4L, 50));
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.getProjectLogs(4L, 50));
 
         assertEquals(404, exception.getCode());
         verify(operationLogMapper, never()).selectProjectLogs(any(), anyInt());
@@ -83,7 +82,6 @@ class OperationLogServiceTest {
     }
 
     private OperationLogService service() {
-        return new OperationLogService(
-                operationLogMapper, new ObjectMapper(), projectPermissionService, projectMapper);
+        return new OperationLogService(operationLogMapper, new ObjectMapper(), projectPermissionService, projectMapper);
     }
 }

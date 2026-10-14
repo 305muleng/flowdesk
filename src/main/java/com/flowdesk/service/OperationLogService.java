@@ -24,11 +24,11 @@ public class OperationLogService {
     private final ProjectMapper projectMapper;
 
     public OperationLogService(
-            OperationLogMapper operationLogMapper,
-            ObjectMapper objectMapper,
-            ProjectPermissionService projectPermissionService,
-            ProjectMapper projectMapper) {
-
+        OperationLogMapper operationLogMapper,
+        ObjectMapper objectMapper,
+        ProjectPermissionService projectPermissionService,
+        ProjectMapper projectMapper
+    ) {
         this.operationLogMapper = operationLogMapper;
         this.objectMapper = objectMapper;
         this.projectPermissionService = projectPermissionService;
@@ -46,15 +46,15 @@ public class OperationLogService {
     }
 
     public void record(
-            Long projectId,
-            Long actorId,
-            String targetType,
-            Long targetId,
-            String action,
-            String description,
-            Object beforeData,
-            Object afterData) {
-
+        Long projectId,
+        Long actorId,
+        String targetType,
+        Long targetId,
+        String action,
+        String description,
+        Object beforeData,
+        Object afterData
+    ) {
         OperationLog log = new OperationLog();
 
         CurrentUser currentUser = UserContext.get();
@@ -71,25 +71,15 @@ public class OperationLogService {
         log.setCreatedAt(LocalDateTime.now());
 
         try {
-
             if (beforeData != null) {
-                log.setBeforeData(
-                        objectMapper.writeValueAsString(beforeData)
-                );
+                log.setBeforeData(objectMapper.writeValueAsString(beforeData));
             }
 
             if (afterData != null) {
-                log.setAfterData(
-                        objectMapper.writeValueAsString(afterData)
-                );
+                log.setAfterData(objectMapper.writeValueAsString(afterData));
             }
-
         } catch (JacksonException e) {
-
-            throw new BusinessException(
-                    500,
-                    "操作日志序列化失败"
-            );
+            throw new BusinessException(500, "操作日志序列化失败");
         }
 
         operationLogMapper.insert(log);

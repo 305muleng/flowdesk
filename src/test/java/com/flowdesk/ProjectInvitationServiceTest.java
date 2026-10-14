@@ -50,30 +50,15 @@ public class ProjectInvitationServiceTest {
 
     @BeforeAll
     static void initMybatisPlus() {
+        MybatisConfiguration configuration = new MybatisConfiguration();
 
-        MybatisConfiguration configuration =
-                new MybatisConfiguration();
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
 
-        MapperBuilderAssistant assistant =
-                new MapperBuilderAssistant(
-                        configuration,
-                        ""
-                );
+        TableInfoHelper.initTableInfo(assistant, User.class);
 
-        TableInfoHelper.initTableInfo(
-                assistant,
-                User.class
-        );
+        TableInfoHelper.initTableInfo(assistant, ProjectMember.class);
 
-        TableInfoHelper.initTableInfo(
-                assistant,
-                ProjectMember.class
-        );
-
-        TableInfoHelper.initTableInfo(
-                assistant,
-                ProjectInvitation.class
-        );
+        TableInfoHelper.initTableInfo(assistant, ProjectInvitation.class);
     }
 
     @Mock
@@ -101,22 +86,20 @@ public class ProjectInvitationServiceTest {
 
     @BeforeEach
     void setUp() {
+        projectInvitationService = new ProjectInvitationService(
+            projectInvitationMapper,
+            projectMemberMapper,
+            userMapper,
+            projectPermissionService,
+            projectMapper,
+            notificationService,
+            operationLogService,
+            7
+        );
 
-        projectInvitationService =
-                new ProjectInvitationService(
-                        projectInvitationMapper,
-                        projectMemberMapper,
-                        userMapper,
-                        projectPermissionService,
-                        projectMapper,
-                        notificationService,
-                        operationLogService,
-                        7
-                );
-
-        lenient().when(projectInvitationMapper.transitionPending(
-                anyLong(), anyString(), any(LocalDateTime.class)
-        )).thenReturn(1);
+        lenient()
+            .when(projectInvitationMapper.transitionPending(anyLong(), anyString(), any(LocalDateTime.class)))
+            .thenReturn(1);
     }
 
     @AfterEach
@@ -126,7 +109,6 @@ public class ProjectInvitationServiceTest {
 
     @Test
     void systemAdminCannotBeInvited() {
-
         Project project = new Project();
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
@@ -145,26 +127,20 @@ public class ProjectInvitationServiceTest {
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(userMapper.selectOne(any())).thenReturn(admin);
 
-        BusinessException exception =
-                assertThrows(
-                        BusinessException.class,
-                        () -> projectInvitationService.sendInvitation(4L, dto)
-                );
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectInvitationService.sendInvitation(4L, dto)
+        );
 
         assertEquals(403, exception.getCode());
         assertEquals("不能邀请系统管理员加入项目", exception.getMessage());
 
-        verify(projectInvitationMapper, never())
-                .insert(any(ProjectInvitation.class));
-        verify(projectMemberMapper, never())
-                .insert(any(ProjectMember.class));
-        verify(notificationService, never())
-                .createNotification(any(CreateNotificationDTO.class));
+        verify(projectInvitationMapper, never()).insert(any(ProjectInvitation.class));
+        verify(projectMemberMapper, never()).insert(any(ProjectMember.class));
+        verify(notificationService, never()).createNotification(any(CreateNotificationDTO.class));
     }
 
     @Test
     void systemAdminCannotAcceptExistingInvitation() {
-
         ProjectInvitation invitation = new ProjectInvitation();
         invitation.setId(50L);
         invitation.setProjectId(4L);
@@ -181,28 +157,19 @@ public class ProjectInvitationServiceTest {
         // 即使登录态仍保留旧角色，也必须以数据库当前角色为准。
         UserContext.set(new CurrentUser(2L, "USER"));
 
-        when(projectInvitationMapper.selectById(50L))
-                .thenReturn(invitation);
+        when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
         when(userMapper.selectById(2L)).thenReturn(admin);
 
-        BusinessException exception =
-                assertThrows(
-                        BusinessException.class,
-                        () -> projectInvitationService.acceptInvitation(50L)
-                );
+        BusinessException exception = assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L));
 
         assertEquals(403, exception.getCode());
         assertEquals("系统管理员不能加入项目", exception.getMessage());
         assertEquals("PENDING", invitation.getStatus());
 
-        verify(projectMemberMapper, never())
-                .insert(any(ProjectMember.class));
-        verify(projectMemberMapper, never())
-                .updateById(any(ProjectMember.class));
-        verify(projectInvitationMapper, never())
-                .updateById(any(ProjectInvitation.class));
-        verify(notificationService, never())
-                .createNotification(any(CreateNotificationDTO.class));
+        verify(projectMemberMapper, never()).insert(any(ProjectMember.class));
+        verify(projectMemberMapper, never()).updateById(any(ProjectMember.class));
+        verify(projectInvitationMapper, never()).updateById(any(ProjectInvitation.class));
+        verify(notificationService, never()).createNotification(any(CreateNotificationDTO.class));
     }
 
     /**
@@ -211,7 +178,6 @@ public class ProjectInvitationServiceTest {
      */
     @Test
     void sendingInvitationNotifiesInvitee() {
-
         Project project = new Project();
         project.setId(4L);
         project.setName("FlowDesk");
@@ -222,102 +188,68 @@ public class ProjectInvitationServiceTest {
         jack.setUsername("jack");
         jack.setStatus("ACTIVE");
 
-        SendInvitationDTO dto =
-                new SendInvitationDTO();
+        SendInvitationDTO dto = new SendInvitationDTO();
 
         dto.setUsername("jack");
 
         // 当前登录用户：Tom
-        UserContext.set(
-                new CurrentUser(1L, "USER")
-        );
+        UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         // 根据用户名找到 Jack
-        when(userMapper.selectOne(any()))
-                .thenReturn(jack);
+        when(userMapper.selectOne(any())).thenReturn(jack);
 
         // Jack 目前还不是项目成员
-        when(projectMemberMapper.selectOne(any()))
-                .thenReturn(null);
+        when(projectMemberMapper.selectOne(any())).thenReturn(null);
 
         // 没有重复的有效邀请
-        when(projectInvitationMapper.selectCount(any()))
-                .thenReturn(0L);
+        when(projectInvitationMapper.selectCount(any())).thenReturn(0L);
 
         // 模拟数据库插入后生成 invitationId = 50
         doAnswer(invocation -> {
-
-            ProjectInvitation invitation =
-                    invocation.getArgument(0);
+            ProjectInvitation invitation = invocation.getArgument(0);
 
             invitation.setId(50L);
 
             return 1;
+        })
+            .when(projectInvitationMapper)
+            .insert(any(ProjectInvitation.class));
 
-        }).when(projectInvitationMapper)
-                .insert(any(ProjectInvitation.class));
+        Long invitationId = projectInvitationService.sendInvitation(4L, dto);
 
-        Long invitationId =
-                projectInvitationService.sendInvitation(
-                        4L,
-                        dto
-                );
+        assertEquals(50L, invitationId);
 
-        assertEquals(
-                50L,
-                invitationId
-        );
+        ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
-        ArgumentCaptor<CreateNotificationDTO> captor =
-                ArgumentCaptor.forClass(
-                        CreateNotificationDTO.class
-                );
+        verify(notificationService).createNotification(captor.capture());
 
-        verify(notificationService)
-                .createNotification(
-                        captor.capture()
-                );
-
-        CreateNotificationDTO notification =
-                captor.getValue();
+        CreateNotificationDTO notification = captor.getValue();
 
         // 收件人：Jack
-        assertEquals(
-                2L,
-                notification.getRecipientId()
-        );
+        assertEquals(2L, notification.getRecipientId());
 
         // 操作人：Tom
-        assertEquals(
-                1L,
-                notification.getActorId()
-        );
+        assertEquals(1L, notification.getActorId());
 
-        assertEquals(
-                "PROJECT_INVITATION",
-                notification.getType()
-        );
+        assertEquals("PROJECT_INVITATION", notification.getType());
 
-        assertEquals(
-                "PROJECT_INVITATION",
-                notification.getTargetType()
-        );
+        assertEquals("PROJECT_INVITATION", notification.getTargetType());
 
-        assertEquals(
-                50L,
-                notification.getTargetId()
-        );
+        assertEquals(50L, notification.getTargetId());
 
-        assertEquals(
-                4L,
-                notification.getProjectId()
-        );
+        assertEquals(4L, notification.getProjectId());
         verify(operationLogService).record(
-                eq(4L), eq(1L), eq("PROJECT_INVITATION"), eq(50L),
-                eq("SEND_PROJECT_INVITATION"), anyString(), isNull(), any());
+            eq(4L),
+            eq(1L),
+            eq("PROJECT_INVITATION"),
+            eq(50L),
+            eq("SEND_PROJECT_INVITATION"),
+            anyString(),
+            isNull(),
+            any()
+        );
     }
 
     /**
@@ -327,9 +259,7 @@ public class ProjectInvitationServiceTest {
      */
     @Test
     void acceptingInvitationNotifiesInviter() {
-
-        ProjectInvitation invitation =
-                new ProjectInvitation();
+        ProjectInvitation invitation = new ProjectInvitation();
 
         invitation.setId(50L);
         invitation.setProjectId(4L);
@@ -342,29 +272,20 @@ public class ProjectInvitationServiceTest {
 
         invitation.setStatus("PENDING");
 
-        invitation.setExpiresAt(
-                LocalDateTime.now()
-                        .plusDays(1)
-        );
+        invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
 
-        Project project =
-                new Project();
+        Project project = new Project();
 
         project.setId(4L);
         project.setName("FlowDesk");
         project.setStatus("IN_PROGRESS");
 
         // 当前登录用户：Jack
-        UserContext.set(
-                new CurrentUser(2L, "USER")
-        );
+        UserContext.set(new CurrentUser(2L, "USER"));
 
-        when(projectInvitationMapper
-                .selectById(50L))
-                .thenReturn(invitation);
+        when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         User jack = new User();
         jack.setId(2L);
@@ -373,69 +294,36 @@ public class ProjectInvitationServiceTest {
         when(userMapper.selectById(2L)).thenReturn(jack);
 
         // Jack 之前不是项目成员
-        when(projectMemberMapper.selectOne(any()))
-                .thenReturn(null);
+        when(projectMemberMapper.selectOne(any())).thenReturn(null);
 
-        projectInvitationService
-                .acceptInvitation(50L);
+        projectInvitationService.acceptInvitation(50L);
 
         // 邀请状态变为 ACCEPTED
-        assertEquals(
-                "ACCEPTED",
-                invitation.getStatus()
-        );
+        assertEquals("ACCEPTED", invitation.getStatus());
 
         // Jack 应该被加入项目
-        verify(projectMemberMapper)
-                .insert(
-                        any(ProjectMember.class)
-                );
+        verify(projectMemberMapper).insert(any(ProjectMember.class));
 
-        ArgumentCaptor<CreateNotificationDTO> captor =
-                ArgumentCaptor.forClass(
-                        CreateNotificationDTO.class
-                );
+        ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
-        verify(notificationService)
-                .createNotification(
-                        captor.capture()
-                );
+        verify(notificationService).createNotification(captor.capture());
 
-        CreateNotificationDTO notification =
-                captor.getValue();
+        CreateNotificationDTO notification = captor.getValue();
 
         // 收件人：Tom
-        assertEquals(
-                1L,
-                notification.getRecipientId()
-        );
+        assertEquals(1L, notification.getRecipientId());
 
         // 操作人：Jack
-        assertEquals(
-                2L,
-                notification.getActorId()
-        );
+        assertEquals(2L, notification.getActorId());
 
-        assertEquals(
-                "PROJECT_INVITATION_ACCEPTED",
-                notification.getType()
-        );
+        assertEquals("PROJECT_INVITATION_ACCEPTED", notification.getType());
 
         // Tom 可以选择点击“进入项目”
-        assertEquals(
-                "PROJECT",
-                notification.getTargetType()
-        );
+        assertEquals("PROJECT", notification.getTargetType());
 
-        assertEquals(
-                4L,
-                notification.getTargetId()
-        );
+        assertEquals(4L, notification.getTargetId());
 
-        assertEquals(
-                4L,
-                notification.getProjectId()
-        );
+        assertEquals(4L, notification.getProjectId());
     }
 
     /**
@@ -444,9 +332,7 @@ public class ProjectInvitationServiceTest {
      */
     @Test
     void rejectingInvitationNotifiesInviter() {
-
-        ProjectInvitation invitation =
-                new ProjectInvitation();
+        ProjectInvitation invitation = new ProjectInvitation();
 
         invitation.setId(50L);
         invitation.setProjectId(4L);
@@ -459,74 +345,38 @@ public class ProjectInvitationServiceTest {
 
         invitation.setStatus("PENDING");
 
-        invitation.setExpiresAt(
-                LocalDateTime.now()
-                        .plusDays(1)
-        );
+        invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
 
         // 当前登录用户：Jack
-        UserContext.set(
-                new CurrentUser(2L, "USER")
-        );
+        UserContext.set(new CurrentUser(2L, "USER"));
 
-        when(projectInvitationMapper
-                .selectById(50L))
-                .thenReturn(invitation);
+        when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
 
-        projectInvitationService
-                .rejectInvitation(50L);
+        projectInvitationService.rejectInvitation(50L);
 
         // 邀请变为 REJECTED
-        assertEquals(
-                "REJECTED",
-                invitation.getStatus()
-        );
+        assertEquals("REJECTED", invitation.getStatus());
 
-        ArgumentCaptor<CreateNotificationDTO> captor =
-                ArgumentCaptor.forClass(
-                        CreateNotificationDTO.class
-                );
+        ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
-        verify(notificationService)
-                .createNotification(
-                        captor.capture()
-                );
+        verify(notificationService).createNotification(captor.capture());
 
-        CreateNotificationDTO notification =
-                captor.getValue();
+        CreateNotificationDTO notification = captor.getValue();
 
         // 收件人：Tom
-        assertEquals(
-                1L,
-                notification.getRecipientId()
-        );
+        assertEquals(1L, notification.getRecipientId());
 
         // 操作人：Jack
-        assertEquals(
-                2L,
-                notification.getActorId()
-        );
+        assertEquals(2L, notification.getActorId());
 
-        assertEquals(
-                "PROJECT_INVITATION_REJECTED",
-                notification.getType()
-        );
+        assertEquals("PROJECT_INVITATION_REJECTED", notification.getType());
 
         // Tom 可以自己决定是否进入项目
-        assertEquals(
-                "PROJECT",
-                notification.getTargetType()
-        );
+        assertEquals("PROJECT", notification.getTargetType());
 
-        assertEquals(
-                4L,
-                notification.getTargetId()
-        );
+        assertEquals(4L, notification.getTargetId());
 
-        assertEquals(
-                4L,
-                notification.getProjectId()
-        );
+        assertEquals(4L, notification.getProjectId());
     }
 
     @Test
@@ -534,12 +384,10 @@ public class ProjectInvitationServiceTest {
         UserContext.set(new CurrentUser(2L, "USER"));
         SendInvitationDTO dto = new SendInvitationDTO();
         dto.setUsername("jack");
-        doThrow(new BusinessException(403, "你不是该项目负责人"))
-                .when(projectPermissionService).requireProjectManager(4L);
+        doThrow(new BusinessException(403, "你不是该项目负责人")).when(projectPermissionService).requireProjectManager(4L);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> projectInvitationService.sendInvitation(4L, dto)
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectInvitationService.sendInvitation(4L, dto)
         );
 
         assertEquals(403, exception.getCode());
@@ -557,9 +405,8 @@ public class ProjectInvitationServiceTest {
         member.setStatus("ACTIVE");
         when(projectMemberMapper.selectOne(any())).thenReturn(member);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> projectInvitationService.sendInvitation(4L, dto)
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectInvitationService.sendInvitation(4L, dto)
         );
 
         assertEquals(409, exception.getCode());
@@ -575,9 +422,8 @@ public class ProjectInvitationServiceTest {
         when(projectMemberMapper.selectOne(any())).thenReturn(null);
         when(projectInvitationMapper.selectCount(any())).thenReturn(1L);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> projectInvitationService.sendInvitation(4L, dto)
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectInvitationService.sendInvitation(4L, dto)
         );
 
         assertEquals(409, exception.getCode());
@@ -590,10 +436,8 @@ public class ProjectInvitationServiceTest {
         UserContext.set(new CurrentUser(3L, "USER"));
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
 
-        assertEquals(403, assertThrows(BusinessException.class,
-                () -> projectInvitationService.acceptInvitation(50L)).getCode());
-        assertEquals(403, assertThrows(BusinessException.class,
-                () -> projectInvitationService.rejectInvitation(50L)).getCode());
+        assertEquals(403, assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L)).getCode());
+        assertEquals(403, assertThrows(BusinessException.class, () -> projectInvitationService.rejectInvitation(50L)).getCode());
     }
 
     @Test
@@ -603,8 +447,7 @@ public class ProjectInvitationServiceTest {
         UserContext.set(new CurrentUser(2L, "USER"));
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
 
-        assertEquals(409, assertThrows(BusinessException.class,
-                () -> projectInvitationService.acceptInvitation(50L)).getCode());
+        assertEquals(409, assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L)).getCode());
     }
 
     @Test
@@ -614,12 +457,10 @@ public class ProjectInvitationServiceTest {
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
 
         invitation.setStatus("ACCEPTED");
-        assertEquals(409, assertThrows(BusinessException.class,
-                () -> projectInvitationService.acceptInvitation(50L)).getCode());
+        assertEquals(409, assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L)).getCode());
 
         invitation.setStatus("REJECTED");
-        assertEquals(409, assertThrows(BusinessException.class,
-                () -> projectInvitationService.acceptInvitation(50L)).getCode());
+        assertEquals(409, assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L)).getCode());
     }
 
     @Test
@@ -629,14 +470,9 @@ public class ProjectInvitationServiceTest {
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
         when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
-        when(projectInvitationMapper.transitionPending(
-                anyLong(), anyString(), any(LocalDateTime.class)
-        )).thenReturn(0);
+        when(projectInvitationMapper.transitionPending(anyLong(), anyString(), any(LocalDateTime.class))).thenReturn(0);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> projectInvitationService.acceptInvitation(50L)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L));
 
         assertEquals(409, exception.getCode());
         verify(projectMemberMapper, never()).insert(any(ProjectMember.class));

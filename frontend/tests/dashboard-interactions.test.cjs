@@ -16,9 +16,7 @@ function compiled(text) {
 
 const dashboardScript = script('views/DashboardView.vue')
 const dashboardAst = ts.createSourceFile('dashboard.ts', dashboardScript, ts.ScriptTarget.Latest, true)
-const rateFunction = dashboardAst.statements.find(
-  (node) => ts.isFunctionDeclaration(node) && node.name.text === 'completionRate',
-)
+const rateFunction = dashboardAst.statements.find((node) => ts.isFunctionDeclaration(node) && node.name.text === 'completionRate')
 const rateContext = vm.createContext({})
 vm.runInContext(compiled(rateFunction.getText(dashboardAst)), rateContext)
 
@@ -30,26 +28,37 @@ test('project progress counts DONE over non-CANCELLED tasks', () => {
   assert.equal(rateContext.completionRate([{ status: 'DONE' }, { status: 'CANCELLED' }]), 100)
 })
 
-const loadFunction = dashboardAst.statements.find(
-  (node) => ts.isFunctionDeclaration(node) && node.name.text === 'load',
-)
+const loadFunction = dashboardAst.statements.find((node) => ts.isFunctionDeclaration(node) && node.name.text === 'load')
 async function runDashboardLoad({ failProjects = false, failTasks = false, failOneProgress = false } = {}) {
   const state = {
-    projects: { value: [] }, tasks: { value: [] }, activities: { value: [] },
-    loading: { value: false }, projectLoadFailed: { value: false },
-    taskLoadFailed: { value: false }, projectProgress: { value: {} },
+    projects: { value: [] },
+    tasks: { value: [] },
+    activities: { value: [] },
+    loading: { value: false },
+    projectLoadFailed: { value: false },
+    taskLoadFailed: { value: false },
+    projectProgress: { value: {} },
   }
   const projects = [
-    { id: 1, name: 'One' }, { id: 2, name: 'Two' },
-    { id: 3, name: 'Three' }, { id: 4, name: 'Four' },
-    { id: 5, name: 'Five' }, { id: 6, name: 'Six' },
+    { id: 1, name: 'One' },
+    { id: 2, name: 'Two' },
+    { id: 3, name: 'Three' },
+    { id: 4, name: 'Four' },
+    { id: 5, name: 'Five' },
+    { id: 6, name: 'Six' },
   ]
   const queried = []
   const context = vm.createContext({
     ...state,
-    recentProjects: { get value() { return state.projects.value.slice(0, 5) } },
-    getMyProjectsApi: () => failProjects ? Promise.reject(new Error('projects failed')) : Promise.resolve({ data: { data: projects } }),
-    getMyTasksApi: () => failTasks ? Promise.reject(new Error('tasks failed')) : Promise.resolve({ data: { data: [{ status: 'TODO' }] } }),
+    recentProjects: {
+      get value() {
+        return state.projects.value.slice(0, 5)
+      },
+    },
+    getMyProjectsApi: () =>
+      failProjects ? Promise.reject(new Error('projects failed')) : Promise.resolve({ data: { data: projects } }),
+    getMyTasksApi: () =>
+      failTasks ? Promise.reject(new Error('tasks failed')) : Promise.resolve({ data: { data: [{ status: 'TODO' }] } }),
     getProjectTasksApi: (id) => {
       queried.push(id)
       return failOneProgress && id === 2
@@ -91,17 +100,26 @@ const activeMenuDeclaration = layoutAst.statements
   .find((declaration) => declaration.name.getText(layoutAst) === 'activeMenu')
 const menuContext = vm.createContext({
   route: { path: '/dashboard' },
-  computed: (fn) => ({ get value() { return fn() } }),
+  computed: (fn) => ({
+    get value() {
+      return fn()
+    },
+  }),
 })
 vm.runInContext(compiled(`const activeMenu = ${activeMenuDeclaration.initializer.getText(layoutAst)}`), menuContext)
 
 test('sidebar selects the parent menu for project and task detail routes', () => {
   for (const [path, expected] of [
-    ['/projects', '/projects'], ['/projects/4', '/projects'],
-    ['/tasks', '/tasks'], ['/tasks/9', '/tasks'],
-    ['/task-requests', '/task-requests'], ['/invitations', '/invitations'],
-    ['/activity', '/activity'], ['/dashboard', '/dashboard'],
-    ['/admin/users', '/admin/users'], ['/admin/acceptances', '/admin/acceptances'],
+    ['/projects', '/projects'],
+    ['/projects/4', '/projects'],
+    ['/tasks', '/tasks'],
+    ['/tasks/9', '/tasks'],
+    ['/task-requests', '/task-requests'],
+    ['/invitations', '/invitations'],
+    ['/activity', '/activity'],
+    ['/dashboard', '/dashboard'],
+    ['/admin/users', '/admin/users'],
+    ['/admin/acceptances', '/admin/acceptances'],
     ['/membership/4/leave-requests/20', ''],
   ]) {
     menuContext.route.path = path

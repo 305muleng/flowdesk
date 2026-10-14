@@ -11,10 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(
-        name = "项目验收",
-        description = "项目负责人提交项目验收以及查看相关验收信息"
-)
+@Tag(name = "项目验收", description = "项目负责人提交项目验收以及查看相关验收信息")
 @RestController
 @RequestMapping("/projects/{projectId}/acceptances")
 public class ProjectAcceptanceController {
@@ -26,8 +23,8 @@ public class ProjectAcceptanceController {
     }
 
     @Operation(
-            summary = "提交项目验收",
-            description = "项目负责人在项目满足验收条件后提交验收申请，并将项目状态从 IN_PROGRESS 变为 PENDING_ACCEPTANCE"
+        summary = "提交项目验收",
+        description = "项目负责人在项目满足验收条件后提交验收申请，并将项目状态从 IN_PROGRESS 变为 PENDING_ACCEPTANCE"
     )
     @PostMapping
     public Result<Long> submitAcceptance(@PathVariable Long projectId, @Valid @RequestBody SubmitProjectAcceptanceDTO dto) {

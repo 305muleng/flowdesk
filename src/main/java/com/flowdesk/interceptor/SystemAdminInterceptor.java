@@ -14,32 +14,17 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SystemAdminInterceptor implements HandlerInterceptor {
 
     @Override
-    public boolean preHandle(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Object handler) throws Exception {
-
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         CurrentUser currentUser = UserContext.get();
 
         if (currentUser == null) {
-
-            ResponseUtil.writeErrorResponse(
-                    response,
-                    401,
-                    "未登录"
-            );
+            ResponseUtil.writeErrorResponse(response, 401, "未登录");
 
             return false;
         }
 
-        if (!"SYSTEM_ADMIN".equals(
-                currentUser.getSystemRole())) {
-
-            ResponseUtil.writeErrorResponse(
-                    response,
-                    403,
-                    "无系统管理员权限"
-            );
+        if (!"SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+            ResponseUtil.writeErrorResponse(response, 403, "无系统管理员权限");
 
             return false;
         }

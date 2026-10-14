@@ -28,12 +28,9 @@ async function submit() {
       <el-form label-position="top"
         ><el-form-item label="真实姓名"><el-input v-model="form.realName" /></el-form-item
         ><el-form-item label="用户名"><el-input v-model="form.username" /></el-form-item
-        ><el-form-item label="密码"
-          ><el-input v-model="form.password" type="password" show-password /></el-form-item
+        ><el-form-item label="密码"><el-input v-model="form.password" type="password" show-password /></el-form-item
         ><el-button type="primary" class="full" :loading="loading" @click="submit">注册</el-button
-        ><el-button class="full link" text @click="router.push('/login')"
-          >返回登录</el-button
-        ></el-form
+        ><el-button class="full link" text @click="router.push('/login')">返回登录</el-button></el-form
       ></el-card
     >
   </main>

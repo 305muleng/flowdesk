@@ -36,15 +36,15 @@ public class ProjectInvitationService {
     private final OperationLogService operationLogService;
 
     public ProjectInvitationService(
-            ProjectInvitationMapper projectInvitationMapper,
-            ProjectMemberMapper projectMemberMapper,
-            UserMapper userMapper,
-            ProjectPermissionService projectPermissionService,
-            ProjectMapper projectMapper,
-            NotificationService notificationService,
-            OperationLogService operationLogService,
-            @Value("${invitation.expire-days}") int expireDays) {
-
+        ProjectInvitationMapper projectInvitationMapper,
+        ProjectMemberMapper projectMemberMapper,
+        UserMapper userMapper,
+        ProjectPermissionService projectPermissionService,
+        ProjectMapper projectMapper,
+        NotificationService notificationService,
+        OperationLogService operationLogService,
+        @Value("${invitation.expire-days}") int expireDays
+    ) {
         this.projectInvitationMapper = projectInvitationMapper;
         this.projectMemberMapper = projectMemberMapper;
         this.userMapper = userMapper;
@@ -57,29 +57,17 @@ public class ProjectInvitationService {
 
     @Transactional
     public Long sendInvitation(Long projectId, SendInvitationDTO dto) {
-
         // 1. 当前用户必须是该项目负责人
         projectPermissionService.requireProjectManager(projectId);
 
-        Project project =
-                projectMapper.selectByIdForUpdate(projectId);
+        Project project = projectMapper.selectByIdForUpdate(projectId);
 
-        if (project == null
-                || project.getDeletedAt() != null) {
-
-            throw new BusinessException(
-                    404,
-                    "项目不存在"
-            );
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"PREPARING".equals(project.getStatus())
-                && !"IN_PROGRESS".equals(project.getStatus())) {
-
-            throw new BusinessException(
-                    409,
-                    "当前项目状态不允许发送邀请"
-            );
+        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许发送邀请");
         }
 
         CurrentUser currentUser = UserContext.get();
@@ -87,10 +75,7 @@ public class ProjectInvitationService {
         String username = dto.getUsername().trim();
 
         // 2. 根据用户名查询被邀请人
-        User invitee = userMapper.selectOne(
-                new LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, username)
-        );
+        User invitee = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
 
         if (invitee == null) {
             throw new BusinessException(404, "被邀请用户不存在");
@@ -112,13 +97,12 @@ public class ProjectInvitationService {
 
         // 5. 已经是有效成员，不能重复邀请
         ProjectMember existingMember = projectMemberMapper.selectOne(
-                new LambdaQueryWrapper<ProjectMember>()
-                        .eq(ProjectMember::getProjectId, projectId)
-                        .eq(ProjectMember::getUserId, invitee.getId())
+            new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId)
+                .eq(ProjectMember::getUserId, invitee.getId())
         );
 
-        if (existingMember != null
-                && "ACTIVE".equals(existingMember.getStatus())) {
+        if (existingMember != null && "ACTIVE".equals(existingMember.getStatus())) {
             throw new BusinessException(409, "该用户已经是项目成员");
         }
 
@@ -126,11 +110,11 @@ public class ProjectInvitationService {
 
         // 6. 已经存在仍然有效的 PENDING 邀请，不能重复发送
         Long pendingCount = projectInvitationMapper.selectCount(
-                new LambdaQueryWrapper<ProjectInvitation>()
-                        .eq(ProjectInvitation::getProjectId, projectId)
-                        .eq(ProjectInvitation::getInviteeId, invitee.getId())
-                        .eq(ProjectInvitation::getStatus, "PENDING")
-                        .gt(ProjectInvitation::getExpiresAt, now)
+            new LambdaQueryWrapper<ProjectInvitation>()
+                .eq(ProjectInvitation::getProjectId, projectId)
+                .eq(ProjectInvitation::getInviteeId, invitee.getId())
+                .eq(ProjectInvitation::getStatus, "PENDING")
+                .gt(ProjectInvitation::getExpiresAt, now)
         );
 
         if (pendingCount > 0) {
@@ -149,23 +133,24 @@ public class ProjectInvitationService {
         projectInvitationMapper.insert(invitation);
 
         operationLogService.record(
-                projectId, currentUser.getUserId(), "PROJECT_INVITATION", invitation.getId(),
-                "SEND_PROJECT_INVITATION", "发送项目邀请", null,
-                Map.of("status", "PENDING", "inviteeId", invitee.getId()));
+            projectId,
+            currentUser.getUserId(),
+            "PROJECT_INVITATION",
+            invitation.getId(),
+            "SEND_PROJECT_INVITATION",
+            "发送项目邀请",
+            null,
+            Map.of("status", "PENDING", "inviteeId", invitee.getId())
+        );
 
-        CreateNotificationDTO notificationDTO =
-                new CreateNotificationDTO();
+        CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
 
         notificationDTO.setRecipientId(invitee.getId());
         notificationDTO.setActorId(currentUser.getUserId());
 
         notificationDTO.setType("PROJECT_INVITATION");
         notificationDTO.setTitle("项目邀请");
-        notificationDTO.setContent(
-                "你收到了项目“"
-                        + project.getName()
-                        + "”的加入邀请"
-        );
+        notificationDTO.setContent("你收到了项目“" + project.getName() + "”的加入邀请");
 
         notificationDTO.setProjectId(projectId);
         notificationDTO.setTargetType("PROJECT_INVITATION");
@@ -178,12 +163,10 @@ public class ProjectInvitationService {
 
     @Transactional
     public void acceptInvitation(Long invitationId) {
-
         CurrentUser currentUser = UserContext.get();
 
         // 1. 查询邀请
-        ProjectInvitation invitation =
-                projectInvitationMapper.selectById(invitationId);
+        ProjectInvitation invitation = projectInvitationMapper.selectById(invitationId);
 
         if (invitation == null) {
             throw new BusinessException(404, "邀请不存在");
@@ -220,69 +203,37 @@ public class ProjectInvitationService {
             throw new BusinessException(403, "系统管理员不能加入项目");
         }
 
-        Project project =
-                projectMapper.selectByIdForUpdate(
-                        invitation.getProjectId()
-                );
+        Project project = projectMapper.selectByIdForUpdate(invitation.getProjectId());
 
-        if (project == null
-                || project.getDeletedAt() != null) {
-
-            throw new BusinessException(
-                    404,
-                    "项目不存在"
-            );
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"PREPARING".equals(project.getStatus())
-                && !"IN_PROGRESS".equals(project.getStatus())) {
-
-            throw new BusinessException(
-                    409,
-                    "当前项目状态不允许接受邀请"
-            );
+        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许接受邀请");
         }
 
-        ProjectMember currentMember =
-                projectMemberMapper.selectOne(
-                        new LambdaQueryWrapper<ProjectMember>()
-                                .eq(
-                                        ProjectMember::getProjectId,
-                                        invitation.getProjectId()
-                                )
-                                .eq(
-                                        ProjectMember::getUserId,
-                                        currentUser.getUserId()
-                                )
-                );
+        ProjectMember currentMember = projectMemberMapper.selectOne(
+            new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, invitation.getProjectId())
+                .eq(ProjectMember::getUserId, currentUser.getUserId())
+        );
 
-        if (currentMember != null
-                && "ACTIVE".equals(currentMember.getStatus())) {
-
-            throw new BusinessException(
-                    409,
-                    "你已经是该项目成员，该邀请已失效"
-            );
+        if (currentMember != null && "ACTIVE".equals(currentMember.getStatus())) {
+            throw new BusinessException(409, "你已经是该项目成员，该邀请已失效");
         }
 
-        if (currentMember != null
-                && currentMember.getJoinedAt() != null
-                && invitation.getCreatedAt() != null
-                && currentMember.getJoinedAt()
-                .isAfter(invitation.getCreatedAt())) {
-
-            throw new BusinessException(
-                    409,
-                    "该邀请已因成员身份变化而失效"
-            );
+        if (
+            currentMember != null &&
+            currentMember.getJoinedAt() != null &&
+            invitation.getCreatedAt() != null &&
+            currentMember.getJoinedAt().isAfter(invitation.getCreatedAt())
+        ) {
+            throw new BusinessException(409, "该邀请已因成员身份变化而失效");
         }
 
         now = LocalDateTime.now();
-        int accepted = projectInvitationMapper.transitionPending(
-                invitationId,
-                "ACCEPTED",
-                now
-        );
+        int accepted = projectInvitationMapper.transitionPending(invitationId, "ACCEPTED", now);
 
         if (accepted != 1) {
             throw new BusinessException(409, "该邀请已经处理");
@@ -293,16 +244,13 @@ public class ProjectInvitationService {
 
         // 5. 查询是否曾经是这个项目的成员
         ProjectMember member = projectMemberMapper.selectOne(
-                new LambdaQueryWrapper<ProjectMember>()
-                        .eq(ProjectMember::getProjectId,
-                                invitation.getProjectId())
-                        .eq(ProjectMember::getUserId,
-                                currentUser.getUserId())
+            new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, invitation.getProjectId())
+                .eq(ProjectMember::getUserId, currentUser.getUserId())
         );
 
         // 6. 第一次加入项目
         if (member == null) {
-
             member = new ProjectMember();
 
             member.setProjectId(invitation.getProjectId());
@@ -312,68 +260,46 @@ public class ProjectInvitationService {
             member.setJoinedAt(now);
 
             projectMemberMapper.insert(member);
-
         } else {
+            int updated = projectMemberMapper.reactivateAsDeveloper(member.getId(), now);
 
-        int updated =
-                projectMemberMapper.reactivateAsDeveloper(
-                        member.getId(),
-                        now
-                );
-
-        if (updated != 1) {
-            throw new BusinessException(
-                    409,
-                    "成员状态已发生变化，请刷新后重试"
-            );
+            if (updated != 1) {
+                throw new BusinessException(409, "成员状态已发生变化，请刷新后重试");
+            }
         }
-    }
 
         operationLogService.record(
-                invitation.getProjectId(), currentUser.getUserId(),
-                "PROJECT_INVITATION", invitation.getId(),
-                "ACCEPT_PROJECT_INVITATION", "接受项目邀请",
-                Map.of("status", "PENDING"), Map.of("status", "ACCEPTED"));
-
-        CreateNotificationDTO notificationDTO =
-                new CreateNotificationDTO();
-
-        notificationDTO.setRecipientId(
-                invitation.getInviterId()
+            invitation.getProjectId(),
+            currentUser.getUserId(),
+            "PROJECT_INVITATION",
+            invitation.getId(),
+            "ACCEPT_PROJECT_INVITATION",
+            "接受项目邀请",
+            Map.of("status", "PENDING"),
+            Map.of("status", "ACCEPTED")
         );
 
-        notificationDTO.setActorId(
-                currentUser.getUserId()
-        );
+        CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
 
-        notificationDTO.setType(
-                "PROJECT_INVITATION_ACCEPTED"
-        );
+        notificationDTO.setRecipientId(invitation.getInviterId());
 
-        notificationDTO.setTitle(
-                "项目邀请已接受"
-        );
+        notificationDTO.setActorId(currentUser.getUserId());
 
-        notificationDTO.setContent(
-                "你发送的项目邀请已被接受"
-        );
+        notificationDTO.setType("PROJECT_INVITATION_ACCEPTED");
 
-        notificationDTO.setProjectId(
-                invitation.getProjectId()
-        );
+        notificationDTO.setTitle("项目邀请已接受");
+
+        notificationDTO.setContent("你发送的项目邀请已被接受");
+
+        notificationDTO.setProjectId(invitation.getProjectId());
 
         notificationDTO.setTargetType("PROJECT");
-        notificationDTO.setTargetId(
-                invitation.getProjectId()
-        );
+        notificationDTO.setTargetId(invitation.getProjectId());
 
-        notificationService.createNotification(
-                notificationDTO
-        );
+        notificationService.createNotification(notificationDTO);
     }
 
     public List<InvitationVO> getMyInvitations(String filter) {
-
         CurrentUser currentUser = UserContext.get();
 
         String normalizedFilter = filter.trim().toUpperCase();
@@ -387,18 +313,14 @@ public class ProjectInvitationService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        List<InvitationVO> invitations =
-                projectInvitationMapper.selectMyInvitations(
-                        currentUser.getUserId(),
-                        normalizedFilter,
-                        now
-                );
+        List<InvitationVO> invitations = projectInvitationMapper.selectMyInvitations(
+            currentUser.getUserId(),
+            normalizedFilter,
+            now
+        );
 
         for (InvitationVO invitation : invitations) {
-
-            boolean expired =
-                    "PENDING".equals(invitation.getStatus())
-                            && !invitation.getExpiresAt().isAfter(now);
+            boolean expired = "PENDING".equals(invitation.getStatus()) && !invitation.getExpiresAt().isAfter(now);
 
             invitation.setExpired(expired);
         }
@@ -408,12 +330,10 @@ public class ProjectInvitationService {
 
     @Transactional
     public void rejectInvitation(Long invitationId) {
-
         CurrentUser currentUser = UserContext.get();
 
         // 1. 查询邀请
-        ProjectInvitation invitation =
-                projectInvitationMapper.selectById(invitationId);
+        ProjectInvitation invitation = projectInvitationMapper.selectById(invitationId);
 
         if (invitation == null) {
             throw new BusinessException(404, "邀请不存在");
@@ -436,11 +356,7 @@ public class ProjectInvitationService {
             throw new BusinessException(409, "该邀请已经过期");
         }
 
-        int rejected = projectInvitationMapper.transitionPending(
-                invitationId,
-                "REJECTED",
-                now
-        );
+        int rejected = projectInvitationMapper.transitionPending(invitationId, "REJECTED", now);
 
         if (rejected != 1) {
             throw new BusinessException(409, "该邀请已经处理");
@@ -450,45 +366,33 @@ public class ProjectInvitationService {
         invitation.setRespondedAt(now);
 
         operationLogService.record(
-                invitation.getProjectId(), currentUser.getUserId(),
-                "PROJECT_INVITATION", invitation.getId(),
-                "REJECT_PROJECT_INVITATION", "拒绝项目邀请",
-                Map.of("status", "PENDING"), Map.of("status", "REJECTED"));
-
-        CreateNotificationDTO notificationDTO =
-                new CreateNotificationDTO();
-
-        notificationDTO.setRecipientId(
-                invitation.getInviterId()
+            invitation.getProjectId(),
+            currentUser.getUserId(),
+            "PROJECT_INVITATION",
+            invitation.getId(),
+            "REJECT_PROJECT_INVITATION",
+            "拒绝项目邀请",
+            Map.of("status", "PENDING"),
+            Map.of("status", "REJECTED")
         );
 
-        notificationDTO.setActorId(
-                currentUser.getUserId()
-        );
+        CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
 
-        notificationDTO.setType(
-                "PROJECT_INVITATION_REJECTED"
-        );
+        notificationDTO.setRecipientId(invitation.getInviterId());
 
-        notificationDTO.setTitle(
-                "项目邀请已拒绝"
-        );
+        notificationDTO.setActorId(currentUser.getUserId());
 
-        notificationDTO.setContent(
-                "你发送的项目邀请已被拒绝"
-        );
+        notificationDTO.setType("PROJECT_INVITATION_REJECTED");
 
-        notificationDTO.setProjectId(
-                invitation.getProjectId()
-        );
+        notificationDTO.setTitle("项目邀请已拒绝");
+
+        notificationDTO.setContent("你发送的项目邀请已被拒绝");
+
+        notificationDTO.setProjectId(invitation.getProjectId());
 
         notificationDTO.setTargetType("PROJECT");
-        notificationDTO.setTargetId(
-                invitation.getProjectId()
-        );
+        notificationDTO.setTargetId(invitation.getProjectId());
 
-        notificationService.createNotification(
-                notificationDTO
-        );
+        notificationService.createNotification(notificationDTO);
     }
 }

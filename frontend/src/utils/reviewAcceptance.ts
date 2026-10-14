@@ -3,18 +3,11 @@ import { reviewAcceptanceApi } from '@/api/acceptances'
 
 export async function promptReviewAcceptance(id: number, action: 'APPROVE' | 'REJECT') {
   try {
-    const { value } = await ElMessageBox.prompt(
-      '填写审核意见',
-      action === 'APPROVE' ? '通过项目验收' : '驳回项目验收',
-      {
-        inputType: 'textarea',
-        inputPlaceholder:
-          action === 'APPROVE' ? '确认项目交付满足验收标准' : '说明需要补充或修改的内容',
-        ...(action === 'REJECT'
-          ? { inputPattern: /\S+/, inputErrorMessage: '请填写驳回原因' }
-          : {}),
-      },
-    )
+    const { value } = await ElMessageBox.prompt('填写审核意见', action === 'APPROVE' ? '通过项目验收' : '驳回项目验收', {
+      inputType: 'textarea',
+      inputPlaceholder: action === 'APPROVE' ? '确认项目交付满足验收标准' : '说明需要补充或修改的内容',
+      ...(action === 'REJECT' ? { inputPattern: /\S+/, inputErrorMessage: '请填写驳回原因' } : {}),
+    })
     await reviewAcceptanceApi(id, { action, reviewNote: value?.trim() || undefined })
     ElMessage.success('验收审核已完成')
     return true

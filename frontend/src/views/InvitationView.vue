@@ -2,12 +2,7 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  acceptInvitation,
-  getInvitations,
-  rejectInvitation,
-  type Invitation,
-} from '@/api/invitations'
+import { acceptInvitation, getInvitations, rejectInvitation, type Invitation } from '@/api/invitations'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { formatDateTime } from '@/utils/format'
@@ -55,12 +50,7 @@ onMounted(load)
   </PageHeader>
   <section v-loading="loading" class="invite-list">
     <el-empty v-if="!loading && !list.length" description="目前没有项目邀请" />
-    <article
-      v-for="item in list"
-      :key="item.id"
-      class="invite-card"
-      :class="{ focused: item.id === focusedInvitationId }"
-    >
+    <article v-for="item in list" :key="item.id" class="invite-card" :class="{ focused: item.id === focusedInvitationId }">
       <div class="project-icon">{{ item.projectName.slice(0, 1) }}</div>
       <div class="invite-main">
         <div>

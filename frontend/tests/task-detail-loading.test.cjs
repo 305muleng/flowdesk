@@ -10,23 +10,36 @@ const source = fs.readFileSync(path.join(__dirname, '../src/views/TaskDetailView
 const ast = ts.createSourceFile('task-detail.ts', parse(source).descriptor.scriptSetup.content, ts.ScriptTarget.Latest, true)
 const functions = ast.statements
   .filter((node) => ts.isFunctionDeclaration(node) && ['load', 'loadComments', 'loadSubmissions'].includes(node.name.text))
-  .map((node) => node.getText(ast)).join('\n')
+  .map((node) => node.getText(ast))
+  .join('\n')
 const executable = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
 
 async function loadWithFailure(failedPanel) {
   const refs = {
-    task: { value: undefined }, project: { value: undefined }, members: { value: [] },
-    comments: { value: [] }, submissions: { value: [] }, selectedAssignee: { value: undefined },
-    commentsLoadFailed: { value: false }, submissionsLoadFailed: { value: false },
-    loading: { value: false }, id: { value: '10' },
+    task: { value: undefined },
+    project: { value: undefined },
+    members: { value: [] },
+    comments: { value: [] },
+    submissions: { value: [] },
+    selectedAssignee: { value: undefined },
+    commentsLoadFailed: { value: false },
+    submissionsLoadFailed: { value: false },
+    loading: { value: false },
+    id: { value: '10' },
   }
   const context = vm.createContext({
     ...refs,
     getTaskApi: async () => ({ data: { data: { id: 10, projectId: 4, assigneeId: 2 } } }),
     getProjectApi: async () => ({ data: { data: { id: 4, name: 'FlowDesk' } } }),
     getProjectMembersApi: async () => ({ data: { data: [{ userId: 2 }] } }),
-    getTaskCommentsApi: () => failedPanel === 'comments' ? Promise.reject(new Error('comments failed')) : Promise.resolve({ data: { data: [{ id: 1 }] } }),
-    getTaskSubmissionsApi: () => failedPanel === 'submissions' ? Promise.reject(new Error('submissions failed')) : Promise.resolve({ data: { data: [{ id: 2 }] } }),
+    getTaskCommentsApi: () =>
+      failedPanel === 'comments'
+        ? Promise.reject(new Error('comments failed'))
+        : Promise.resolve({ data: { data: [{ id: 1 }] } }),
+    getTaskSubmissionsApi: () =>
+      failedPanel === 'submissions'
+        ? Promise.reject(new Error('submissions failed'))
+        : Promise.resolve({ data: { data: [{ id: 2 }] } }),
   })
   vm.runInContext(executable, context)
   await vm.runInContext('load()', context)

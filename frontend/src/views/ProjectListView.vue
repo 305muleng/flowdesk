@@ -68,12 +68,7 @@ onMounted(load)
     <el-empty v-if="!loading && projects.length === 0" description="还没有参与任何项目"
       ><el-button v-if="!auth.isSystemAdmin" type="primary" @click="openCreate">创建第一个项目</el-button></el-empty
     >
-    <article
-      v-for="project in projects"
-      :key="project.id"
-      class="project-card"
-      @click="router.push('/projects/' + project.id)"
-    >
+    <article v-for="project in projects" :key="project.id" class="project-card" @click="router.push('/projects/' + project.id)">
       <div class="card-top">
         <StatusTag :value="project.status" /><span>#{{ project.id }}</span>
       </div>
@@ -91,22 +86,12 @@ onMounted(load)
   <el-dialog v-model="dialogVisible" title="新建项目" width="min(92vw, 560px)" destroy-on-close>
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
       <el-form-item label="项目名称" prop="name"
-        ><el-input
-          v-model="form.name"
-          maxlength="100"
-          show-word-limit
-          placeholder="例如：FlowDesk 前端 V1"
+        ><el-input v-model="form.name" maxlength="100" show-word-limit placeholder="例如：FlowDesk 前端 V1"
       /></el-form-item>
       <el-form-item label="项目简介"
-        ><el-input
-          v-model="form.description"
-          type="textarea"
-          :rows="3"
-          placeholder="说明项目背景或范围"
+        ><el-input v-model="form.description" type="textarea" :rows="3" placeholder="说明项目背景或范围"
       /></el-form-item>
-      <el-form-item label="项目目标"
-        ><el-input v-model="form.goal" placeholder="希望达成的结果"
-      /></el-form-item>
+      <el-form-item label="项目目标"><el-input v-model="form.goal" placeholder="希望达成的结果" /></el-form-item>
       <el-form-item label="预计完成时间"
         ><el-date-picker
           v-model="form.expectedEndTime"

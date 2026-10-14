@@ -14,9 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
-public interface ProjectAcceptanceMapper
-        extends BaseMapper<ProjectAcceptance> {
-
+public interface ProjectAcceptanceMapper extends BaseMapper<ProjectAcceptance> {
     @Select("""
             SELECT COALESCE(MAX(acceptance_no), 0)
             FROM project_acceptance
@@ -31,12 +29,14 @@ public interface ProjectAcceptanceMapper
             WHERE id = #{acceptanceId} AND project_id = #{projectId}
               AND review_status = 'PENDING'
             """)
-    int reviewIfPending(@Param("acceptanceId") Long acceptanceId,
-                        @Param("projectId") Long projectId,
-                        @Param("reviewStatus") String reviewStatus,
-                        @Param("reviewerId") Long reviewerId,
-                        @Param("reviewNote") String reviewNote,
-                        @Param("reviewedAt") LocalDateTime reviewedAt);
+    int reviewIfPending(
+        @Param("acceptanceId") Long acceptanceId,
+        @Param("projectId") Long projectId,
+        @Param("reviewStatus") String reviewStatus,
+        @Param("reviewerId") Long reviewerId,
+        @Param("reviewNote") String reviewNote,
+        @Param("reviewedAt") LocalDateTime reviewedAt
+    );
 
     @Select("""
         SELECT
@@ -139,7 +139,5 @@ public interface ProjectAcceptanceMapper
 
     LIMIT 1
     """)
-    ProjectAcceptanceDetailVO selectAcceptanceDetail(
-            @Param("acceptanceId") Long acceptanceId
-    );
+    ProjectAcceptanceDetailVO selectAcceptanceDetail(@Param("acceptanceId") Long acceptanceId);
 }

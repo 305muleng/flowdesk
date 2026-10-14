@@ -10,9 +10,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 @Mapper
-public interface OperationLogMapper
-        extends BaseMapper<OperationLog> {
-
+public interface OperationLogMapper extends BaseMapper<OperationLog> {
     @Select("""
         SELECT ol.id, ol.project_id AS projectId, ol.actor_id AS actorId,
                actor.real_name AS actorName, ol.target_type AS targetType,
@@ -25,8 +23,5 @@ public interface OperationLogMapper
         ORDER BY ol.created_at DESC, ol.id DESC
         LIMIT #{limit}
         """)
-    List<OperationLogVO> selectProjectLogs(
-            @Param("projectId") Long projectId,
-            @Param("limit") int limit
-    );
+    List<OperationLogVO> selectProjectLogs(@Param("projectId") Long projectId, @Param("limit") int limit);
 }

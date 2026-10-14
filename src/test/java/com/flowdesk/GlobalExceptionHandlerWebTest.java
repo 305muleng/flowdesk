@@ -25,208 +25,101 @@ public class GlobalExceptionHandlerWebTest {
     private UserService userService;
     private TaskService taskService;
 
-
     @BeforeEach
     void setUp() {
-
         // 1. Service 仍然使用 Mock
         userService = mock(UserService.class);
         taskService = mock(TaskService.class);
 
         // 2. Controller 使用真的
-        UserController userController =
-                new UserController(userService);
+        UserController userController = new UserController(userService);
 
-        TaskController taskController =
-                new TaskController(taskService);
+        TaskController taskController = new TaskController(taskService);
 
         // 3. 建立一个假的 Spring MVC HTTP 环境
-        mockMvc = MockMvcBuilders
-                .standaloneSetup(
-                        userController,
-                        taskController
-                )
-                .setControllerAdvice(
-                        new GlobalExceptionHandler()
-                )
-                .build();
+        mockMvc = MockMvcBuilders.standaloneSetup(userController, taskController)
+            .setControllerAdvice(new GlobalExceptionHandler())
+            .build();
     }
-
 
     @Test
     void invalidDtoShouldReturn400() throws Exception {
-
-        mockMvc.perform(
-                        post("/users/register")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("""
+        mockMvc
+            .perform(post("/users/register").contentType(MediaType.APPLICATION_JSON).content("""
                                         {
                                           "username": "   ",
                                           "password": "123456",
                                           "realName": "Tom"
                                         }
-                                        """)
-                )
-                .andExpect(
-                        status().isBadRequest()
-                )
-                .andExpect(
-                        jsonPath("$.code").value(400)
-                )
-                .andExpect(
-                        jsonPath("$.message")
-                                .value("用户名不能为空")
-                );
+                                        """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(400))
+            .andExpect(jsonPath("$.message").value("用户名不能为空"));
     }
 
-
     @Test
-    void invalidPathVariableShouldReturn400()
-            throws Exception {
-
-        mockMvc.perform(
-                        get("/tasks/abc")
-                )
-                .andExpect(
-                        status().isBadRequest()
-                )
-                .andExpect(
-                        jsonPath("$.code").value(400)
-                )
-                .andExpect(
-                        jsonPath("$.message")
-                                .value("请求参数类型错误")
-                );
+    void invalidPathVariableShouldReturn400() throws Exception {
+        mockMvc
+            .perform(get("/tasks/abc"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(400))
+            .andExpect(jsonPath("$.message").value("请求参数类型错误"));
     }
 
-
     @Test
-    void malformedJsonShouldReturn400()
-            throws Exception {
-
-        mockMvc.perform(
-                        post("/users/register")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("""
+    void malformedJsonShouldReturn400() throws Exception {
+        mockMvc
+            .perform(post("/users/register").contentType(MediaType.APPLICATION_JSON).content("""
                                         {
                                           "username": "tom",
                                           "password": "123456",
                                           "realName":
                                         }
-                                        """)
-                )
-                .andExpect(
-                        status().isBadRequest()
-                )
-                .andExpect(
-                        jsonPath("$.code").value(400)
-                )
-                .andExpect(
-                        jsonPath("$.message")
-                                .value("请求体格式错误")
-                );
+                                        """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(400))
+            .andExpect(jsonPath("$.message").value("请求体格式错误"));
     }
 
-
     @Test
-    void businessNotFoundShouldReturn404()
-            throws Exception {
+    void businessNotFoundShouldReturn404() throws Exception {
+        when(taskService.getTaskDetail(999L)).thenThrow(new BusinessException(404, "任务不存在"));
 
-        when(taskService.getTaskDetail(999L))
-                .thenThrow(
-                        new BusinessException(
-                                404,
-                                "任务不存在"
-                        )
-                );
-
-        mockMvc.perform(
-                        get("/tasks/999")
-                )
-                .andExpect(
-                        status().isNotFound()
-                )
-                .andExpect(
-                        jsonPath("$.code").value(404)
-                )
-                .andExpect(
-                        jsonPath("$.message")
-                                .value("任务不存在")
-                );
+        mockMvc
+            .perform(get("/tasks/999"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value(404))
+            .andExpect(jsonPath("$.message").value("任务不存在"));
     }
 
-
     @Test
-    void businessConflictShouldReturn409()
-            throws Exception {
+    void businessConflictShouldReturn409() throws Exception {
+        doThrow(new BusinessException(409, "只有待处理任务可以开始")).when(taskService).startTask(9L);
 
-        doThrow(
-                new BusinessException(
-                        409,
-                        "只有待处理任务可以开始"
-                )
-        )
-                .when(taskService)
-                .startTask(9L);
-
-        mockMvc.perform(
-                        post("/tasks/9/start")
-                )
-                .andExpect(
-                        status().isConflict()
-                )
-                .andExpect(
-                        jsonPath("$.code").value(409)
-                )
-                .andExpect(
-                        jsonPath("$.message")
-                                .value("只有待处理任务可以开始")
-                );
+        mockMvc
+            .perform(post("/tasks/9/start"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value(409))
+            .andExpect(jsonPath("$.message").value("只有待处理任务可以开始"));
     }
 
-
     @Test
-    void wrongHttpMethodShouldReturn405()
-            throws Exception {
-
-        mockMvc.perform(
-                        get("/tasks/9/start")
-                )
-                .andExpect(
-                        status().isMethodNotAllowed()
-                )
-                .andExpect(
-                        jsonPath("$.code").value(405)
-                )
-                .andExpect(
-                        jsonPath("$.message")
-                                .value("请求方法不支持")
-                );
+    void wrongHttpMethodShouldReturn405() throws Exception {
+        mockMvc
+            .perform(get("/tasks/9/start"))
+            .andExpect(status().isMethodNotAllowed())
+            .andExpect(jsonPath("$.code").value(405))
+            .andExpect(jsonPath("$.message").value("请求方法不支持"));
     }
 
-
     @Test
-    void unknownExceptionShouldReturn500()
-            throws Exception {
+    void unknownExceptionShouldReturn500() throws Exception {
+        doThrow(new RuntimeException("模拟程序异常")).when(taskService).startTask(9L);
 
-        doThrow(
-                new RuntimeException("模拟程序异常")
-        )
-                .when(taskService)
-                .startTask(9L);
-
-        mockMvc.perform(
-                        post("/tasks/9/start")
-                )
-                .andExpect(
-                        status().isInternalServerError()
-                )
-                .andExpect(
-                        jsonPath("$.code").value(500)
-                )
-                .andExpect(
-                        jsonPath("$.message")
-                                .value("服务器内部错误")
-                );
+        mockMvc
+            .perform(post("/tasks/9/start"))
+            .andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.code").value(500))
+            .andExpect(jsonPath("$.message").value("服务器内部错误"));
     }
 }

@@ -13,9 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
-public interface TaskSubmissionMapper
-        extends BaseMapper<TaskSubmission> {
-
+public interface TaskSubmissionMapper extends BaseMapper<TaskSubmission> {
     @Select("""
             SELECT COALESCE(MAX(submission_no), 0)
             FROM task_submission
@@ -39,12 +37,14 @@ public interface TaskSubmissionMapper
                 review_note = #{reviewNote}, reviewed_at = #{reviewedAt}
             WHERE id = #{submissionId} AND task_id = #{taskId} AND review_status = 'PENDING'
             """)
-    int reviewPendingSubmission(@Param("submissionId") Long submissionId,
-                                @Param("taskId") Long taskId,
-                                @Param("reviewStatus") String reviewStatus,
-                                @Param("reviewerId") Long reviewerId,
-                                @Param("reviewNote") String reviewNote,
-                                @Param("reviewedAt") LocalDateTime reviewedAt);
+    int reviewPendingSubmission(
+        @Param("submissionId") Long submissionId,
+        @Param("taskId") Long taskId,
+        @Param("reviewStatus") String reviewStatus,
+        @Param("reviewerId") Long reviewerId,
+        @Param("reviewNote") String reviewNote,
+        @Param("reviewedAt") LocalDateTime reviewedAt
+    );
 
     @Select("""
         SELECT

@@ -19,11 +19,7 @@ request.interceptors.response.use(
   (error) => {
     const status = error.response?.status
     const fallback =
-      status === 401
-        ? '登录已失效，请重新登录'
-        : status === 403
-          ? '你没有执行此操作的权限'
-          : '网络请求失败，请稍后重试'
+      status === 401 ? '登录已失效，请重新登录' : status === 403 ? '你没有执行此操作的权限' : '网络请求失败，请稍后重试'
     const message = error.response?.data?.message || fallback
     if (status === 401 || (status === 403 && error.config?.url === '/users/me')) {
       localStorage.removeItem('flowdesk_token')

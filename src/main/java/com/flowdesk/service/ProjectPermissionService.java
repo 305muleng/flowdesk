@@ -18,7 +18,6 @@ public class ProjectPermissionService {
     }
 
     public ProjectMember requireProjectMember(Long projectId) {
-
         CurrentUser currentUser = UserContext.get();
 
         if ("SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
@@ -26,10 +25,10 @@ public class ProjectPermissionService {
         }
 
         ProjectMember member = projectMemberMapper.selectOne(
-                new LambdaQueryWrapper<ProjectMember>()
-                        .eq(ProjectMember::getProjectId, projectId)
-                        .eq(ProjectMember::getUserId, currentUser.getUserId())
-                        .eq(ProjectMember::getStatus, "ACTIVE")
+            new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId)
+                .eq(ProjectMember::getUserId, currentUser.getUserId())
+                .eq(ProjectMember::getStatus, "ACTIVE")
         );
 
         if (member == null) {
@@ -40,7 +39,6 @@ public class ProjectPermissionService {
     }
 
     public ProjectMember requireProjectManager(Long projectId) {
-
         ProjectMember member = requireProjectMember(projectId);
 
         if (!"PROJECT_MANAGER".equals(member.getRole())) {

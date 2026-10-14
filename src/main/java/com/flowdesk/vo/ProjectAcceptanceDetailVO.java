@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public class ProjectAcceptanceDetailVO {
+
     private Long id;
     private Integer acceptanceNo;
     private String submissionNote;

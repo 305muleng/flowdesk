@@ -8,7 +8,6 @@ import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface UserMapper extends BaseMapper<User> {
-
     @Select("""
         SELECT u.id AS userId, u.username, u.real_name AS realName, u.status AS userStatus,
           CASE
@@ -27,7 +26,9 @@ public interface UserMapper extends BaseMapper<User> {
         ORDER BY u.username, u.id
         """)
     java.util.List<com.flowdesk.vo.MemberCandidateVO> selectMemberCandidates(
-            @Param("projectId") Long projectId, @Param("now") java.time.LocalDateTime now);
+        @Param("projectId") Long projectId,
+        @Param("now") java.time.LocalDateTime now
+    );
 
     @Select("""
             SELECT *
@@ -35,7 +36,5 @@ public interface UserMapper extends BaseMapper<User> {
             WHERE id = #{userId}
             FOR UPDATE
             """)
-    User selectByIdForUpdate(
-            @Param("userId") Long userId
-    );
+    User selectByIdForUpdate(@Param("userId") Long userId);
 }

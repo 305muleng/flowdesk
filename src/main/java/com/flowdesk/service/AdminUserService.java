@@ -20,18 +20,12 @@ public class AdminUserService {
     private final UserMapper userMapper;
     private final ProjectMemberMapper projectMemberMapper;
 
-    public AdminUserService(UserMapper userMapper , ProjectMemberMapper projectMemberMapper) {
+    public AdminUserService(UserMapper userMapper, ProjectMemberMapper projectMemberMapper) {
         this.userMapper = userMapper;
         this.projectMemberMapper = projectMemberMapper;
     }
 
-    public PageResult<AdminUserVO> getUsers(
-            long page,
-            long size,
-            String keyword,
-            String status,
-            String systemRole) {
-
+    public PageResult<AdminUserVO> getUsers(long page, long size, String keyword, String status, String systemRole) {
         if (page < 1) {
             throw new BusinessException(400, "page 不能小于 1");
         }
@@ -40,125 +34,61 @@ public class AdminUserService {
             throw new BusinessException(400, "size 必须在 1 到 100 之间");
         }
 
-        if (status != null
-                && !status.isBlank()
-                && !"ACTIVE".equals(status)
-                && !"DISABLED".equals(status)) {
-
-            throw new BusinessException(
-                    400,
-                    "status 只能是 ACTIVE 或 DISABLED"
-            );
+        if (status != null && !status.isBlank() && !"ACTIVE".equals(status) && !"DISABLED".equals(status)) {
+            throw new BusinessException(400, "status 只能是 ACTIVE 或 DISABLED");
         }
 
-        if (systemRole != null
-                && !systemRole.isBlank()
-                && !"USER".equals(systemRole)
-                && !"SYSTEM_ADMIN".equals(systemRole)) {
-
-            throw new BusinessException(
-                    400,
-                    "systemRole 只能是 USER 或 SYSTEM_ADMIN"
-            );
+        if (systemRole != null && !systemRole.isBlank() && !"USER".equals(systemRole) && !"SYSTEM_ADMIN".equals(systemRole)) {
+            throw new BusinessException(400, "systemRole 只能是 USER 或 SYSTEM_ADMIN");
         }
 
-        Page<User> userPage =
-                new Page<>(page, size);
+        Page<User> userPage = new Page<>(page, size);
 
-        LambdaQueryWrapper<User> wrapper =
-                new LambdaQueryWrapper<>();
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
 
         if (keyword != null && !keyword.isBlank()) {
-
-            wrapper.and(w ->
-                    w.like(
-                            User::getUsername,
-                            keyword.trim()
-                    ).or().like(
-                            User::getRealName,
-                            keyword.trim()
-                    )
-            );
+            wrapper.and(w -> w.like(User::getUsername, keyword.trim()).or().like(User::getRealName, keyword.trim()));
         }
 
         if (status != null && !status.isBlank()) {
-
-            wrapper.eq(
-                    User::getStatus,
-                    status.trim()
-            );
+            wrapper.eq(User::getStatus, status.trim());
         }
 
-        if (systemRole != null
-                && !systemRole.isBlank()) {
-
-            wrapper.eq(
-                    User::getSystemRole,
-                    systemRole.trim()
-            );
+        if (systemRole != null && !systemRole.isBlank()) {
+            wrapper.eq(User::getSystemRole, systemRole.trim());
         }
 
-        wrapper.orderByDesc(
-                User::getCreatedAt
-        );
+        wrapper.orderByDesc(User::getCreatedAt);
 
-        userMapper.selectPage(
-                userPage,
-                wrapper
-        );
+        userMapper.selectPage(userPage, wrapper);
 
-        List<AdminUserVO> records =
-                userPage.getRecords()
-                        .stream()
-                        .map(this::toVO)
-                        .toList();
+        List<AdminUserVO> records = userPage.getRecords().stream().map(this::toVO).toList();
 
-        return new PageResult<>(
-                records,
-                userPage.getTotal(),
-                userPage.getCurrent(),
-                userPage.getSize(),
-                userPage.getPages()
-        );
+        return new PageResult<>(records, userPage.getTotal(), userPage.getCurrent(), userPage.getSize(), userPage.getPages());
     }
 
     @Transactional
     public void disableUser(Long userId) {
-
         User user = userMapper.selectByIdForUpdate(userId);
 
         if (user == null) {
-            throw new BusinessException(
-                    404,
-                    "用户不存在"
-            );
+            throw new BusinessException(404, "用户不存在");
         }
 
-        Long currentUserId =
-                UserContext.get().getUserId();
+        Long currentUserId = UserContext.get().getUserId();
 
         if (currentUserId.equals(userId)) {
-            throw new BusinessException(
-                    409,
-                    "不能禁用自己的账号"
-            );
+            throw new BusinessException(409, "不能禁用自己的账号");
         }
 
         if ("DISABLED".equals(user.getStatus())) {
             return;
         }
 
-        Long managedProjectCount =
-                projectMemberMapper.countActiveManagedProjects(
-                        userId
-                );
+        Long managedProjectCount = projectMemberMapper.countActiveManagedProjects(userId);
 
         if (managedProjectCount > 0) {
-
-            throw new BusinessException(
-                    409,
-                    "该用户仍担任活动项目负责人，请先完成项目负责人转让"
-            );
+            throw new BusinessException(409, "该用户仍担任活动项目负责人，请先完成项目负责人转让");
         }
 
         user.setStatus("DISABLED");
@@ -167,14 +97,10 @@ public class AdminUserService {
     }
 
     public void enableUser(Long userId) {
-
         User user = userMapper.selectById(userId);
 
         if (user == null) {
-            throw new BusinessException(
-                    404,
-                    "用户不存在"
-            );
+            throw new BusinessException(404, "用户不存在");
         }
 
         if ("ACTIVE".equals(user.getStatus())) {
@@ -187,7 +113,6 @@ public class AdminUserService {
     }
 
     private AdminUserVO toVO(User user) {
-
         AdminUserVO vo = new AdminUserVO();
 
         vo.setId(user.getId());

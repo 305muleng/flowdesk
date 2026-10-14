@@ -61,15 +61,18 @@ const filteredNotifications = computed(() =>
       readFilter.value === 'ALL' ||
       (readFilter.value === 'UNREAD' && !item.readAt) ||
       (readFilter.value === 'READ' && Boolean(item.readAt))
-    const matchesCategory =
-      categoryFilter.value === 'ALL' || categoryFor(item.type) === categoryFilter.value
+    const matchesCategory = categoryFilter.value === 'ALL' || categoryFor(item.type) === categoryFilter.value
     return matchesReadStatus && matchesCategory
   }),
 )
 
 function actionFor(item: NotificationItem): NotificationAction | undefined {
   if (item.type === 'PROJECT_MEMBER_REMOVED') return undefined
-  if (item.projectId && item.targetId && (item.type.startsWith('MEMBER_LEAVE_REQUEST_') || isManagerTransferNotification(item.type))) {
+  if (
+    item.projectId &&
+    item.targetId &&
+    (item.type.startsWith('MEMBER_LEAVE_REQUEST_') || isManagerTransferNotification(item.type))
+  ) {
     const kind = item.type.startsWith('MEMBER_LEAVE_REQUEST_') ? 'leave-requests' : 'manager-transfers'
     return { label: '查看详情', to: `/membership/${item.projectId}/${kind}/${item.targetId}` }
   }
@@ -98,16 +101,10 @@ function actionFor(item: NotificationItem): NotificationAction | undefined {
       to: `/tasks/${item.targetId}`,
     }
   }
-  if (
-    ['PROJECT_INVITATION_ACCEPTED', 'PROJECT_INVITATION_REJECTED'].includes(item.type) &&
-    (item.targetId || item.projectId)
-  ) {
+  if (['PROJECT_INVITATION_ACCEPTED', 'PROJECT_INVITATION_REJECTED'].includes(item.type) && (item.targetId || item.projectId)) {
     return { label: '进入项目', to: `/projects/${item.targetId || item.projectId}` }
   }
-  if (
-    ['PROJECT_ACCEPTANCE_APPROVED', 'PROJECT_ACCEPTANCE_REJECTED'].includes(item.type) &&
-    item.projectId
-  ) {
+  if (['PROJECT_ACCEPTANCE_APPROVED', 'PROJECT_ACCEPTANCE_REJECTED'].includes(item.type) && item.projectId) {
     return { label: '查看项目', to: `/projects/${item.projectId}` }
   }
   if (item.targetType === 'PROJECT' && item.targetId) {
@@ -178,30 +175,12 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader
-    eyebrow="NOTIFICATIONS"
-    title="通知中心"
-    description="集中查看项目、任务与验收动态，并按需进入对应工作项。"
-  >
+  <PageHeader eyebrow="NOTIFICATIONS" title="通知中心" description="集中查看项目、任务与验收动态，并按需进入对应工作项。">
     <el-button :icon="Refresh" circle :loading="loading" @click="load" />
-    <el-button
-      :icon="Check"
-      :loading="markingAll"
-      :disabled="!hasUnread"
-      @click="markAllRead"
-    >
-      全部已读
-    </el-button>
+    <el-button :icon="Check" :loading="markingAll" :disabled="!hasUnread" @click="markAllRead"> 全部已读 </el-button>
   </PageHeader>
 
-  <el-alert
-    v-if="error"
-    class="load-error"
-    :title="error"
-    type="error"
-    show-icon
-    :closable="false"
-  >
+  <el-alert v-if="error" class="load-error" :title="error" type="error" show-icon :closable="false">
     <template #default><el-button link type="primary" @click="load">重新加载</el-button></template>
   </el-alert>
 
@@ -232,13 +211,10 @@ onMounted(load)
       v-if="!loading && !error && !filteredNotifications.length"
       :description="notifications.length ? '当前筛选条件下没有通知' : '当前没有通知'"
     />
-    <article
-      v-for="item in filteredNotifications"
-      :key="item.id"
-      class="notification-card"
-      :class="{ unread: !item.readAt }"
-    >
-      <div class="notification-icon"><el-icon><Bell /></el-icon></div>
+    <article v-for="item in filteredNotifications" :key="item.id" class="notification-card" :class="{ unread: !item.readAt }">
+      <div class="notification-icon">
+        <el-icon><Bell /></el-icon>
+      </div>
       <div class="notification-main">
         <div class="notification-heading">
           <h3>{{ item.title }}</h3>
@@ -248,22 +224,10 @@ onMounted(load)
         <small>{{ formatDateTime(item.createdAt) }}</small>
       </div>
       <div class="notification-actions">
-        <el-button
-          v-if="actionFor(item)"
-          type="primary"
-          plain
-          :icon="Right"
-          @click="openAction(item, actionFor(item)!)"
-        >
+        <el-button v-if="actionFor(item)" type="primary" plain :icon="Right" @click="openAction(item, actionFor(item)!)">
           {{ actionFor(item)?.label }}
         </el-button>
-        <el-button
-          v-if="!item.readAt"
-          :loading="processingIds.has(item.id)"
-          @click="markRead(item)"
-        >
-          标记已读
-        </el-button>
+        <el-button v-if="!item.readAt" :loading="processingIds.has(item.id)" @click="markRead(item)"> 标记已读 </el-button>
       </div>
     </article>
   </section>

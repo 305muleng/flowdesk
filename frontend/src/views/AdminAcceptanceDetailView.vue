@@ -81,10 +81,18 @@ watch(acceptanceId, load, { immediate: true })
       <section class="surface-card detail-section">
         <h2>项目基本信息</h2>
         <div class="info-grid">
-          <div><span>项目名称</span><strong>{{ detail.projectName }}</strong></div>
+          <div>
+            <span>项目名称</span><strong>{{ detail.projectName }}</strong>
+          </div>
           <div><span>当前项目状态</span><StatusTag :value="detail.projectStatus" /></div>
-          <div class="wide"><span>项目简介</span><p>{{ display(detail.projectDescription) }}</p></div>
-          <div class="wide"><span>项目目标</span><p>{{ display(detail.projectGoal) }}</p></div>
+          <div class="wide">
+            <span>项目简介</span>
+            <p>{{ display(detail.projectDescription) }}</p>
+          </div>
+          <div class="wide">
+            <span>项目目标</span>
+            <p>{{ display(detail.projectGoal) }}</p>
+          </div>
         </div>
       </section>
 
@@ -97,15 +105,31 @@ watch(acceptanceId, load, { immediate: true })
           </div>
         </div>
         <div class="info-grid">
-          <div><span>验收轮次</span><strong>第 {{ detail.acceptanceNo }} 次验收</strong></div>
+          <div>
+            <span>验收轮次</span><strong>第 {{ detail.acceptanceNo }} 次验收</strong>
+          </div>
           <div><span>审核状态</span><StatusTag :value="detail.reviewStatus" /></div>
-          <div><span>提交人</span><strong>{{ display(detail.submitterName) }}</strong></div>
-          <div><span>提交时间</span><strong>{{ date(detail.submittedAt) }}</strong></div>
-          <div class="wide"><span>提交说明</span><p>{{ display(detail.submissionNote) }}</p></div>
+          <div>
+            <span>提交人</span><strong>{{ display(detail.submitterName) }}</strong>
+          </div>
+          <div>
+            <span>提交时间</span><strong>{{ date(detail.submittedAt) }}</strong>
+          </div>
+          <div class="wide">
+            <span>提交说明</span>
+            <p>{{ display(detail.submissionNote) }}</p>
+          </div>
           <template v-if="detail.reviewStatus !== 'PENDING'">
-            <div><span>审核人</span><strong>{{ display(detail.reviewerName) }}</strong></div>
-            <div><span>审核时间</span><strong>{{ date(detail.reviewedAt) }}</strong></div>
-            <div class="wide"><span>审核意见</span><p>{{ display(detail.reviewNote) }}</p></div>
+            <div>
+              <span>审核人</span><strong>{{ display(detail.reviewerName) }}</strong>
+            </div>
+            <div>
+              <span>审核时间</span><strong>{{ date(detail.reviewedAt) }}</strong>
+            </div>
+            <div class="wide">
+              <span>审核意见</span>
+              <p>{{ display(detail.reviewNote) }}</p>
+            </div>
           </template>
         </div>
       </section>
@@ -113,13 +137,18 @@ watch(acceptanceId, load, { immediate: true })
       <section class="surface-card detail-section">
         <h2>当前交付信息</h2>
         <div class="info-grid">
-          <div v-for="link in [
-            { label: '代码仓库', value: detail.repositoryUrl },
-            { label: '部署地址', value: detail.deployUrl },
-            { label: '项目文档', value: detail.documentUrl },
-          ]" :key="link.label">
+          <div
+            v-for="link in [
+              { label: '代码仓库', value: detail.repositoryUrl },
+              { label: '部署地址', value: detail.deployUrl },
+              { label: '项目文档', value: detail.documentUrl },
+            ]"
+            :key="link.label"
+          >
             <span>{{ link.label }}</span>
-            <a v-if="safeLink(link.value)" :href="safeLink(link.value)" target="_blank" rel="noopener noreferrer">{{ link.value }}</a>
+            <a v-if="safeLink(link.value)" :href="safeLink(link.value)" target="_blank" rel="noopener noreferrer">{{
+              link.value
+            }}</a>
             <strong v-else>{{ display(link.value) === '未提供' ? '未提供' : '链接不可用' }}</strong>
           </div>
         </div>
@@ -128,10 +157,18 @@ watch(acceptanceId, load, { immediate: true })
       <section class="surface-card detail-section">
         <h2>当前任务统计</h2>
         <div class="stats-grid">
-          <div><span>总任务数</span><strong>{{ detail.totalTaskCount }}</strong></div>
-          <div><span>已完成任务数</span><strong>{{ detail.completedTaskCount }}</strong></div>
-          <div><span>已取消任务数</span><strong>{{ detail.cancelledTaskCount }}</strong></div>
-          <div><span>完成率</span><strong>{{ detail.completionRate }}%</strong></div>
+          <div>
+            <span>总任务数</span><strong>{{ detail.totalTaskCount }}</strong>
+          </div>
+          <div>
+            <span>已完成任务数</span><strong>{{ detail.completedTaskCount }}</strong>
+          </div>
+          <div>
+            <span>已取消任务数</span><strong>{{ detail.cancelledTaskCount }}</strong>
+          </div>
+          <div>
+            <span>完成率</span><strong>{{ detail.completionRate }}%</strong>
+          </div>
         </div>
       </section>
 
@@ -140,9 +177,15 @@ watch(acceptanceId, load, { immediate: true })
         <el-empty v-if="!detail.members?.length" description="暂无成员贡献记录" />
         <div v-else class="record-list">
           <article v-for="member in detail.members" :key="member.userId" class="record-item">
-            <div class="record-heading"><strong>{{ member.userName }}</strong><StatusTag :value="member.role" /><span>完成 {{ member.completedTaskCount }} 项任务</span></div>
+            <div class="record-heading">
+              <strong>{{ member.userName }}</strong
+              ><StatusTag :value="member.role" /><span>完成 {{ member.completedTaskCount }} 项任务</span>
+            </div>
             <ul v-if="member.completedTasks?.length" class="task-list">
-              <li v-for="task in member.completedTasks" :key="task.taskId"><span>{{ task.title }}</span><time>{{ date(task.completedAt) }}</time></li>
+              <li v-for="task in member.completedTasks" :key="task.taskId">
+                <span>{{ task.title }}</span
+                ><time>{{ date(task.completedAt) }}</time>
+              </li>
             </ul>
             <p v-else class="muted">暂无已完成任务</p>
           </article>
@@ -154,7 +197,10 @@ watch(acceptanceId, load, { immediate: true })
         <el-empty v-if="!detail.cancelledTasks?.length" description="没有取消任务" />
         <div v-else class="record-list">
           <article v-for="task in detail.cancelledTasks" :key="task.taskId" class="record-item">
-            <div class="record-heading"><strong>{{ task.title }}</strong><time>{{ date(task.cancelledAt) }}</time></div>
+            <div class="record-heading">
+              <strong>{{ task.title }}</strong
+              ><time>{{ date(task.cancelledAt) }}</time>
+            </div>
             <p>原负责人：{{ display(task.assigneeName) }}</p>
             <p>取消原因：{{ display(task.cancelReason) }}</p>
           </article>
@@ -165,14 +211,34 @@ watch(acceptanceId, load, { immediate: true })
         <h2>历史验收</h2>
         <el-empty v-if="!detail.acceptanceHistory?.length" description="暂无历史验收记录" />
         <div v-else class="record-list">
-          <article v-for="item in detail.acceptanceHistory" :key="item.id" class="record-item" :class="{ current: item.id === detail.id }">
-            <div class="record-heading"><strong>第 {{ item.acceptanceNo }} 次验收</strong><StatusTag :value="item.reviewStatus" /><el-tag v-if="item.id === detail.id" size="small" effect="plain">当前查看</el-tag></div>
+          <article
+            v-for="item in detail.acceptanceHistory"
+            :key="item.id"
+            class="record-item"
+            :class="{ current: item.id === detail.id }"
+          >
+            <div class="record-heading">
+              <strong>第 {{ item.acceptanceNo }} 次验收</strong><StatusTag :value="item.reviewStatus" /><el-tag
+                v-if="item.id === detail.id"
+                size="small"
+                effect="plain"
+                >当前查看</el-tag
+              >
+            </div>
             <div class="history-grid">
-              <p>提交人：{{ display(item.submitterName) }}</p><p>提交时间：{{ date(item.submittedAt) }}</p>
-              <p>审核人：{{ display(item.reviewerName) }}</p><p>审核时间：{{ date(item.reviewedAt) }}</p>
+              <p>提交人：{{ display(item.submitterName) }}</p>
+              <p>提交时间：{{ date(item.submittedAt) }}</p>
+              <p>审核人：{{ display(item.reviewerName) }}</p>
+              <p>审核时间：{{ date(item.reviewedAt) }}</p>
               <p class="wide">审核意见：{{ display(item.reviewNote) }}</p>
             </div>
-            <el-button v-if="item.id !== detail.id" link type="primary" @click="$router.push({ name: 'admin-acceptance-detail', params: { acceptanceId: item.id } })">查看该轮详情</el-button>
+            <el-button
+              v-if="item.id !== detail.id"
+              link
+              type="primary"
+              @click="$router.push({ name: 'admin-acceptance-detail', params: { acceptanceId: item.id } })"
+              >查看该轮详情</el-button
+            >
           </article>
         </div>
       </section>
@@ -181,33 +247,154 @@ watch(acceptanceId, load, { immediate: true })
 </template>
 
 <style scoped>
-.detail-page { min-height: 240px; display: grid; gap: 16px; }
-.detail-section { padding: 24px; min-width: 0; }
-.detail-section h2 { margin: 0 0 20px; color: var(--ink); font-size: 18px; }
-.section-heading, .record-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-.section-heading h2 { margin-bottom: 0; }
-.review-actions { display: flex; gap: 8px; }
-.info-grid, .history-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
-.info-grid { margin-top: 20px; }
-.info-grid > div { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
-.info-grid span, .stats-grid span { color: var(--muted); font-size: 12px; }
-.info-grid strong, .info-grid p { color: var(--ink); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
-.info-grid p { margin: 0; white-space: pre-wrap; line-height: 1.7; }
-.info-grid a { overflow-wrap: anywhere; font-size: 14px; }
-.wide { grid-column: 1 / -1; }
-.stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.stats-grid > div { display: flex; flex-direction: column; gap: 7px; padding: 18px; border-radius: 10px; background: #f8f9fc; }
-.stats-grid strong { color: var(--ink); font-size: 24px; }
-.record-list { display: grid; gap: 12px; }
-.record-item { padding: 18px; border: 1px solid #e7eaf0; border-radius: 10px; }
-.record-item.current { border-color: #91a8e8; background: #f7f9ff; }
-.record-heading { justify-content: flex-start; }
-.record-heading strong { color: var(--ink); margin-right: auto; }
-.record-heading > span, .record-item time, .muted { color: var(--muted); font-size: 12px; }
-.record-item p { color: #667085; font-size: 13px; line-height: 1.6; }
-.task-list { padding: 0; margin: 14px 0 0; list-style: none; }
-.task-list li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid #eef0f4; color: #475467; font-size: 13px; }
-.history-grid { gap: 0 18px; margin: 8px 0; }
-.history-grid p { margin: 6px 0; }
-@media (max-width: 700px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .info-grid, .history-grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } }
+.detail-page {
+  min-height: 240px;
+  display: grid;
+  gap: 16px;
+}
+.detail-section {
+  padding: 24px;
+  min-width: 0;
+}
+.detail-section h2 {
+  margin: 0 0 20px;
+  color: var(--ink);
+  font-size: 18px;
+}
+.section-heading,
+.record-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.section-heading h2 {
+  margin-bottom: 0;
+}
+.review-actions {
+  display: flex;
+  gap: 8px;
+}
+.info-grid,
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 24px;
+}
+.info-grid {
+  margin-top: 20px;
+}
+.info-grid > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+.info-grid span,
+.stats-grid span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.info-grid strong,
+.info-grid p {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.info-grid p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+.info-grid a {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.wide {
+  grid-column: 1 / -1;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.stats-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 18px;
+  border-radius: 10px;
+  background: #f8f9fc;
+}
+.stats-grid strong {
+  color: var(--ink);
+  font-size: 24px;
+}
+.record-list {
+  display: grid;
+  gap: 12px;
+}
+.record-item {
+  padding: 18px;
+  border: 1px solid #e7eaf0;
+  border-radius: 10px;
+}
+.record-item.current {
+  border-color: #91a8e8;
+  background: #f7f9ff;
+}
+.record-heading {
+  justify-content: flex-start;
+}
+.record-heading strong {
+  color: var(--ink);
+  margin-right: auto;
+}
+.record-heading > span,
+.record-item time,
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+.record-item p {
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.task-list {
+  padding: 0;
+  margin: 14px 0 0;
+  list-style: none;
+}
+.task-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid #eef0f4;
+  color: #475467;
+  font-size: 13px;
+}
+.history-grid {
+  gap: 0 18px;
+  margin: 8px 0;
+}
+.history-grid p {
+  margin: 6px 0;
+}
+@media (max-width: 700px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .info-grid,
+  .history-grid {
+    grid-template-columns: 1fr;
+  }
+  .wide {
+    grid-column: auto;
+  }
+}
 </style>

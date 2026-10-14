@@ -16,7 +16,6 @@ public class JwtUtilTest {
 
     @Test
     void testGenerateAndParseToken() {
-
         String token = jwtUtil.generateToken(1L);
 
         System.out.println("生成的 Token：");

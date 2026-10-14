@@ -44,30 +44,15 @@ public class ProjectAcceptanceServiceTest {
 
     @BeforeAll
     static void initMybatisPlus() {
+        MybatisConfiguration configuration = new MybatisConfiguration();
 
-        MybatisConfiguration configuration =
-                new MybatisConfiguration();
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
 
-        MapperBuilderAssistant assistant =
-                new MapperBuilderAssistant(
-                        configuration,
-                        ""
-                );
+        TableInfoHelper.initTableInfo(assistant, Task.class);
 
-        TableInfoHelper.initTableInfo(
-                assistant,
-                Task.class
-        );
+        TableInfoHelper.initTableInfo(assistant, TaskRequest.class);
 
-        TableInfoHelper.initTableInfo(
-                assistant,
-                TaskRequest.class
-        );
-
-        TableInfoHelper.initTableInfo(
-                assistant,
-                User.class
-        );
+        TableInfoHelper.initTableInfo(assistant, User.class);
     }
 
     @Mock
@@ -102,12 +87,32 @@ public class ProjectAcceptanceServiceTest {
 
     @BeforeEach
     void setUpAtomicTransitionsAndManager() {
-        lenient().when(projectMapper.submitAcceptanceIfInProgress(anyLong(), nullable(String.class), nullable(String.class), nullable(String.class), any())).thenReturn(1);
-        lenient().when(projectMapper.reviewAcceptanceIfPending(
-                anyLong(), anyString(), nullable(java.time.LocalDateTime.class), any())).thenReturn(1);
-        lenient().when(projectAcceptanceMapper.reviewIfPending(
-                anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any()))
-                .thenReturn(1);
+        lenient()
+            .when(
+                projectMapper.submitAcceptanceIfInProgress(
+                    anyLong(),
+                    nullable(String.class),
+                    nullable(String.class),
+                    nullable(String.class),
+                    any()
+                )
+            )
+            .thenReturn(1);
+        lenient()
+            .when(projectMapper.reviewAcceptanceIfPending(anyLong(), anyString(), nullable(java.time.LocalDateTime.class), any()))
+            .thenReturn(1);
+        lenient()
+            .when(
+                projectAcceptanceMapper.reviewIfPending(
+                    anyLong(),
+                    anyLong(),
+                    anyString(),
+                    anyLong(),
+                    nullable(String.class),
+                    any()
+                )
+            )
+            .thenReturn(1);
         com.flowdesk.vo.ProjectMemberVO manager = new com.flowdesk.vo.ProjectMemberVO();
         manager.setUserId(1L);
         manager.setRole("PROJECT_MANAGER");
@@ -121,211 +126,138 @@ public class ProjectAcceptanceServiceTest {
 
     @Test
     void unfinishedTaskBlocksAcceptance() {
-
         Project project = new Project();
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        SubmitProjectAcceptanceDTO dto =
-                new SubmitProjectAcceptanceDTO();
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
         dto.setSubmissionNote("提交验收");
 
-        dto.setRepositoryUrl(
-                "https://github.com/test/project"
+        dto.setRepositoryUrl("https://github.com/test/project");
+
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+
+        when(taskMapper.selectCount(any())).thenReturn(1L);
+
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.submitAcceptance(4L, dto)
         );
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        assertEquals(409, exception.getCode());
 
-        when(taskMapper.selectCount(any()))
-                .thenReturn(1L);
-
-        BusinessException exception =
-                assertThrows(
-                        BusinessException.class,
-                        () -> projectAcceptanceService
-                                .submitAcceptance(4L, dto)
-                );
-
-        assertEquals(
-                409,
-                exception.getCode()
-        );
-
-        assertEquals(
-                "项目仍有未完成任务，不能提交验收",
-                exception.getMessage()
-        );
+        assertEquals("项目仍有未完成任务，不能提交验收", exception.getMessage());
     }
 
     @Test
     void pendingTaskRequestBlocksAcceptance() {
-
         Project project = new Project();
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        SubmitProjectAcceptanceDTO dto =
-                new SubmitProjectAcceptanceDTO();
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
         dto.setSubmissionNote("提交验收");
 
-        dto.setRepositoryUrl(
-                "https://github.com/test/project"
-        );
+        dto.setRepositoryUrl("https://github.com/test/project");
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         // 没有未完成任务
-        when(taskMapper.selectCount(any()))
-                .thenReturn(0L);
+        when(taskMapper.selectCount(any())).thenReturn(0L);
 
         // 但是还有一个 PENDING 的任务申请
-        when(taskRequestMapper.selectCount(any()))
-                .thenReturn(1L);
+        when(taskRequestMapper.selectCount(any())).thenReturn(1L);
 
-        BusinessException exception =
-                assertThrows(
-                        BusinessException.class,
-                        () -> projectAcceptanceService
-                                .submitAcceptance(4L, dto)
-                );
-
-        assertEquals(
-                "项目仍有待处理的任务申请，不能提交验收",
-                exception.getMessage()
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.submitAcceptance(4L, dto)
         );
+
+        assertEquals("项目仍有待处理的任务申请，不能提交验收", exception.getMessage());
     }
 
     @Test
     void validProjectCanSubmitAcceptance() {
-
         Project project = new Project();
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        SubmitProjectAcceptanceDTO dto =
-                new SubmitProjectAcceptanceDTO();
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
-        dto.setSubmissionNote(
-                "Backend V1 已完成，提交验收"
-        );
+        dto.setSubmissionNote("Backend V1 已完成，提交验收");
 
-        dto.setRepositoryUrl(
-                "https://github.com/test/project"
-        );
+        dto.setRepositoryUrl("https://github.com/test/project");
 
         // 模拟当前登录用户 Tom
-        UserContext.set(
-                new CurrentUser(1L, "USER")
-        );
+        UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         // 没有未完成任务
-        when(taskMapper.selectCount(any()))
-                .thenReturn(0L);
+        when(taskMapper.selectCount(any())).thenReturn(0L);
 
         // 没有待处理任务申请
-        when(taskRequestMapper.selectCount(any()))
-                .thenReturn(0L);
+        when(taskRequestMapper.selectCount(any())).thenReturn(0L);
 
         // 当前还没有验收记录
         // 所以这次应该是第 1 次验收
-        when(projectAcceptanceMapper
-                .selectMaxAcceptanceNo(4L))
-                .thenReturn(null);
+        when(projectAcceptanceMapper.selectMaxAcceptanceNo(4L)).thenReturn(null);
 
-        projectAcceptanceService
-                .submitAcceptance(
-                        4L,
-                        dto
-                );
+        projectAcceptanceService.submitAcceptance(4L, dto);
 
         // 项目应该进入待验收状态
-        assertEquals(
-                "PENDING_ACCEPTANCE",
-                project.getStatus()
-        );
+        assertEquals("PENDING_ACCEPTANCE", project.getStatus());
 
         // 应该插入一条验收记录
-        verify(projectAcceptanceMapper)
-                .insert(any(ProjectAcceptance.class));
+        verify(projectAcceptanceMapper).insert(any(ProjectAcceptance.class));
 
         // 应该更新项目状态
-        verify(projectMapper)
-                .submitAcceptanceIfInProgress(
-                        eq(4L),
-                        nullable(String.class),
-                        nullable(String.class),
-                        nullable(String.class),
-                        any()
-                );
+        verify(projectMapper).submitAcceptanceIfInProgress(
+            eq(4L),
+            nullable(String.class),
+            nullable(String.class),
+            nullable(String.class),
+            any()
+        );
 
         // 应该记录审计日志
-        verify(operationLogService)
-                .record(
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any()
-                );
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void submittingAcceptanceNotifiesSystemAdmin() {
-
         Project project = new Project();
         project.setId(4L);
         project.setName("FlowDesk");
         project.setStatus("IN_PROGRESS");
 
-        SubmitProjectAcceptanceDTO dto =
-                new SubmitProjectAcceptanceDTO();
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
         dto.setSubmissionNote("项目开发完成，提交验收");
 
-        dto.setRepositoryUrl(
-                "https://github.com/test/project"
-        );
+        dto.setRepositoryUrl("https://github.com/test/project");
 
         // Tom：项目负责人
-        UserContext.set(
-                new CurrentUser(1L, "USER")
-        );
+        UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        when(taskMapper.selectCount(any()))
-                .thenReturn(0L);
+        when(taskMapper.selectCount(any())).thenReturn(0L);
 
-        when(taskRequestMapper.selectCount(any()))
-                .thenReturn(0L);
+        when(taskRequestMapper.selectCount(any())).thenReturn(0L);
 
-        when(projectAcceptanceMapper
-                .selectMaxAcceptanceNo(4L))
-                .thenReturn(null);
+        when(projectAcceptanceMapper.selectMaxAcceptanceNo(4L)).thenReturn(null);
 
         // 模拟数据库生成验收记录 ID
         doAnswer(invocation -> {
-
-            ProjectAcceptance acceptance =
-                    invocation.getArgument(0);
+            ProjectAcceptance acceptance = invocation.getArgument(0);
 
             acceptance.setId(50L);
 
             return 1;
-
-        }).when(projectAcceptanceMapper)
-                .insert(any(ProjectAcceptance.class));
+        })
+            .when(projectAcceptanceMapper)
+            .insert(any(ProjectAcceptance.class));
 
         // 系统管理员
         User admin = new User();
@@ -333,59 +265,32 @@ public class ProjectAcceptanceServiceTest {
         admin.setSystemRole("SYSTEM_ADMIN");
         admin.setStatus("ACTIVE");
 
-        when(userMapper.selectList(any()))
-                .thenReturn(List.of(admin));
+        when(userMapper.selectList(any())).thenReturn(List.of(admin));
 
-        Long acceptanceId =
-                projectAcceptanceService.submitAcceptance(
-                        4L,
-                        dto
-                );
+        Long acceptanceId = projectAcceptanceService.submitAcceptance(4L, dto);
 
         assertEquals(50L, acceptanceId);
 
-        ArgumentCaptor<CreateNotificationDTO> captor =
-                ArgumentCaptor.forClass(
-                        CreateNotificationDTO.class
-                );
+        ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
-        verify(notificationService)
-                .createNotification(captor.capture());
+        verify(notificationService).createNotification(captor.capture());
 
-        CreateNotificationDTO notification =
-                captor.getValue();
+        CreateNotificationDTO notification = captor.getValue();
 
-        assertEquals(
-                9L,
-                notification.getRecipientId()
-        );
+        assertEquals(9L, notification.getRecipientId());
 
-        assertEquals(
-                1L,
-                notification.getActorId()
-        );
+        assertEquals(1L, notification.getActorId());
 
-        assertEquals(
-                "PROJECT_ACCEPTANCE_SUBMITTED",
-                notification.getType()
-        );
+        assertEquals("PROJECT_ACCEPTANCE_SUBMITTED", notification.getType());
 
-        assertEquals(
-                "PROJECT_ACCEPTANCE",
-                notification.getTargetType()
-        );
+        assertEquals("PROJECT_ACCEPTANCE", notification.getTargetType());
 
-        assertEquals(
-                50L,
-                notification.getTargetId()
-        );
+        assertEquals(50L, notification.getTargetId());
     }
 
     @Test
     void approvingAcceptanceNotifiesSubmitter() {
-
-        ProjectAcceptance acceptance =
-                new ProjectAcceptance();
+        ProjectAcceptance acceptance = new ProjectAcceptance();
 
         acceptance.setId(50L);
         acceptance.setProjectId(4L);
@@ -398,83 +303,47 @@ public class ProjectAcceptanceServiceTest {
         project.setName("FlowDesk");
         project.setStatus("PENDING_ACCEPTANCE");
 
-        ReviewProjectAcceptanceDTO dto =
-                new ReviewProjectAcceptanceDTO();
+        ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
 
         dto.setAction("APPROVE");
         dto.setReviewNote("验收通过");
 
         // 系统管理员审核
-        UserContext.set(
-                new CurrentUser(9L, "SYSTEM_ADMIN")
-        );
+        UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
 
-        when(projectAcceptanceMapper.selectById(50L))
-                .thenReturn(acceptance);
+        when(projectAcceptanceMapper.selectById(50L)).thenReturn(acceptance);
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        projectAcceptanceService.reviewAcceptance(
-                50L,
-                dto
-        );
+        projectAcceptanceService.reviewAcceptance(50L, dto);
 
         // 原来的业务状态也顺便验证
-        assertEquals(
-                "APPROVED",
-                acceptance.getReviewStatus()
-        );
+        assertEquals("APPROVED", acceptance.getReviewStatus());
 
-        assertEquals(
-                "COMPLETED",
-                project.getStatus()
-        );
+        assertEquals("COMPLETED", project.getStatus());
 
-        ArgumentCaptor<CreateNotificationDTO> captor =
-                ArgumentCaptor.forClass(
-                        CreateNotificationDTO.class
-                );
+        ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
-        verify(notificationService)
-                .createNotification(captor.capture());
+        verify(notificationService).createNotification(captor.capture());
 
-        CreateNotificationDTO notification =
-                captor.getValue();
+        CreateNotificationDTO notification = captor.getValue();
 
         // Tom 收到通知
-        assertEquals(
-                1L,
-                notification.getRecipientId()
-        );
+        assertEquals(1L, notification.getRecipientId());
 
         // Admin 是操作人
-        assertEquals(
-                9L,
-                notification.getActorId()
-        );
+        assertEquals(9L, notification.getActorId());
 
-        assertEquals(
-                "PROJECT_ACCEPTANCE_APPROVED",
-                notification.getType()
-        );
+        assertEquals("PROJECT_ACCEPTANCE_APPROVED", notification.getType());
 
-        assertEquals(
-                "PROJECT_ACCEPTANCE",
-                notification.getTargetType()
-        );
+        assertEquals("PROJECT_ACCEPTANCE", notification.getTargetType());
 
-        assertEquals(
-                50L,
-                notification.getTargetId()
-        );
+        assertEquals(50L, notification.getTargetId());
     }
 
     @Test
     void rejectingAcceptanceNotifiesSubmitter() {
-
-        ProjectAcceptance acceptance =
-                new ProjectAcceptance();
+        ProjectAcceptance acceptance = new ProjectAcceptance();
 
         acceptance.setId(50L);
         acceptance.setProjectId(4L);
@@ -487,76 +356,47 @@ public class ProjectAcceptanceServiceTest {
         project.setName("FlowDesk");
         project.setStatus("PENDING_ACCEPTANCE");
 
-        ReviewProjectAcceptanceDTO dto =
-                new ReviewProjectAcceptanceDTO();
+        ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
 
         dto.setAction("REJECT");
         dto.setReviewNote("还有部分功能需要调整");
 
-        UserContext.set(
-                new CurrentUser(9L, "SYSTEM_ADMIN")
-        );
+        UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
 
-        when(projectAcceptanceMapper.selectById(50L))
-                .thenReturn(acceptance);
+        when(projectAcceptanceMapper.selectById(50L)).thenReturn(acceptance);
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        projectAcceptanceService.reviewAcceptance(
-                50L,
-                dto
-        );
+        projectAcceptanceService.reviewAcceptance(50L, dto);
 
-        assertEquals(
-                "REJECTED",
-                acceptance.getReviewStatus()
-        );
+        assertEquals("REJECTED", acceptance.getReviewStatus());
 
-        assertEquals(
-                "IN_PROGRESS",
-                project.getStatus()
-        );
+        assertEquals("IN_PROGRESS", project.getStatus());
 
-        ArgumentCaptor<CreateNotificationDTO> captor =
-                ArgumentCaptor.forClass(
-                        CreateNotificationDTO.class
-                );
+        ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
-        verify(notificationService)
-                .createNotification(captor.capture());
+        verify(notificationService).createNotification(captor.capture());
 
-        CreateNotificationDTO notification =
-                captor.getValue();
+        CreateNotificationDTO notification = captor.getValue();
 
-        assertEquals(
-                1L,
-                notification.getRecipientId()
-        );
+        assertEquals(1L, notification.getRecipientId());
 
-        assertEquals(
-                9L,
-                notification.getActorId()
-        );
+        assertEquals(9L, notification.getActorId());
 
-        assertEquals(
-                "PROJECT_ACCEPTANCE_REJECTED",
-                notification.getType()
-        );
+        assertEquals("PROJECT_ACCEPTANCE_REJECTED", notification.getType());
 
-        assertEquals(
-                50L,
-                notification.getTargetId()
-        );
+        assertEquals(50L, notification.getTargetId());
     }
+
     @Test
     void normalUserCannotReviewAcceptanceEvenWhenCallingServiceDirectly() {
         UserContext.set(new CurrentUser(1L, "USER"));
         ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
         dto.setAction("APPROVE");
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.reviewAcceptance(50L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.reviewAcceptance(50L, dto)
+        );
 
         assertEquals(403, exception.getCode());
         verify(projectAcceptanceMapper, never()).selectById(anyLong());
@@ -566,14 +406,12 @@ public class ProjectAcceptanceServiceTest {
     void developerCannotSubmitAcceptance() {
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
-        dto.setRepositoryUrl(
-                "https://github.com/test/project"
-        );
-        doThrow(new BusinessException(403, "你不是该项目负责人"))
-                .when(projectPermissionService).requireProjectManager(4L);
+        dto.setRepositoryUrl("https://github.com/test/project");
+        doThrow(new BusinessException(403, "你不是该项目负责人")).when(projectPermissionService).requireProjectManager(4L);
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.submitAcceptance(4L, dto)
+        );
 
         assertEquals(403, exception.getCode());
         verify(projectMapper, never()).selectByIdForUpdate(anyLong());
@@ -587,13 +425,12 @@ public class ProjectAcceptanceServiceTest {
         project.setDeletedAt(java.time.LocalDateTime.now());
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
-        dto.setRepositoryUrl(
-                "https://github.com/test/project"
-        );
+        dto.setRepositoryUrl("https://github.com/test/project");
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.submitAcceptance(4L, dto)
+        );
 
         assertEquals(404, exception.getCode());
         verify(projectAcceptanceMapper, never()).insert(any(ProjectAcceptance.class));
@@ -606,17 +443,24 @@ public class ProjectAcceptanceServiceTest {
         project.setStatus("IN_PROGRESS");
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
-        dto.setRepositoryUrl(
-                "https://github.com/test/project"
-        );
+        dto.setRepositoryUrl("https://github.com/test/project");
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskMapper.selectCount(any())).thenReturn(0L);
         when(taskRequestMapper.selectCount(any())).thenReturn(0L);
-        when(projectMapper.submitAcceptanceIfInProgress(eq(4L), nullable(String.class), nullable(String.class), nullable(String.class), any())).thenReturn(0);
+        when(
+            projectMapper.submitAcceptanceIfInProgress(
+                eq(4L),
+                nullable(String.class),
+                nullable(String.class),
+                nullable(String.class),
+                any()
+            )
+        ).thenReturn(0);
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.submitAcceptance(4L, dto)
+        );
 
         assertEquals(409, exception.getCode());
         verify(projectAcceptanceMapper, never()).insert(any(ProjectAcceptance.class));
@@ -634,15 +478,21 @@ public class ProjectAcceptanceServiceTest {
         UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
         when(projectAcceptanceMapper.selectById(50L)).thenReturn(acceptance);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(projectMapper.reviewAcceptanceIfPending(
-                eq(4L), eq("IN_PROGRESS"), isNull(), any())).thenReturn(0);
+        when(projectMapper.reviewAcceptanceIfPending(eq(4L), eq("IN_PROGRESS"), isNull(), any())).thenReturn(0);
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.reviewAcceptance(50L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.reviewAcceptance(50L, dto)
+        );
 
         assertEquals(409, exception.getCode());
         verify(projectAcceptanceMapper, never()).reviewIfPending(
-                anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any());
+            anyLong(),
+            anyLong(),
+            anyString(),
+            anyLong(),
+            nullable(String.class),
+            any()
+        );
         verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
@@ -657,8 +507,9 @@ public class ProjectAcceptanceServiceTest {
         when(projectAcceptanceMapper.selectById(50L)).thenReturn(acceptance);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.reviewAcceptance(50L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.reviewAcceptance(50L, dto)
+        );
 
         assertEquals(400, exception.getCode());
         verify(projectMapper, never()).reviewAcceptanceIfPending(anyLong(), anyString(), any(), any());
@@ -671,9 +522,7 @@ public class ProjectAcceptanceServiceTest {
         project.setStatus("IN_PROGRESS");
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("第二轮验收");
-        dto.setRepositoryUrl(
-                "https://github.com/test/project"
-        );
+        dto.setRepositoryUrl("https://github.com/test/project");
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskMapper.selectCount(any())).thenReturn(0L);
@@ -704,8 +553,7 @@ public class ProjectAcceptanceServiceTest {
 
         projectAcceptanceService.reviewAcceptance(50L, dto);
 
-        ArgumentCaptor<CreateNotificationDTO> captor =
-                ArgumentCaptor.forClass(CreateNotificationDTO.class);
+        ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
         verify(notificationService).createNotification(captor.capture());
         assertEquals(3L, captor.getValue().getRecipientId());
         assertEquals(50L, captor.getValue().getTargetId());
@@ -720,28 +568,37 @@ public class ProjectAcceptanceServiceTest {
         dto.setDocumentUrl(null);
         prepareSubmission();
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.submitAcceptance(4L, dto)
+        );
 
         assertEquals(400, exception.getCode());
         verify(projectMapper, never()).submitAcceptanceIfInProgress(
-                anyLong(), nullable(String.class), nullable(String.class), nullable(String.class), any());
+            anyLong(),
+            nullable(String.class),
+            nullable(String.class),
+            nullable(String.class),
+            any()
+        );
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {
+    @ValueSource(
+        strings = {
             "https://github.com/test/project",
             "http://localhost:8080",
             "https://127.0.0.1:8443/path",
             "https://example.com/path?x=1",
             "http://[::1]:8080"
-    })
+        }
+    )
     void submissionAcceptsValidHttpRepositoryUrl(String url) {
         assertValidRepositoryUrl(url);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {
+    @ValueSource(
+        strings = {
             "ftp://example.com",
             "javascript:alert(1)",
             "example.com",
@@ -749,19 +606,26 @@ public class ProjectAcceptanceServiceTest {
             "https://example.com:65536",
             "https://example.com:0",
             "http://[:::]:8080"
-    })
+        }
+    )
     void submissionRejectsInvalidRepositoryUrl(String url) {
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
         dto.setRepositoryUrl(url);
         prepareSubmission();
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.submitAcceptance(4L, dto)
+        );
 
         assertEquals(400, exception.getCode());
         verify(projectMapper, never()).submitAcceptanceIfInProgress(
-                anyLong(), nullable(String.class), nullable(String.class), nullable(String.class), any());
+            anyLong(),
+            nullable(String.class),
+            nullable(String.class),
+            nullable(String.class),
+            any()
+        );
     }
 
     @Test
@@ -774,14 +638,12 @@ public class ProjectAcceptanceServiceTest {
 
         projectAcceptanceService.submitAcceptance(4L, dto);
 
-        verify(projectMapper).submitAcceptanceIfInProgress(
-                eq(4L), isNull(), eq("https://example.com/app"), isNull(), any());
+        verify(projectMapper).submitAcceptanceIfInProgress(eq(4L), isNull(), eq("https://example.com/app"), isNull(), any());
     }
 
     @Test
     void detailCompletionRateExcludesUnfinishedTasksFromDenominator() {
-        com.flowdesk.vo.ProjectAcceptanceDetailVO detail =
-                new com.flowdesk.vo.ProjectAcceptanceDetailVO();
+        com.flowdesk.vo.ProjectAcceptanceDetailVO detail = new com.flowdesk.vo.ProjectAcceptanceDetailVO();
         detail.setId(50L);
         detail.setProjectId(4L);
         Task done = new Task();
@@ -799,8 +661,7 @@ public class ProjectAcceptanceServiceTest {
         when(projectMemberMapper.selectAcceptanceMembers(4L)).thenReturn(List.of());
         when(projectAcceptanceMapper.selectProjectAcceptances(4L)).thenReturn(List.of());
 
-        com.flowdesk.vo.ProjectAcceptanceDetailVO result =
-                projectAcceptanceService.getAcceptanceDetail(50L);
+        com.flowdesk.vo.ProjectAcceptanceDetailVO result = projectAcceptanceService.getAcceptanceDetail(50L);
 
         assertEquals(3, result.getTotalTaskCount());
         assertEquals(1, result.getCompletedTaskCount());
@@ -816,8 +677,7 @@ public class ProjectAcceptanceServiceTest {
 
         projectAcceptanceService.submitAcceptance(4L, dto);
 
-        verify(projectMapper).submitAcceptanceIfInProgress(
-                eq(4L), eq(url), isNull(), isNull(), any());
+        verify(projectMapper).submitAcceptanceIfInProgress(eq(4L), eq(url), isNull(), isNull(), any());
     }
 
     private void prepareSubmission() {

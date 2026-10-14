@@ -88,10 +88,7 @@ class UserServiceTest {
         dto.setPassword("secret1");
         dto.setRealName("Alice");
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> userService.register(dto)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> userService.register(dto));
 
         assertEquals(400, exception.getCode());
         verify(userMapper, never()).insert(any(User.class));
@@ -110,10 +107,7 @@ class UserServiceTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(passwordEncoder.matches("secret1", "bcrypt-hash")).thenReturn(true);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> userService.login(dto)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> userService.login(dto));
 
         assertEquals(403, exception.getCode());
         verify(jwtUtil, never()).generateToken(any());
@@ -150,10 +144,7 @@ class UserServiceTest {
 
         when(userMapper.selectOne(any())).thenReturn(null);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> userService.login(dto)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> userService.login(dto));
 
         assertEquals(401, exception.getCode());
         verify(jwtUtil, never()).generateToken(any());

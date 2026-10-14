@@ -32,16 +32,16 @@ public class ProjectAcceptanceService {
     private final ProjectMemberMapper projectMemberMapper;
 
     public ProjectAcceptanceService(
-            ProjectAcceptanceMapper projectAcceptanceMapper,
-            ProjectMapper projectMapper,
-            TaskMapper taskMapper,
-            ProjectPermissionService projectPermissionService,
-            OperationLogService operationLogService,
-            TaskRequestMapper taskRequestMapper,
-            UserMapper userMapper,
-            NotificationService notificationService,
-            ProjectMemberMapper projectMemberMapper) {
-
+        ProjectAcceptanceMapper projectAcceptanceMapper,
+        ProjectMapper projectMapper,
+        TaskMapper taskMapper,
+        ProjectPermissionService projectPermissionService,
+        OperationLogService operationLogService,
+        TaskRequestMapper taskRequestMapper,
+        UserMapper userMapper,
+        NotificationService notificationService,
+        ProjectMemberMapper projectMemberMapper
+    ) {
         this.projectAcceptanceMapper = projectAcceptanceMapper;
         this.projectMapper = projectMapper;
         this.taskMapper = taskMapper;
@@ -54,10 +54,7 @@ public class ProjectAcceptanceService {
     }
 
     @Transactional
-    public Long submitAcceptance(
-            Long projectId,
-            SubmitProjectAcceptanceDTO dto) {
-
+    public Long submitAcceptance(Long projectId, SubmitProjectAcceptanceDTO dto) {
         // 1. 只有项目负责人可以提交项目验收
         projectPermissionService.requireProjectManager(projectId);
 
@@ -69,67 +66,36 @@ public class ProjectAcceptanceService {
 
         // 2. 项目必须正在进行
         if (!"IN_PROGRESS".equals(project.getStatus())) {
-            throw new BusinessException(
-                    409,
-                    "只有进行中的项目可以提交验收"
-            );
+            throw new BusinessException(409, "只有进行中的项目可以提交验收");
         }
 
         // 3. 不能还有未完成任务
         Long unfinishedTaskCount = taskMapper.selectCount(
-                new LambdaQueryWrapper<Task>()
-                        .eq(Task::getProjectId, projectId)
-                        .isNull(Task::getDeletedAt)
-                        .in(
-                                Task::getStatus,
-                                List.of(
-                                        "TODO",
-                                        "IN_PROGRESS",
-                                        "REVIEW"
-                                )
-                        )
+            new LambdaQueryWrapper<Task>()
+                .eq(Task::getProjectId, projectId)
+                .isNull(Task::getDeletedAt)
+                .in(Task::getStatus, List.of("TODO", "IN_PROGRESS", "REVIEW"))
         );
 
         if (unfinishedTaskCount > 0) {
-            throw new BusinessException(
-                    409,
-                    "项目仍有未完成任务，不能提交验收"
-            );
+            throw new BusinessException(409, "项目仍有未完成任务，不能提交验收");
         }
 
         // 4. 不能还有待处理的任务申请
-        Long pendingTaskRequestCount =
-                taskRequestMapper.selectCount(
-                        new LambdaQueryWrapper<TaskRequest>()
-                                .eq(
-                                        TaskRequest::getProjectId,
-                                        projectId
-                                )
-                                .eq(
-                                        TaskRequest::getStatus,
-                                        "PENDING"
-                                )
-                );
+        Long pendingTaskRequestCount = taskRequestMapper.selectCount(
+            new LambdaQueryWrapper<TaskRequest>().eq(TaskRequest::getProjectId, projectId).eq(TaskRequest::getStatus, "PENDING")
+        );
 
         if (pendingTaskRequestCount > 0) {
-            throw new BusinessException(
-                    409,
-                    "项目仍有待处理的任务申请，不能提交验收"
-            );
+            throw new BusinessException(409, "项目仍有待处理的任务申请，不能提交验收");
         }
 
         String repositoryUrl = trimToNull(dto.getRepositoryUrl());
         String deployUrl = trimToNull(dto.getDeployUrl());
         String documentUrl = trimToNull(dto.getDocumentUrl());
 
-        if (repositoryUrl == null
-                && deployUrl == null
-                && documentUrl == null) {
-
-            throw new BusinessException(
-                    400,
-                    "提交项目验收时至少需要填写一个交付链接"
-            );
+        if (repositoryUrl == null && deployUrl == null && documentUrl == null) {
+            throw new BusinessException(400, "提交项目验收时至少需要填写一个交付链接");
         }
 
         validateDeliveryUrl(repositoryUrl, "代码仓库");
@@ -139,164 +105,104 @@ public class ProjectAcceptanceService {
         CurrentUser currentUser = UserContext.get();
         LocalDateTime now = LocalDateTime.now();
 
-// 保存项目修改前状态
+        // 保存项目修改前状态
         String oldProjectStatus = project.getStatus();
 
-// 4. 计算这是第几次验收
-        Integer maxAcceptanceNo =
-                projectAcceptanceMapper
-                        .selectMaxAcceptanceNo(projectId);
+        // 4. 计算这是第几次验收
+        Integer maxAcceptanceNo = projectAcceptanceMapper.selectMaxAcceptanceNo(projectId);
 
-        int acceptanceNo =
-                maxAcceptanceNo == null
-                        ? 1
-                        : maxAcceptanceNo + 1;
+        int acceptanceNo = maxAcceptanceNo == null ? 1 : maxAcceptanceNo + 1;
 
-// 5. 创建验收记录
-        ProjectAcceptance acceptance =
-                new ProjectAcceptance();
+        // 5. 创建验收记录
+        ProjectAcceptance acceptance = new ProjectAcceptance();
 
         acceptance.setProjectId(projectId);
-        acceptance.setSubmitterId(
-                currentUser.getUserId()
-        );
+        acceptance.setSubmitterId(currentUser.getUserId());
         acceptance.setAcceptanceNo(acceptanceNo);
 
-        acceptance.setSubmissionNote(
-                dto.getSubmissionNote().trim()
-        );
+        acceptance.setSubmissionNote(dto.getSubmissionNote().trim());
 
         acceptance.setReviewStatus("PENDING");
         acceptance.setSubmittedAt(now);
 
-        int transitioned = projectMapper.submitAcceptanceIfInProgress(
-                projectId,
-                repositoryUrl,
-                deployUrl,
-                documentUrl,
-                now
-        );
+        int transitioned = projectMapper.submitAcceptanceIfInProgress(projectId, repositoryUrl, deployUrl, documentUrl, now);
         if (transitioned != 1) {
             throw new BusinessException(409, "项目状态已发生变化，请刷新后重试");
         }
 
         projectAcceptanceMapper.insert(acceptance);
 
-// 6. 项目进入待验收状态（数据库已通过条件更新完成）
+        // 6. 项目进入待验收状态（数据库已通过条件更新完成）
         project.setStatus("PENDING_ACCEPTANCE");
         project.setUpdatedAt(now);
 
+        // 7. 记录项目验收提交日志
+        Map<String, Object> beforeData = new HashMap<>();
 
-// 7. 记录项目验收提交日志
-        Map<String, Object> beforeData =
-                new HashMap<>();
+        beforeData.put("status", oldProjectStatus);
 
-        beforeData.put(
-                "status",
-                oldProjectStatus
-        );
+        Map<String, Object> afterData = new HashMap<>();
 
-        Map<String, Object> afterData =
-                new HashMap<>();
+        afterData.put("status", project.getStatus());
 
-        afterData.put(
-                "status",
-                project.getStatus()
-        );
+        afterData.put("acceptanceId", acceptance.getId());
 
-        afterData.put(
-                "acceptanceId",
-                acceptance.getId()
-        );
+        afterData.put("acceptanceNo", acceptance.getAcceptanceNo());
 
-        afterData.put(
-                "acceptanceNo",
-                acceptance.getAcceptanceNo()
-        );
-
-        afterData.put(
-                "acceptanceReviewStatus",
-                acceptance.getReviewStatus()
-        );
+        afterData.put("acceptanceReviewStatus", acceptance.getReviewStatus());
 
         operationLogService.record(
-                projectId,
-                currentUser.getUserId(),
-                "PROJECT",
-                projectId,
-                "SUBMIT_PROJECT_ACCEPTANCE",
-                "提交项目验收",
-                beforeData,
-                afterData
+            projectId,
+            currentUser.getUserId(),
+            "PROJECT",
+            projectId,
+            "SUBMIT_PROJECT_ACCEPTANCE",
+            "提交项目验收",
+            beforeData,
+            afterData
         );
 
-        List<User> admins =
-                userMapper.selectList(
-                        new LambdaQueryWrapper<User>()
-                                .eq(User::getSystemRole, "SYSTEM_ADMIN")
-                                .eq(User::getStatus, "ACTIVE")
-                );
+        List<User> admins = userMapper.selectList(
+            new LambdaQueryWrapper<User>().eq(User::getSystemRole, "SYSTEM_ADMIN").eq(User::getStatus, "ACTIVE")
+        );
 
         for (User admin : admins) {
-
             // 不给自己发通知
             if (admin.getId().equals(currentUser.getUserId())) {
                 continue;
             }
 
-            CreateNotificationDTO notificationDTO =
-                    new CreateNotificationDTO();
+            CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
 
             notificationDTO.setRecipientId(admin.getId());
             notificationDTO.setActorId(currentUser.getUserId());
 
-            notificationDTO.setType(
-                    "PROJECT_ACCEPTANCE_SUBMITTED"
-            );
+            notificationDTO.setType("PROJECT_ACCEPTANCE_SUBMITTED");
 
-            notificationDTO.setTitle(
-                    "新的项目验收申请"
-            );
+            notificationDTO.setTitle("新的项目验收申请");
 
-            notificationDTO.setContent(
-                    "项目“" + project.getName() + "”提交了验收申请"
-            );
+            notificationDTO.setContent("项目“" + project.getName() + "”提交了验收申请");
 
             notificationDTO.setProjectId(projectId);
             notificationDTO.setTargetType("PROJECT_ACCEPTANCE");
             notificationDTO.setTargetId(acceptance.getId());
 
-            notificationService.createNotification(
-                    notificationDTO
-            );
+            notificationService.createNotification(notificationDTO);
         }
 
         return acceptance.getId();
     }
 
     public List<ProjectAcceptanceVO> getAcceptances(String status) {
-
         requireSystemAdmin();
 
-        String normalizedStatus =
-                status.trim().toUpperCase();
+        String normalizedStatus = status.trim().toUpperCase();
 
-        if (!Set.of(
-                "ALL",
-                "PENDING",
-                "APPROVED",
-                "REJECTED"
-        ).contains(normalizedStatus)) {
-
-            throw new BusinessException(
-                    400,
-                    "验收状态筛选条件不正确"
-            );
+        if (!Set.of("ALL", "PENDING", "APPROVED", "REJECTED").contains(normalizedStatus)) {
+            throw new BusinessException(400, "验收状态筛选条件不正确");
         }
 
-        return projectAcceptanceMapper.selectAcceptances(
-                normalizedStatus
-        );
+        return projectAcceptanceMapper.selectAcceptances(normalizedStatus);
     }
 
     public List<ProjectAcceptanceVO> getProjectAcceptances(Long projectId) {
@@ -309,111 +215,69 @@ public class ProjectAcceptanceService {
     }
 
     @Transactional
-    public void reviewAcceptance(
-            Long acceptanceId,
-            ReviewProjectAcceptanceDTO dto) {
-
+    public void reviewAcceptance(Long acceptanceId, ReviewProjectAcceptanceDTO dto) {
         requireSystemAdmin();
 
-        ProjectAcceptance acceptance =
-                projectAcceptanceMapper.selectById(acceptanceId);
+        ProjectAcceptance acceptance = projectAcceptanceMapper.selectById(acceptanceId);
 
         if (acceptance == null) {
-            throw new BusinessException(
-                    404,
-                    "项目验收记录不存在"
-            );
+            throw new BusinessException(404, "项目验收记录不存在");
         }
 
         // 这一轮验收必须还没处理
         if (!"PENDING".equals(acceptance.getReviewStatus())) {
-            throw new BusinessException(
-                    409,
-                    "该项目验收已经处理"
-            );
+            throw new BusinessException(409, "该项目验收已经处理");
         }
 
-        Project project =
-                projectMapper.selectByIdForUpdate(
-                        acceptance.getProjectId()
-                );
+        Project project = projectMapper.selectByIdForUpdate(acceptance.getProjectId());
 
-        if (project == null
-                || project.getDeletedAt() != null) {
-
-            throw new BusinessException(
-                    404,
-                    "项目不存在"
-            );
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
         }
 
         // 整个项目必须处于待验收状态
         if (!"PENDING_ACCEPTANCE".equals(project.getStatus())) {
-            throw new BusinessException(
-                    409,
-                    "项目当前不处于待验收状态"
-            );
+            throw new BusinessException(409, "项目当前不处于待验收状态");
         }
 
         CurrentUser currentUser = UserContext.get();
 
         // 不允许提交人自己审核自己
-        if (currentUser.getUserId().equals(
-                acceptance.getSubmitterId())) {
-
-            throw new BusinessException(
-                    403,
-                    "不能审核自己提交的项目验收"
-            );
+        if (currentUser.getUserId().equals(acceptance.getSubmitterId())) {
+            throw new BusinessException(403, "不能审核自己提交的项目验收");
         }
 
-        String action =
-                dto.getAction().trim().toUpperCase();
+        String action = dto.getAction().trim().toUpperCase();
 
-        if (!"APPROVE".equals(action)
-                && !"REJECT".equals(action)) {
-
-            throw new BusinessException(
-                    400,
-                    "验收结果只能是 APPROVE 或 REJECT"
-            );
+        if (!"APPROVE".equals(action) && !"REJECT".equals(action)) {
+            throw new BusinessException(400, "验收结果只能是 APPROVE 或 REJECT");
         }
 
-        if ("REJECT".equals(action)
-                && (dto.getReviewNote() == null || dto.getReviewNote().isBlank())) {
+        if ("REJECT".equals(action) && (dto.getReviewNote() == null || dto.getReviewNote().isBlank())) {
             throw new BusinessException(400, "驳回项目验收时必须填写原因");
         }
 
         LocalDateTime now = LocalDateTime.now();
 
         // 先保存修改前的数据
-        String oldProjectStatus =
-                project.getStatus();
+        String oldProjectStatus = project.getStatus();
 
-        String oldAcceptanceReviewStatus =
-                acceptance.getReviewStatus();
+        String oldAcceptanceReviewStatus = acceptance.getReviewStatus();
 
         // 保存审核信息
-        acceptance.setReviewerId(
-                currentUser.getUserId()
-        );
+        acceptance.setReviewerId(currentUser.getUserId());
 
-        acceptance.setReviewNote(
-                dto.getReviewNote()
-        );
+        acceptance.setReviewNote(dto.getReviewNote());
 
         acceptance.setReviewedAt(now);
 
         // 根据审核结果修改状态
         if ("APPROVE".equals(action)) {
-
             acceptance.setReviewStatus("APPROVED");
 
             project.setStatus("COMPLETED");
             project.setActualEndTime(now);
-
         } else {
-
             acceptance.setReviewStatus("REJECTED");
 
             project.setStatus("IN_PROGRESS");
@@ -424,131 +288,91 @@ public class ProjectAcceptanceService {
 
         // 条件状态更新保证并发 approve/reject 只能成功一个
         int projectUpdated = projectMapper.reviewAcceptanceIfPending(
-                project.getId(), project.getStatus(), project.getActualEndTime(), now);
+            project.getId(),
+            project.getStatus(),
+            project.getActualEndTime(),
+            now
+        );
         if (projectUpdated != 1) {
             throw new BusinessException(409, "项目验收状态已发生变化，请刷新后重试");
         }
         int acceptanceUpdated = projectAcceptanceMapper.reviewIfPending(
-                acceptance.getId(), project.getId(), acceptance.getReviewStatus(),
-                currentUser.getUserId(), dto.getReviewNote(), now);
+            acceptance.getId(),
+            project.getId(),
+            acceptance.getReviewStatus(),
+            currentUser.getUserId(),
+            dto.getReviewNote(),
+            now
+        );
         if (acceptanceUpdated != 1) {
             throw new BusinessException(409, "该项目验收已经处理，请刷新后重试");
         }
 
         // 准备修改前的数据
-        Map<String, Object> beforeData =
-                new HashMap<>();
+        Map<String, Object> beforeData = new HashMap<>();
 
-        beforeData.put(
-                "status",
-                oldProjectStatus
-        );
+        beforeData.put("status", oldProjectStatus);
 
-        beforeData.put(
-                "acceptanceReviewStatus",
-                oldAcceptanceReviewStatus
-        );
+        beforeData.put("acceptanceReviewStatus", oldAcceptanceReviewStatus);
 
         // 准备修改后的数据
-        Map<String, Object> afterData =
-                new HashMap<>();
+        Map<String, Object> afterData = new HashMap<>();
 
-        afterData.put(
-                "status",
-                project.getStatus()
-        );
+        afterData.put("status", project.getStatus());
 
-        afterData.put(
-                "acceptanceReviewStatus",
-                acceptance.getReviewStatus()
-        );
+        afterData.put("acceptanceReviewStatus", acceptance.getReviewStatus());
 
-        afterData.put(
-                "acceptanceId",
-                acceptance.getId()
-        );
+        afterData.put("acceptanceId", acceptance.getId());
 
-        afterData.put(
-                "acceptanceNo",
-                acceptance.getAcceptanceNo()
-        );
+        afterData.put("acceptanceNo", acceptance.getAcceptanceNo());
 
         // 根据通过 / 驳回决定日志动作
-        String logAction =
-                "APPROVE".equals(action)
-                        ? "APPROVE_PROJECT_ACCEPTANCE"
-                        : "REJECT_PROJECT_ACCEPTANCE";
+        String logAction = "APPROVE".equals(action) ? "APPROVE_PROJECT_ACCEPTANCE" : "REJECT_PROJECT_ACCEPTANCE";
 
-        String description =
-                "APPROVE".equals(action)
-                        ? "项目验收通过"
-                        : "项目验收驳回";
+        String description = "APPROVE".equals(action) ? "项目验收通过" : "项目验收驳回";
 
         // 写审计日志
         operationLogService.record(
-                project.getId(),
-                currentUser.getUserId(),
-                "PROJECT",
-                project.getId(),
-                logAction,
-                description,
-                beforeData,
-                afterData
+            project.getId(),
+            currentUser.getUserId(),
+            "PROJECT",
+            project.getId(),
+            logAction,
+            description,
+            beforeData,
+            afterData
         );
 
         List<ProjectMemberVO> managers = projectMemberMapper.selectActiveMembers(project.getId());
         for (ProjectMemberVO manager : managers) {
-            if (!"PROJECT_MANAGER".equals(manager.getRole())
-                    || manager.getUserId().equals(currentUser.getUserId())) {
+            if (!"PROJECT_MANAGER".equals(manager.getRole()) || manager.getUserId().equals(currentUser.getUserId())) {
                 continue;
             }
 
-            CreateNotificationDTO notificationDTO =
-                    new CreateNotificationDTO();
+            CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
 
             notificationDTO.setRecipientId(manager.getUserId());
             notificationDTO.setActorId(currentUser.getUserId());
 
             if ("APPROVE".equals(action)) {
+                notificationDTO.setType("PROJECT_ACCEPTANCE_APPROVED");
 
-                notificationDTO.setType(
-                        "PROJECT_ACCEPTANCE_APPROVED"
-                );
+                notificationDTO.setTitle("项目验收已通过");
 
-                notificationDTO.setTitle(
-                        "项目验收已通过"
-                );
-
-                notificationDTO.setContent(
-                        "项目“"
-                                + project.getName()
-                                + "”已通过验收"
-                );
-
+                notificationDTO.setContent("项目“" + project.getName() + "”已通过验收");
             } else {
+                notificationDTO.setType("PROJECT_ACCEPTANCE_REJECTED");
 
-                notificationDTO.setType(
-                        "PROJECT_ACCEPTANCE_REJECTED"
-                );
+                notificationDTO.setTitle("项目验收未通过");
 
-                notificationDTO.setTitle(
-                        "项目验收未通过"
-                );
-
-                notificationDTO.setContent(
-                        "项目“"
-                                + project.getName()
-                                + "”验收未通过，请根据审核意见进行调整"
-                );
+                notificationDTO.setContent("项目“" + project.getName() + "”验收未通过，请根据审核意见进行调整");
             }
 
             notificationDTO.setProjectId(project.getId());
             notificationDTO.setTargetType("PROJECT_ACCEPTANCE");
             notificationDTO.setTargetId(acceptance.getId());
 
-            notificationService.createNotification(
-                    notificationDTO
-            );
+            notificationService.createNotification(notificationDTO);
         }
     }
 
@@ -560,71 +384,46 @@ public class ProjectAcceptanceService {
     }
 
     @Transactional(readOnly = true)
-    public ProjectAcceptanceDetailVO getAcceptanceDetail(
-            Long acceptanceId) {
-
+    public ProjectAcceptanceDetailVO getAcceptanceDetail(Long acceptanceId) {
         requireSystemAdmin();
 
         // 1. 验收 + 项目基本信息
-        ProjectAcceptanceDetailVO detail =
-                projectAcceptanceMapper
-                        .selectAcceptanceDetail(acceptanceId);
+        ProjectAcceptanceDetailVO detail = projectAcceptanceMapper.selectAcceptanceDetail(acceptanceId);
 
         if (detail == null) {
-            throw new BusinessException(
-                    404,
-                    "项目验收记录不存在"
-            );
+            throw new BusinessException(404, "项目验收记录不存在");
         }
 
         Long projectId = detail.getProjectId();
 
         // 2. 一次查出项目所有有效任务
         List<Task> tasks = taskMapper.selectList(
-                new LambdaQueryWrapper<Task>()
-                        .eq(Task::getProjectId, projectId)
-                        .isNull(Task::getDeletedAt)
+            new LambdaQueryWrapper<Task>().eq(Task::getProjectId, projectId).isNull(Task::getDeletedAt)
         );
 
         int completedTaskCount = 0;
         int cancelledTaskCount = 0;
 
         // 每个人完成了哪些任务
-        Map<Long, List<TaskSimpleVO>> completedTasksByUser =
-                new HashMap<>();
+        Map<Long, List<TaskSimpleVO>> completedTasksByUser = new HashMap<>();
 
         // 暂时保存取消任务
-        List<Task> cancelledTaskEntities =
-                new ArrayList<>();
+        List<Task> cancelledTaskEntities = new ArrayList<>();
 
         for (Task task : tasks) {
-
             if ("DONE".equals(task.getStatus())) {
-
                 completedTaskCount++;
 
                 if (task.getAssigneeId() != null) {
-
-                    TaskSimpleVO taskVO =
-                            new TaskSimpleVO();
+                    TaskSimpleVO taskVO = new TaskSimpleVO();
 
                     taskVO.setTaskId(task.getId());
                     taskVO.setTitle(task.getTitle());
-                    taskVO.setCompletedAt(
-                            task.getCompletedAt()
-                    );
+                    taskVO.setCompletedAt(task.getCompletedAt());
 
-                    completedTasksByUser
-                            .computeIfAbsent(
-                                    task.getAssigneeId(),
-                                    key -> new ArrayList<>()
-                            )
-                            .add(taskVO);
+                    completedTasksByUser.computeIfAbsent(task.getAssigneeId(), key -> new ArrayList<>()).add(taskVO);
                 }
-
-            } else if ("CANCELLED".equals(
-                    task.getStatus())) {
-
+            } else if ("CANCELLED".equals(task.getStatus())) {
                 cancelledTaskCount++;
                 cancelledTaskEntities.add(task);
             }
@@ -634,83 +433,46 @@ public class ProjectAcceptanceService {
         int totalTaskCount = tasks.size();
 
         detail.setTotalTaskCount(totalTaskCount);
-        detail.setCompletedTaskCount(
-                completedTaskCount
-        );
-        detail.setCancelledTaskCount(
-                cancelledTaskCount
-        );
+        detail.setCompletedTaskCount(completedTaskCount);
+        detail.setCancelledTaskCount(cancelledTaskCount);
 
         int rateDenominator = completedTaskCount + cancelledTaskCount;
-        double completionRate =
-                rateDenominator == 0
-                        ? 0.0
-                        : Math.round(
-                        completedTaskCount
-                                * 10000.0
-                                / rateDenominator
-                ) / 100.0;
+        double completionRate = rateDenominator == 0 ? 0.0 : Math.round(completedTaskCount * 10000.0 / rateDenominator) / 100.0;
 
         detail.setCompletionRate(completionRate);
 
         // 4. 查询历史项目成员
-        List<MemberAcceptanceVO> members =
-                projectMemberMapper
-                        .selectAcceptanceMembers(projectId);
+        List<MemberAcceptanceVO> members = projectMemberMapper.selectAcceptanceMembers(projectId);
 
-        Map<Long, String> memberNames =
-                new HashMap<>();
+        Map<Long, String> memberNames = new HashMap<>();
 
         for (MemberAcceptanceVO member : members) {
-
-            List<TaskSimpleVO> memberTasks =
-                    completedTasksByUser.getOrDefault(
-                            member.getUserId(),
-                            List.of()
-                    );
+            List<TaskSimpleVO> memberTasks = completedTasksByUser.getOrDefault(member.getUserId(), List.of());
 
             member.setCompletedTasks(memberTasks);
 
-            member.setCompletedTaskCount(
-                    memberTasks.size()
-            );
+            member.setCompletedTaskCount(memberTasks.size());
 
-            memberNames.put(
-                    member.getUserId(),
-                    member.getUserName()
-            );
+            memberNames.put(member.getUserId(), member.getUserName());
         }
 
         detail.setMembers(members);
 
         // 5. 组装取消任务
-        List<CancelledTaskVO> cancelledTasks =
-                new ArrayList<>();
+        List<CancelledTaskVO> cancelledTasks = new ArrayList<>();
 
         for (Task task : cancelledTaskEntities) {
-
-            CancelledTaskVO taskVO =
-                    new CancelledTaskVO();
+            CancelledTaskVO taskVO = new CancelledTaskVO();
 
             taskVO.setTaskId(task.getId());
             taskVO.setTitle(task.getTitle());
-            taskVO.setCancelReason(
-                    task.getCancelReason()
-            );
-            taskVO.setCancelledAt(
-                    task.getCancelledAt()
-            );
+            taskVO.setCancelReason(task.getCancelReason());
+            taskVO.setCancelledAt(task.getCancelledAt());
 
-            taskVO.setAssigneeId(
-                    task.getAssigneeId()
-            );
+            taskVO.setAssigneeId(task.getAssigneeId());
 
             if (task.getAssigneeId() != null) {
-                taskVO.setAssigneeName(
-                        memberNames.get(
-                                task.getAssigneeId()
-                        )
-                );
+                taskVO.setAssigneeName(memberNames.get(task.getAssigneeId()));
             }
 
             cancelledTasks.add(taskVO);
@@ -719,12 +481,7 @@ public class ProjectAcceptanceService {
         detail.setCancelledTasks(cancelledTasks);
 
         // 6. 历次验收记录
-        detail.setAcceptanceHistory(
-                projectAcceptanceMapper
-                        .selectProjectAcceptances(
-                                projectId
-                        )
-        );
+        detail.setAcceptanceHistory(projectAcceptanceMapper.selectProjectAcceptances(projectId));
 
         return detail;
     }
@@ -758,14 +515,18 @@ public class ProjectAcceptanceService {
 
         for (int i = 0; i < value.length(); i++) {
             char ch = value.charAt(i);
-            if (Character.isWhitespace(ch) || Character.isSpaceChar(ch)
-                    || Character.isISOControl(ch) || ch == '\\'
-                    || ch == '"' || ch == '<' || ch == '>') {
+            if (
+                Character.isWhitespace(ch) ||
+                Character.isSpaceChar(ch) ||
+                Character.isISOControl(ch) ||
+                ch == '\\' ||
+                ch == '"' ||
+                ch == '<' ||
+                ch == '>'
+            ) {
                 return false;
             }
-            if (ch == '%' && (i + 2 >= value.length()
-                    || !isAsciiHex(value.charAt(i + 1))
-                    || !isAsciiHex(value.charAt(i + 2)))) {
+            if (ch == '%' && (i + 2 >= value.length() || !isAsciiHex(value.charAt(i + 1)) || !isAsciiHex(value.charAt(i + 2)))) {
                 return false;
             }
         }
@@ -845,8 +606,7 @@ public class ProjectAcceptanceService {
                 return false;
             }
             for (String octet : octets) {
-                if (!octet.matches("0|[1-9][0-9]{0,2}")
-                        || Integer.parseInt(octet) > 255) {
+                if (!octet.matches("0|[1-9][0-9]{0,2}") || Integer.parseInt(octet) > 255) {
                     return false;
                 }
             }
@@ -861,8 +621,6 @@ public class ProjectAcceptanceService {
     }
 
     private boolean isAsciiHex(char ch) {
-        return (ch >= '0' && ch <= '9')
-                || (ch >= 'a' && ch <= 'f')
-                || (ch >= 'A' && ch <= 'F');
+        return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
     }
 }

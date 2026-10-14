@@ -20,26 +20,20 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    public UserService(UserMapper userMapper,
-                       PasswordEncoder passwordEncoder,
-                       JwtUtil jwtUtil) {
+    public UserService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
     }
 
     public Long register(RegisterDTO dto) {
-
         String username = dto.getUsername().trim();
 
         if (username.length() < 3) {
             throw new BusinessException(400, "用户名长度必须在3到50个字符之间");
         }
 
-        Long count = userMapper.selectCount(
-                new LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, username)
-        );
+        Long count = userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
 
         if (count > 0) {
             throw new BusinessException(409, "用户名已存在");
@@ -48,9 +42,7 @@ public class UserService {
         User user = new User();
 
         user.setUsername(username);
-        user.setPasswordHash(
-                passwordEncoder.encode(dto.getPassword())
-        );
+        user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         user.setRealName(dto.getRealName().trim());
         user.setSystemRole("USER");
         user.setStatus("ACTIVE");
@@ -61,22 +53,15 @@ public class UserService {
     }
 
     public LoginVO login(LoginDTO dto) {
-
         String username = dto.getUsername().trim();
 
-        User user = userMapper.selectOne(
-                new LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, username)
-        );
+        User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
 
         if (user == null) {
             throw new BusinessException(401, "用户名或密码错误");
         }
 
-        boolean passwordCorrect = passwordEncoder.matches(
-                dto.getPassword(),
-                user.getPasswordHash()
-        );
+        boolean passwordCorrect = passwordEncoder.matches(dto.getPassword(), user.getPasswordHash());
 
         if (!passwordCorrect) {
             throw new BusinessException(401, "用户名或密码错误");

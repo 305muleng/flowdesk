@@ -1,11 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import type { SubmitAcceptancePayload } from '@/api/projects'
-import {
-  acceptanceSubmissionError,
-  acceptanceSubmissionPayload,
-  emptyAcceptanceSubmission,
-} from '@/utils/acceptanceSubmission'
+import { acceptanceSubmissionError, acceptanceSubmissionPayload, emptyAcceptanceSubmission } from '@/utils/acceptanceSubmission'
 
 const props = defineProps<{
   modelValue: boolean
@@ -16,12 +12,15 @@ const form = ref(emptyAcceptanceSubmission())
 const error = ref('')
 const submitting = ref(false)
 
-watch(() => props.modelValue, (open) => {
-  if (open) {
-    form.value = emptyAcceptanceSubmission()
-    error.value = ''
-  }
-})
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) {
+      form.value = emptyAcceptanceSubmission()
+      error.value = ''
+    }
+  },
+)
 
 async function submit() {
   if (submitting.value) return
@@ -73,5 +72,9 @@ async function submit() {
 </template>
 
 <style scoped>
-.link-hint { margin: 0 0 14px; color: var(--muted); font-size: 12px; }
+.link-hint {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
 </style>

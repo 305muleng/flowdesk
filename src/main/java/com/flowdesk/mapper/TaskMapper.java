@@ -19,11 +19,13 @@ public interface TaskMapper extends BaseMapper<Task> {
             SET status = #{newStatus}, completed_at = #{completedAt}, updated_at = #{updatedAt}
             WHERE id = #{taskId} AND status = #{expectedStatus} AND deleted_at IS NULL
             """)
-    int transitionStatusIfCurrent(@Param("taskId") Long taskId,
-                                  @Param("expectedStatus") String expectedStatus,
-                                  @Param("newStatus") String newStatus,
-                                  @Param("completedAt") LocalDateTime completedAt,
-                                  @Param("updatedAt") LocalDateTime updatedAt);
+    int transitionStatusIfCurrent(
+        @Param("taskId") Long taskId,
+        @Param("expectedStatus") String expectedStatus,
+        @Param("newStatus") String newStatus,
+        @Param("completedAt") LocalDateTime completedAt,
+        @Param("updatedAt") LocalDateTime updatedAt
+    );
 
     @Update("""
             UPDATE task
@@ -31,11 +33,13 @@ public interface TaskMapper extends BaseMapper<Task> {
             WHERE id = #{taskId} AND status = #{expectedStatus}
               AND assignee_id = #{assigneeId} AND deleted_at IS NULL
             """)
-    int transitionAssigneeTaskIfCurrent(@Param("taskId") Long taskId,
-                                        @Param("assigneeId") Long assigneeId,
-                                        @Param("expectedStatus") String expectedStatus,
-                                        @Param("newStatus") String newStatus,
-                                        @Param("updatedAt") LocalDateTime updatedAt);
+    int transitionAssigneeTaskIfCurrent(
+        @Param("taskId") Long taskId,
+        @Param("assigneeId") Long assigneeId,
+        @Param("expectedStatus") String expectedStatus,
+        @Param("newStatus") String newStatus,
+        @Param("updatedAt") LocalDateTime updatedAt
+    );
 
     @Update("""
             <script>
@@ -46,10 +50,12 @@ public interface TaskMapper extends BaseMapper<Task> {
                    OR (assignee_id IS NULL AND #{expectedAssigneeId} IS NULL))
             </script>
             """)
-    int reassignTodoIfCurrent(@Param("taskId") Long taskId,
-                              @Param("expectedAssigneeId") Long expectedAssigneeId,
-                              @Param("newAssigneeId") Long newAssigneeId,
-                              @Param("updatedAt") LocalDateTime updatedAt);
+    int reassignTodoIfCurrent(
+        @Param("taskId") Long taskId,
+        @Param("expectedAssigneeId") Long expectedAssigneeId,
+        @Param("newAssigneeId") Long newAssigneeId,
+        @Param("updatedAt") LocalDateTime updatedAt
+    );
 
     @Update("""
             UPDATE task
@@ -57,9 +63,12 @@ public interface TaskMapper extends BaseMapper<Task> {
                 completed_at = NULL, updated_at = #{cancelledAt}
             WHERE id = #{taskId} AND status IN ('TODO', 'IN_PROGRESS') AND deleted_at IS NULL
             """)
-    int cancelIfActive(@Param("taskId") Long taskId,
-                       @Param("reason") String reason,
-                       @Param("cancelledAt") LocalDateTime cancelledAt);
+    int cancelIfActive(
+        @Param("taskId") Long taskId,
+        @Param("reason") String reason,
+        @Param("cancelledAt") LocalDateTime cancelledAt
+    );
+
     @Select("""
         SELECT
             t.id AS id,
@@ -108,10 +117,11 @@ public interface TaskMapper extends BaseMapper<Task> {
         ORDER BY t.created_at DESC, t.id DESC
         """)
     List<TaskVO> selectProjectTasks(
-            @Param("projectId") Long projectId,
-            @Param("scope") String scope,
-            @Param("currentUserId") Long currentUserId,
-            @Param("status") String status);
+        @Param("projectId") Long projectId,
+        @Param("scope") String scope,
+        @Param("currentUserId") Long currentUserId,
+        @Param("status") String status
+    );
 
     @Select("""
         SELECT
@@ -191,8 +201,8 @@ public interface TaskMapper extends BaseMapper<Task> {
           AND deleted_at IS NULL
         """)
     int rejectToTodoAndUnassign(
-            @Param("taskId") Long taskId,
-            @Param("expectedAssigneeId") Long expectedAssigneeId,
-            @Param("updatedAt") LocalDateTime updatedAt
+        @Param("taskId") Long taskId,
+        @Param("expectedAssigneeId") Long expectedAssigneeId,
+        @Param("updatedAt") LocalDateTime updatedAt
     );
 }

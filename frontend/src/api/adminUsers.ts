@@ -30,8 +30,6 @@ export interface AdminUserQuery {
 export const getAdminUsersApi = (params: AdminUserQuery) =>
   request.get<ApiResult<PageResult<AdminUser>>>('/admin/users', { params })
 
-export const disableAdminUserApi = (userId: number) =>
-  request.put<ApiResult<void>>(`/admin/users/${userId}/disable`)
+export const disableAdminUserApi = (userId: number) => request.put<ApiResult<void>>(`/admin/users/${userId}/disable`)
 
-export const enableAdminUserApi = (userId: number) =>
-  request.put<ApiResult<void>>(`/admin/users/${userId}/enable`)
+export const enableAdminUserApi = (userId: number) => request.put<ApiResult<void>>(`/admin/users/${userId}/enable`)

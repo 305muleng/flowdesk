@@ -11,9 +11,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 @Mapper
-public interface MemberLeaveRequestMapper
-        extends BaseMapper<MemberLeaveRequest> {
-
+public interface MemberLeaveRequestMapper extends BaseMapper<MemberLeaveRequest> {
     @Select("""
         SELECT r.id, r.project_id AS projectId, r.applicant_id AS applicantId,
                u.real_name AS applicantName, r.reason, r.status,
@@ -22,8 +20,10 @@ public interface MemberLeaveRequestMapper
         WHERE r.project_id = #{projectId} AND r.status = 'PENDING' AND r.expires_at > #{now}
         ORDER BY r.created_at, r.id
         """)
-    java.util.List<MemberLeaveRequestVO> selectPendingForProject(@Param("projectId") Long projectId,
-                                                               @Param("now") LocalDateTime now);
+    java.util.List<MemberLeaveRequestVO> selectPendingForProject(
+        @Param("projectId") Long projectId,
+        @Param("now") LocalDateTime now
+    );
 
     @Update("""
             UPDATE member_leave_request
@@ -36,11 +36,11 @@ public interface MemberLeaveRequestMapper
               AND expires_at > #{now}
             """)
     int cancelIfPending(
-            @Param("requestId") Long requestId,
-            @Param("projectId") Long projectId,
-            @Param("applicantId") Long applicantId,
-            @Param("cancelledAt") LocalDateTime cancelledAt,
-            @Param("now") LocalDateTime now
+        @Param("requestId") Long requestId,
+        @Param("projectId") Long projectId,
+        @Param("applicantId") Long applicantId,
+        @Param("cancelledAt") LocalDateTime cancelledAt,
+        @Param("now") LocalDateTime now
     );
 
     @Update("""
@@ -55,13 +55,13 @@ public interface MemberLeaveRequestMapper
               AND expires_at > #{now}
             """)
     int reviewIfPending(
-            @Param("requestId") Long requestId,
-            @Param("projectId") Long projectId,
-            @Param("newStatus") String newStatus,
-            @Param("reviewerId") Long reviewerId,
-            @Param("reviewNote") String reviewNote,
-            @Param("reviewedAt") LocalDateTime reviewedAt,
-            @Param("now") LocalDateTime now
+        @Param("requestId") Long requestId,
+        @Param("projectId") Long projectId,
+        @Param("newStatus") String newStatus,
+        @Param("reviewerId") Long reviewerId,
+        @Param("reviewNote") String reviewNote,
+        @Param("reviewedAt") LocalDateTime reviewedAt,
+        @Param("now") LocalDateTime now
     );
 
     @Select("""
@@ -97,9 +97,7 @@ public interface MemberLeaveRequestMapper
 
         LIMIT 1
         """)
-    MemberLeaveRequestVO selectDetail(
-            @Param("projectId") Long projectId,
-            @Param("requestId") Long requestId);
+    MemberLeaveRequestVO selectDetail(@Param("projectId") Long projectId, @Param("requestId") Long requestId);
 
     @Update("""
         UPDATE member_leave_request
@@ -111,7 +109,8 @@ public interface MemberLeaveRequestMapper
           AND expires_at > #{cancelledAt}
         """)
     int cancelPendingByApplicant(
-            @Param("projectId") Long projectId,
-            @Param("applicantId") Long applicantId,
-            @Param("cancelledAt") LocalDateTime cancelledAt);
+        @Param("projectId") Long projectId,
+        @Param("applicantId") Long applicantId,
+        @Param("cancelledAt") LocalDateTime cancelledAt
+    );
 }

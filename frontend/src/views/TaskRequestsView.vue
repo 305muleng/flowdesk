@@ -22,10 +22,7 @@ const projectMap = computed(() => new Map(projects.value.map((item) => [item.id,
 async function load() {
   loading.value = true
   try {
-    const [requestResult, projectResult] = await Promise.allSettled([
-      getMyTaskRequestsApi(filter.value),
-      getMyProjectsApi(),
-    ])
+    const [requestResult, projectResult] = await Promise.allSettled([getMyTaskRequestsApi(filter.value), getMyProjectsApi()])
     requestLoadFailed.value = requestResult.status === 'rejected'
     requests.value = requestResult.status === 'fulfilled' ? requestResult.value.data.data : []
     projects.value = projectResult.status === 'fulfilled' ? projectResult.value.data.data : []
@@ -53,15 +50,9 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader
-    eyebrow="TASK REQUESTS"
-    title="我的任务申请"
-    description="跟踪你向各项目提交的任务建议及审批结果。"
-  >
+  <PageHeader eyebrow="TASK REQUESTS" title="我的任务申请" description="跟踪你向各项目提交的任务建议及审批结果。">
     <el-button :icon="Refresh" circle @click="load" />
-    <el-button type="primary" :icon="DocumentAdd" @click="$router.push('/projects')"
-      >前往项目提交申请</el-button
-    >
+    <el-button type="primary" :icon="DocumentAdd" @click="$router.push('/projects')">前往项目提交申请</el-button>
   </PageHeader>
   <section class="toolbar">
     <div>
@@ -91,9 +82,7 @@ onMounted(load)
     >
       <div class="request-main">
         <div class="request-top">
-          <StatusTag :value="item.status" /><span>{{
-            projectMap.get(item.projectId) || '项目 #' + item.projectId
-          }}</span
+          <StatusTag :value="item.status" /><span>{{ projectMap.get(item.projectId) || '项目 #' + item.projectId }}</span
           ><small>{{ formatDateTime(item.createdAt) }}</small>
         </div>
         <h3>{{ item.title }}</h3>
@@ -101,15 +90,8 @@ onMounted(load)
       </div>
       <div class="request-side">
         <p v-if="item.reviewNote"><strong>审批意见</strong>{{ item.reviewNote }}</p>
-        <el-button v-if="item.status === 'PENDING'" type="danger" link @click="cancel(item)"
-          >撤回申请</el-button
-        ><el-button
-          v-if="item.taskId"
-          type="primary"
-          link
-          @click="$router.push('/tasks/' + item.taskId)"
-          >查看正式任务</el-button
-        >
+        <el-button v-if="item.status === 'PENDING'" type="danger" link @click="cancel(item)">撤回申请</el-button
+        ><el-button v-if="item.taskId" type="primary" link @click="$router.push('/tasks/' + item.taskId)">查看正式任务</el-button>
       </div>
     </article>
     <el-empty v-if="!loading && !requestLoadFailed && !requests.length" description="暂无符合条件的任务申请" />

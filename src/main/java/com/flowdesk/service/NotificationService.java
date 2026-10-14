@@ -27,7 +27,6 @@ public class NotificationService {
     }
 
     public void createNotification(CreateNotificationDTO dto) {
-
         User recipient = userMapper.selectById(dto.getRecipientId());
 
         if (recipient == null || !"ACTIVE".equals(recipient.getStatus())) {
@@ -54,36 +53,28 @@ public class NotificationService {
     }
 
     public List<NotificationVO> getMyNotifications() {
-
         Long userId = UserContext.get().getUserId();
 
         List<Notification> notifications = notificationMapper.selectList(
-                new LambdaQueryWrapper<Notification>()
-                        .eq(Notification::getRecipientId, userId)
-                        .orderByDesc(Notification::getCreatedAt)
-                        .orderByDesc(Notification::getId)
+            new LambdaQueryWrapper<Notification>()
+                .eq(Notification::getRecipientId, userId)
+                .orderByDesc(Notification::getCreatedAt)
+                .orderByDesc(Notification::getId)
         );
 
-        return notifications.stream()
-                .map(this::toVO)
-                .toList();
+        return notifications.stream().map(this::toVO).toList();
     }
 
     public Long getUnreadCount() {
-
         Long userId = UserContext.get().getUserId();
 
         return notificationMapper.selectCount(
-                new LambdaQueryWrapper<Notification>()
-                        .eq(Notification::getRecipientId, userId)
-                        .isNull(Notification::getReadAt)
+            new LambdaQueryWrapper<Notification>().eq(Notification::getRecipientId, userId).isNull(Notification::getReadAt)
         );
     }
 
     public void markAsRead(Long notificationId) {
-
-        Notification notification =
-                notificationMapper.selectById(notificationId);
+        Notification notification = notificationMapper.selectById(notificationId);
 
         if (notification == null) {
             throw new BusinessException(404, "通知不存在");
@@ -105,20 +96,18 @@ public class NotificationService {
     }
 
     public void markAllAsRead() {
-
         Long userId = UserContext.get().getUserId();
 
         notificationMapper.update(
-                null,
-                new LambdaUpdateWrapper<Notification>()
-                        .eq(Notification::getRecipientId, userId)
-                        .isNull(Notification::getReadAt)
-                        .set(Notification::getReadAt, LocalDateTime.now())
+            null,
+            new LambdaUpdateWrapper<Notification>()
+                .eq(Notification::getRecipientId, userId)
+                .isNull(Notification::getReadAt)
+                .set(Notification::getReadAt, LocalDateTime.now())
         );
     }
 
     private NotificationVO toVO(Notification notification) {
-
         NotificationVO vo = new NotificationVO();
 
         vo.setId(notification.getId());

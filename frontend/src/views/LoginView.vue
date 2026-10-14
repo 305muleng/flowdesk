@@ -18,9 +18,7 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(form.value)
-    await router.replace(
-      typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard',
-    )
+    await router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard')
   } finally {
     loading.value = false
   }
@@ -33,9 +31,7 @@ async function submit() {
       <p class="eyebrow">FLOWDESK</p>
       <h1>让每一次协作<br />都清晰推进。</h1>
       <p class="brand-copy">项目、任务与交付进度，集中在一个轻盈而可靠的工作空间里。</p>
-      <div class="feature-list">
-        <span>项目全景</span><span>任务协作</span><span>交付闭环</span>
-      </div>
+      <div class="feature-list"><span>项目全景</span><span>任务协作</span><span>交付闭环</span></div>
     </section>
     <section class="login-panel">
       <div class="login-card">
@@ -44,10 +40,7 @@ async function submit() {
         <p class="subcopy">使用你的账号继续管理工作。</p>
         <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="submit"
           ><el-form-item prop="username"
-            ><el-input
-              v-model="form.username"
-              :prefix-icon="User"
-              placeholder="用户名" /></el-form-item
+            ><el-input v-model="form.username" :prefix-icon="User" placeholder="用户名" /></el-form-item
           ><el-form-item prop="password"
             ><el-input
               v-model="form.password"
@@ -55,9 +48,7 @@ async function submit() {
               type="password"
               show-password
               placeholder="密码" /></el-form-item
-          ><el-button class="login-button" type="primary" :loading="loading" @click="submit"
-            >登 录</el-button
-          ></el-form
+          ><el-button class="login-button" type="primary" :loading="loading" @click="submit">登 录</el-button></el-form
         >
         <p class="login-hint">还没有账号？<router-link to="/register">立即注册</router-link></p>
       </div>
@@ -75,8 +66,7 @@ async function submit() {
   padding: clamp(42px, 7vw, 108px);
   color: #fff;
   background:
-    radial-gradient(circle at 18% 18%, #447dff 0, transparent 28%),
-    linear-gradient(145deg, #111f4a 0%, #192f71 55%, #294bb1 100%);
+    radial-gradient(circle at 18% 18%, #447dff 0, transparent 28%), linear-gradient(145deg, #111f4a 0%, #192f71 55%, #294bb1 100%);
   display: flex;
   flex-direction: column;
   justify-content: center;

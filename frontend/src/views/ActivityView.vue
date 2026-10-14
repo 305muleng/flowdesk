@@ -11,9 +11,13 @@ const projectId = ref<number>()
 const logs = ref<OperationLog[]>([])
 const loading = ref(false)
 const targetNames: Record<string, string> = {
-  PROJECT: '项目', TASK: '任务', PROJECT_MEMBER: '项目成员',
-  TASK_REQUEST: '任务申请', PROJECT_ACCEPTANCE: '项目验收',
-  MEMBER_LEAVE_REQUEST: '退出申请', PROJECT_MANAGER_TRANSFER: '负责人转让',
+  PROJECT: '项目',
+  TASK: '任务',
+  PROJECT_MEMBER: '项目成员',
+  TASK_REQUEST: '任务申请',
+  PROJECT_ACCEPTANCE: '项目验收',
+  MEMBER_LEAVE_REQUEST: '退出申请',
+  PROJECT_MANAGER_TRANSFER: '负责人转让',
 }
 
 async function loadLogs() {
@@ -37,17 +41,9 @@ watch(projectId, loadLogs)
 </script>
 
 <template>
-  <PageHeader
-    eyebrow="ACTIVITY LOG"
-    title="项目操作记录"
-    description="查看项目中的关键操作记录。"
-  >
+  <PageHeader eyebrow="ACTIVITY LOG" title="项目操作记录" description="查看项目中的关键操作记录。">
     <el-select v-model="projectId" placeholder="选择项目" filterable style="width: 220px"
-      ><el-option
-        v-for="project in projects"
-        :key="project.id"
-        :label="project.name"
-        :value="project.id"
+      ><el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id"
     /></el-select>
     <el-button :icon="Refresh" circle @click="loadLogs" />
   </PageHeader>

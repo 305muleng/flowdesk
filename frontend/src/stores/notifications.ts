@@ -1,10 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import {
-  getUnreadNotificationCountApi,
-  markAllNotificationsReadApi,
-  markNotificationReadApi,
-} from '@/api/notifications'
+import { getUnreadNotificationCountApi, markAllNotificationsReadApi, markNotificationReadApi } from '@/api/notifications'
 
 export const useNotificationStore = defineStore('notifications', () => {
   const unreadCount = ref(0)

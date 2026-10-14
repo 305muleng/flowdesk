@@ -15,14 +15,23 @@ const ast = ts.createSourceFile('notifications.ts', notificationScript, ts.Scrip
 const names = ['isManagerTransferNotification', 'categoryFor', 'actionFor']
 const functions = ast.statements
   .filter((node) => ts.isFunctionDeclaration(node) && names.includes(node.name.text))
-  .map((node) => node.getText(ast)).join('\n')
+  .map((node) => node.getText(ast))
+  .join('\n')
 const context = vm.createContext({ auth: { isSystemAdmin: false } })
-vm.runInContext(ts.transpileModule(functions, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022 },
-}).outputText, context)
+vm.runInContext(
+  ts.transpileModule(functions, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText,
+  context,
+)
 
 test('initial and subsequent manager transfer notifications classify and link to independent detail', () => {
-  for (const type of ['PROJECT_MANAGER_TRANSFER', 'PROJECT_MANAGER_TRANSFER_ACCEPTED', 'PROJECT_MANAGER_TRANSFER_REJECTED', 'PROJECT_MANAGER_TRANSFER_CANCELLED']) {
+  for (const type of [
+    'PROJECT_MANAGER_TRANSFER',
+    'PROJECT_MANAGER_TRANSFER_ACCEPTED',
+    'PROJECT_MANAGER_TRANSFER_REJECTED',
+    'PROJECT_MANAGER_TRANSFER_CANCELLED',
+  ]) {
     assert.equal(context.categoryFor(type), 'PROJECT_MANAGER_TRANSFER')
     for (const readAt of [null, '2026-09-27T12:00:00']) {
       const action = context.actionFor({ type, projectId: 4, targetId: 20, readAt })
@@ -38,7 +47,10 @@ test('member removal remains a historical notification without project navigatio
 })
 
 test('leave notifications retain independent detail and transfer links require record identifiers', () => {
-  assert.equal(context.actionFor({ type: 'MEMBER_LEAVE_REQUEST_APPROVED', projectId: 4, targetId: 40 }).to, '/membership/4/leave-requests/40')
+  assert.equal(
+    context.actionFor({ type: 'MEMBER_LEAVE_REQUEST_APPROVED', projectId: 4, targetId: 40 }).to,
+    '/membership/4/leave-requests/40',
+  )
   assert.equal(context.actionFor({ type: 'PROJECT_MANAGER_TRANSFER', projectId: 4 }), undefined)
   assert.equal(context.isManagerTransferNotification('PROJECT_MANAGER_TRANSFERRING'), false)
 })
@@ -48,15 +60,21 @@ function elements(node) {
 }
 const template = baseParse(parse(source('views/TaskDetailView.vue')).descriptor.template.content)
 const allElements = elements(template).filter((node) => node.type === 1)
-const dialog = allElements.find((node) => node.tag === 'el-dialog' && node.props.some((prop) => prop.name === 'title' && prop.value?.content === '分配任务负责人'))
+const dialog = allElements.find(
+  (node) =>
+    node.tag === 'el-dialog' && node.props.some((prop) => prop.name === 'title' && prop.value?.content === '分配任务负责人'),
+)
 const select = elements(dialog).find((node) => node.tag === 'el-select')
 const option = elements(select).find((node) => node.tag === 'el-option')
 const loop = option.props.find((prop) => prop.name === 'for').exp.content
 const label = option.props.find((prop) => prop.name === 'bind' && prop.arg.content === 'label').exp.content
 const formatContext = vm.createContext({ exports: {} })
-vm.runInContext(ts.transpileModule(source('utils/format.ts'), {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-}).outputText, formatContext)
+vm.runInContext(
+  ts.transpileModule(source('utils/format.ts'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText,
+  formatContext,
+)
 
 test('task assignee options include effective managers and developers with role and workload', () => {
   assert.equal(select.props.find((prop) => prop.name === 'placeholder').value.content, '选择项目成员')
@@ -66,7 +84,10 @@ test('task assignee options include effective managers and developers with role 
     { realName: 'Disabled', role: 'DEVELOPER', effective: false, unfinishedTaskCount: 5 },
   ]
   const options = new Function('members', `return ${loop.slice(loop.indexOf(' in ') + 4)}`)(members)
-  assert.deepEqual(options.map((member) => member.realName), ['Tom', '张三'])
+  assert.deepEqual(
+    options.map((member) => member.realName),
+    ['Tom', '张三'],
+  )
   const optionLabel = new Function('member', 'statusLabel', `return ${label}`)
   assert.equal(optionLabel(options[0], formatContext.exports.statusLabel), 'Tom · 项目负责人 · 未完成任务 1')
   assert.equal(optionLabel(options[1], formatContext.exports.statusLabel), '张三 · 开发成员 · 未完成任务 2')

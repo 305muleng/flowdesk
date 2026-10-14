@@ -40,11 +40,7 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader
-    eyebrow="SYSTEM ADMIN"
-    title="项目验收审核"
-    description="复核项目最终交付，形成明确、可审计的验收结论。"
-  >
+  <PageHeader eyebrow="SYSTEM ADMIN" title="项目验收审核" description="复核项目最终交付，形成明确、可审计的验收结论。">
     <el-button :icon="Refresh" circle @click="load" />
   </PageHeader>
   <section class="toolbar">
@@ -84,19 +80,17 @@ onMounted(load)
           <dd>{{ formatDateTime(item.submittedAt) }}</dd>
         </div>
       </dl>
-      <div v-if="item.reviewNote" class="review-note">
-        <strong>审核意见</strong>{{ item.reviewNote }}
-      </div>
+      <div v-if="item.reviewNote" class="review-note"><strong>审核意见</strong>{{ item.reviewNote }}</div>
       <footer>
-        <el-button @click="$router.push({ name: 'admin-acceptance-detail', params: { acceptanceId: item.id } })">查看详情</el-button>
-        <template v-if="item.reviewStatus === 'PENDING'"><el-button :disabled="processingIds.has(item.id)" @click="review(item, 'REJECT')">驳回</el-button
-        ><el-button
-          type="primary"
-          :icon="Check"
-          :loading="processingIds.has(item.id)"
-          @click="review(item, 'APPROVE')"
-          >通过验收</el-button
-        ></template>
+        <el-button @click="$router.push({ name: 'admin-acceptance-detail', params: { acceptanceId: item.id } })"
+          >查看详情</el-button
+        >
+        <template v-if="item.reviewStatus === 'PENDING'"
+          ><el-button :disabled="processingIds.has(item.id)" @click="review(item, 'REJECT')">驳回</el-button
+          ><el-button type="primary" :icon="Check" :loading="processingIds.has(item.id)" @click="review(item, 'APPROVE')"
+            >通过验收</el-button
+          ></template
+        >
       </footer>
     </article>
     <el-empty v-if="!loading && !list.length" description="当前没有验收申请" />

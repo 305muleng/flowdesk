@@ -20,12 +20,14 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
                 review_note = #{reviewNote}, reviewed_at = #{reviewedAt}
             WHERE id = #{requestId} AND project_id = #{projectId} AND status = 'PENDING'
             """)
-    int reviewIfPending(@Param("requestId") Long requestId,
-                        @Param("projectId") Long projectId,
-                        @Param("newStatus") String newStatus,
-                        @Param("reviewerId") Long reviewerId,
-                        @Param("reviewNote") String reviewNote,
-                        @Param("reviewedAt") LocalDateTime reviewedAt);
+    int reviewIfPending(
+        @Param("requestId") Long requestId,
+        @Param("projectId") Long projectId,
+        @Param("newStatus") String newStatus,
+        @Param("reviewerId") Long reviewerId,
+        @Param("reviewNote") String reviewNote,
+        @Param("reviewedAt") LocalDateTime reviewedAt
+    );
 
     @Update("""
             UPDATE task_request
@@ -33,10 +35,13 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
             WHERE id = #{requestId} AND project_id = #{projectId}
               AND requester_id = #{requesterId} AND status = 'PENDING'
             """)
-    int cancelIfPending(@Param("requestId") Long requestId,
-                        @Param("projectId") Long projectId,
-                        @Param("requesterId") Long requesterId,
-                        @Param("cancelledAt") LocalDateTime cancelledAt);
+    int cancelIfPending(
+        @Param("requestId") Long requestId,
+        @Param("projectId") Long projectId,
+        @Param("requesterId") Long requesterId,
+        @Param("cancelledAt") LocalDateTime cancelledAt
+    );
+
     @Select("""
         SELECT
             tr.id AS id,
@@ -106,7 +111,8 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
           AND status = 'PENDING'
         """)
     int cancelPendingByRequester(
-            @Param("projectId") Long projectId,
-            @Param("requesterId") Long requesterId,
-            @Param("cancelledAt") LocalDateTime cancelledAt);
+        @Param("projectId") Long projectId,
+        @Param("requesterId") Long requesterId,
+        @Param("cancelledAt") LocalDateTime cancelledAt
+    );
 }

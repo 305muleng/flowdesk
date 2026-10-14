@@ -9,5 +9,4 @@ public class FlowdeskApplication {
     public static void main(String[] args) {
         SpringApplication.run(FlowdeskApplication.class, args);
     }
-
 }

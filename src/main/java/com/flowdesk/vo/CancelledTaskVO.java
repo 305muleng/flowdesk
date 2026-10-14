@@ -3,6 +3,7 @@ package com.flowdesk.vo;
 import java.time.LocalDateTime;
 
 public class CancelledTaskVO {
+
     private Long taskId;
     private String title;
     private String cancelReason;

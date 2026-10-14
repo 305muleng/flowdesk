@@ -2,8 +2,7 @@ package com.flowdesk.context;
 
 public class UserContext {
 
-    private static final ThreadLocal<CurrentUser> HOLDER =
-            new ThreadLocal<>();
+    private static final ThreadLocal<CurrentUser> HOLDER = new ThreadLocal<>();
 
     public static void set(CurrentUser currentUser) {
         HOLDER.set(currentUser);

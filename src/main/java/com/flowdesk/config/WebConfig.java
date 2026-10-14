@@ -12,31 +12,24 @@ public class WebConfig implements WebMvcConfigurer {
     private final LoginInterceptor loginInterceptor;
     private final SystemAdminInterceptor systemAdminInterceptor;
 
-    public WebConfig(
-            LoginInterceptor loginInterceptor,
-            SystemAdminInterceptor systemAdminInterceptor) {
-
+    public WebConfig(LoginInterceptor loginInterceptor, SystemAdminInterceptor systemAdminInterceptor) {
         this.loginInterceptor = loginInterceptor;
         this.systemAdminInterceptor = systemAdminInterceptor;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(loginInterceptor).addPathPatterns("/**").excludePathPatterns(
+            "/users/login",
+            "/users/register",
 
-        registry.addInterceptor(loginInterceptor)
-                .addPathPatterns("/**")
-                .excludePathPatterns(
-                        "/users/login",
-                        "/users/register",
+            "/swagger-ui.html",
+            "/swagger-ui/**",
 
-                        "/swagger-ui.html",
-                        "/swagger-ui/**",
+            "/v3/api-docs",
+            "/v3/api-docs/**"
+        );
 
-                        "/v3/api-docs",
-                        "/v3/api-docs/**"
-                );
-
-        registry.addInterceptor(systemAdminInterceptor)
-                .addPathPatterns("/admin/**");
+        registry.addInterceptor(systemAdminInterceptor).addPathPatterns("/admin/**");
     }
 }

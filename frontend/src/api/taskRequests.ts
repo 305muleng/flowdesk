@@ -23,8 +23,4 @@ export const reviewTaskRequestApi = (
     priority?: Priority
     deadline?: string
   },
-) =>
-  request.post<ApiResult<number | null>>(
-    `/projects/${projectId}/task-requests/${requestId}/review`,
-    payload,
-  )
+) => request.post<ApiResult<number | null>>(`/projects/${projectId}/task-requests/${requestId}/review`, payload)

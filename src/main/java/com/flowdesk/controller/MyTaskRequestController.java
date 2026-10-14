@@ -25,8 +25,7 @@ public class MyTaskRequestController {
 
     @Operation(summary = "查看我的任务申请")
     @GetMapping("/my")
-    public Result<List<TaskRequestVO>> getMyTaskRequests(
-            @RequestParam(defaultValue = "ALL") String status) {
+    public Result<List<TaskRequestVO>> getMyTaskRequests(@RequestParam(defaultValue = "ALL") String status) {
         return Result.success(taskRequestService.getMyTaskRequests(status));
     }
 }

@@ -10,16 +10,9 @@ public class PageResult<T> {
     private long size;
     private long pages;
 
-    public PageResult() {
-    }
+    public PageResult() {}
 
-    public PageResult(
-            List<T> records,
-            long total,
-            long page,
-            long size,
-            long pages) {
-
+    public PageResult(List<T> records, long total, long page, long size, long pages) {
         this.records = records;
         this.total = total;
         this.page = page;

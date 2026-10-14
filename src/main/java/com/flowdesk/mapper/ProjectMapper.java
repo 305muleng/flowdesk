@@ -14,14 +14,12 @@ import java.util.List;
 
 @Mapper
 public interface ProjectMapper extends BaseMapper<Project> {
-
     @Update("""
             UPDATE project
             SET status = 'IN_PROGRESS', start_time = #{startedAt}, updated_at = #{startedAt}
             WHERE id = #{projectId} AND status = 'PREPARING' AND deleted_at IS NULL
             """)
-    int startIfPreparing(@Param("projectId") Long projectId,
-                         @Param("startedAt") LocalDateTime startedAt);
+    int startIfPreparing(@Param("projectId") Long projectId, @Param("startedAt") LocalDateTime startedAt);
 
     @Update("""
             UPDATE project
@@ -30,17 +28,18 @@ public interface ProjectMapper extends BaseMapper<Project> {
             WHERE id = #{projectId} AND status IN ('PREPARING', 'IN_PROGRESS')
               AND deleted_at IS NULL
             """)
-    int cancelIfActive(@Param("projectId") Long projectId,
-                       @Param("reason") String reason,
-                       @Param("cancelledAt") LocalDateTime cancelledAt);
+    int cancelIfActive(
+        @Param("projectId") Long projectId,
+        @Param("reason") String reason,
+        @Param("cancelledAt") LocalDateTime cancelledAt
+    );
 
     @Update("""
             UPDATE project
             SET status = 'ARCHIVED', updated_at = #{archivedAt}
             WHERE id = #{projectId} AND status = 'COMPLETED' AND deleted_at IS NULL
             """)
-    int archiveIfCompleted(@Param("projectId") Long projectId,
-                           @Param("archivedAt") LocalDateTime archivedAt);
+    int archiveIfCompleted(@Param("projectId") Long projectId, @Param("archivedAt") LocalDateTime archivedAt);
 
     @Update("""
         UPDATE project
@@ -54,11 +53,11 @@ public interface ProjectMapper extends BaseMapper<Project> {
           AND deleted_at IS NULL
         """)
     int submitAcceptanceIfInProgress(
-            @Param("projectId") Long projectId,
-            @Param("repositoryUrl") String repositoryUrl,
-            @Param("deployUrl") String deployUrl,
-            @Param("documentUrl") String documentUrl,
-            @Param("submittedAt") LocalDateTime submittedAt
+        @Param("projectId") Long projectId,
+        @Param("repositoryUrl") String repositoryUrl,
+        @Param("deployUrl") String deployUrl,
+        @Param("documentUrl") String documentUrl,
+        @Param("submittedAt") LocalDateTime submittedAt
     );
 
     @Update("""
@@ -66,10 +65,12 @@ public interface ProjectMapper extends BaseMapper<Project> {
             SET status = #{newStatus}, actual_end_time = #{actualEndTime}, updated_at = #{reviewedAt}
             WHERE id = #{projectId} AND status = 'PENDING_ACCEPTANCE' AND deleted_at IS NULL
             """)
-    int reviewAcceptanceIfPending(@Param("projectId") Long projectId,
-                                  @Param("newStatus") String newStatus,
-                                  @Param("actualEndTime") LocalDateTime actualEndTime,
-                                  @Param("reviewedAt") LocalDateTime reviewedAt);
+    int reviewAcceptanceIfPending(
+        @Param("projectId") Long projectId,
+        @Param("newStatus") String newStatus,
+        @Param("actualEndTime") LocalDateTime actualEndTime,
+        @Param("reviewedAt") LocalDateTime reviewedAt
+    );
 
     @Select("SELECT * FROM project WHERE id = #{projectId} FOR UPDATE")
     Project selectByIdForUpdate(@Param("projectId") Long projectId);

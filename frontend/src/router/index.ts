@@ -22,7 +22,11 @@ const router = createRouter({
       component: () => import('@/layouts/AppLayout.vue'),
       meta: { requiresAuth: true },
       children: [
-        { path: 'membership/:projectId/:kind(leave-requests|manager-transfers)/:recordId', component: () => import('@/views/MembershipDetailView.vue'), meta: { title: '成员流程详情', ordinaryUser: true } },
+        {
+          path: 'membership/:projectId/:kind(leave-requests|manager-transfers)/:recordId',
+          component: () => import('@/views/MembershipDetailView.vue'),
+          meta: { title: '成员流程详情', ordinaryUser: true },
+        },
         {
           path: 'dashboard',
           name: 'dashboard',
@@ -111,14 +115,15 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (auth.token) {
-    try { await auth.verify() } catch (error) {
+    try {
+      await auth.verify()
+    } catch (error) {
       const status = (error as { response?: { status?: number } }).response?.status
       if (status === 401 || status === 403) auth.logout()
       else if (to.meta.requiresAuth) return false
     }
   }
-  if (to.meta.requiresAuth && !auth.token)
-    return { name: 'login', query: { redirect: to.fullPath } }
+  if (to.meta.requiresAuth && !auth.token) return { name: 'login', query: { redirect: to.fullPath } }
   if (to.meta.guestOnly && auth.token) return { name: 'dashboard' }
   if (to.meta.systemAdmin && !auth.isSystemAdmin) return { name: 'dashboard' }
   if (to.meta.ordinaryUser && auth.isSystemAdmin) return { name: 'admin-acceptances' }

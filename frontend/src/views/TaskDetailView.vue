@@ -40,14 +40,10 @@ const assignVisible = ref(false)
 const selectedAssignee = ref<number>()
 const submitForm = reactive({ completionNote: '', resultUrl: '', testNote: '' })
 
-const myMembership = computed(() =>
-  members.value.find((member) => member.userId === auth.user?.userId),
-)
+const myMembership = computed(() => members.value.find((member) => member.userId === auth.user?.userId))
 const isManager = computed(() => myMembership.value?.role === 'PROJECT_MANAGER')
 const isAssignee = computed(() => task.value?.assigneeId === auth.user?.userId)
-const projectAllowsPlanning = computed(() =>
-  ['PREPARING', 'IN_PROGRESS'].includes(project.value?.status || ''),
-)
+const projectAllowsPlanning = computed(() => ['PREPARING', 'IN_PROGRESS'].includes(project.value?.status || ''))
 const projectIsRunning = computed(() => project.value?.status === 'IN_PROGRESS')
 
 async function load() {
@@ -92,7 +88,9 @@ async function start() {
     await startTaskApi(id.value)
     ElMessage.success('任务已开始')
     await load()
-  } finally { actionBusy.value = false }
+  } finally {
+    actionBusy.value = false
+  }
 }
 
 async function submitTask() {
@@ -112,7 +110,9 @@ async function submitTask() {
     Object.assign(submitForm, { completionNote: '', resultUrl: '', testNote: '' })
     ElMessage.success('已提交审核')
     await load()
-  } finally { actionBusy.value = false }
+  } finally {
+    actionBusy.value = false
+  }
 }
 
 async function review(action: 'APPROVE' | 'REJECT') {
@@ -129,7 +129,9 @@ async function review(action: 'APPROVE' | 'REJECT') {
       await reviewTaskApi(id.value, { action, reviewNote: result.value || undefined })
       ElMessage.success(action === 'APPROVE' ? '任务已通过' : '任务已驳回')
       await load()
-    } finally { actionBusy.value = false }
+    } finally {
+      actionBusy.value = false
+    }
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') throw error
   }
@@ -148,7 +150,9 @@ async function cancel() {
       await cancelTaskApi(id.value, { reason: result.value })
       ElMessage.success('任务已取消')
       await load()
-    } finally { actionBusy.value = false }
+    } finally {
+      actionBusy.value = false
+    }
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') throw error
   }
@@ -163,7 +167,9 @@ async function assign() {
     assignVisible.value = false
     ElMessage.success('负责人已更新')
     await load()
-  } finally { actionBusy.value = false }
+  } finally {
+    actionBusy.value = false
+  }
 }
 
 async function addComment() {
@@ -188,17 +194,22 @@ onMounted(load)
     <template v-if="task">
       <article class="task-hero">
         <div class="hero-main">
-          <div class="eyebrow">
-            <StatusTag :value="task.status" /><StatusTag :value="task.priority || 'MEDIUM'" />
-          </div>
+          <div class="eyebrow"><StatusTag :value="task.status" /><StatusTag :value="task.priority || 'MEDIUM'" /></div>
           <h1>{{ task.title }}</h1>
           <p>{{ task.description || '暂无任务描述' }}</p>
         </div>
         <div class="actions">
-          <el-button v-if="isManager && projectAllowsPlanning && task.status === 'TODO'" :disabled="actionBusy" @click="assignVisible = true"
+          <el-button
+            v-if="isManager && projectAllowsPlanning && task.status === 'TODO'"
+            :disabled="actionBusy"
+            @click="assignVisible = true"
             >分配负责人</el-button
           >
-          <el-button v-if="isAssignee && projectIsRunning && task.status === 'TODO'" type="primary" :loading="actionBusy" @click="start"
+          <el-button
+            v-if="isAssignee && projectIsRunning && task.status === 'TODO'"
+            type="primary"
+            :loading="actionBusy"
+            @click="start"
             >开始任务</el-button
           >
           <el-button
@@ -215,7 +226,10 @@ onMounted(load)
             @click="review('APPROVE')"
             >审核通过</el-button
           >
-          <el-button v-if="isManager && projectIsRunning && task.status === 'REVIEW'" :disabled="actionBusy" @click="review('REJECT')"
+          <el-button
+            v-if="isManager && projectIsRunning && task.status === 'REVIEW'"
+            :disabled="actionBusy"
+            @click="review('REJECT')"
             >驳回修改</el-button
           >
           <el-button
@@ -250,32 +264,22 @@ onMounted(load)
             <h2>提交记录</h2>
             <span>{{ submissions.length }} 次</span>
           </div>
-          <el-alert v-if="submissionsLoadFailed" title="提交记录加载失败" type="error" :closable="false"><el-button link type="primary" @click="loadSubmissions">重新加载</el-button></el-alert>
+          <el-alert v-if="submissionsLoadFailed" title="提交记录加载失败" type="error" :closable="false"
+            ><el-button link type="primary" @click="loadSubmissions">重新加载</el-button></el-alert
+          >
           <el-empty v-if="!submissionsLoadFailed && !submissions.length" description="还没有提交记录" :image-size="80" />
           <div v-else class="timeline">
             <article v-for="submission in submissions" :key="submission.id" class="timeline-item">
               <div class="timeline-dot" />
               <div class="submission-card">
                 <div class="submission-head">
-                  <strong>第 {{ submission.submissionNo }} 次提交</strong
-                  ><StatusTag :value="submission.reviewStatus" />
+                  <strong>第 {{ submission.submissionNo }} 次提交</strong><StatusTag :value="submission.reviewStatus" />
                 </div>
                 <p>{{ submission.completionNote }}</p>
                 <p class="muted">测试说明：{{ submission.testNote }}</p>
-                <a
-                  v-if="submission.resultUrl"
-                  :href="submission.resultUrl"
-                  target="_blank"
-                  rel="noreferrer"
-                  >查看交付结果 ↗</a
-                >
-                <p v-if="submission.reviewNote" class="review-note">
-                  审核意见：{{ submission.reviewNote }}
-                </p>
-                <small
-                  >{{ submission.submitterName }} ·
-                  {{ formatDateTime(submission.submittedAt) }}</small
-                >
+                <a v-if="submission.resultUrl" :href="submission.resultUrl" target="_blank" rel="noreferrer">查看交付结果 ↗</a>
+                <p v-if="submission.reviewNote" class="review-note">&#32;审核意见：{{ submission.reviewNote }}</p>
+                <small>{{ submission.submitterName }} · {{ formatDateTime(submission.submittedAt) }}</small>
               </div>
             </article>
           </div>
@@ -295,20 +299,12 @@ onMounted(load)
               show-word-limit
               placeholder="记录进展、风险或需要协助的事项…"
             />
-            <el-button
-              type="primary"
-              :icon="ChatDotRound"
-              :loading="submittingComment"
-              @click="addComment"
-              >发布评论</el-button
-            >
+            <el-button type="primary" :icon="ChatDotRound" :loading="submittingComment" @click="addComment">发布评论</el-button>
           </div>
-          <el-alert v-if="commentsLoadFailed" title="讨论记录加载失败" type="error" :closable="false"><el-button link type="primary" @click="loadComments">重新加载</el-button></el-alert>
-          <el-empty
-            v-if="!commentsLoadFailed && !comments.length"
-            description="暂无讨论，来写第一条评论吧"
-            :image-size="72"
-          />
+          <el-alert v-if="commentsLoadFailed" title="讨论记录加载失败" type="error" :closable="false"
+            ><el-button link type="primary" @click="loadComments">重新加载</el-button></el-alert
+          >
+          <el-empty v-if="!commentsLoadFailed && !comments.length" description="暂无讨论，来写第一条评论吧" :image-size="72" />
           <article v-for="comment in comments" :key="comment.id" class="comment-item">
             <div class="avatar">{{ comment.authorName.slice(0, 1) }}</div>
             <div>
@@ -328,9 +324,7 @@ onMounted(load)
         <el-form-item label="完成说明" required
           ><el-input v-model="submitForm.completionNote" type="textarea" :rows="3"
         /></el-form-item>
-        <el-form-item label="成果链接"
-          ><el-input v-model="submitForm.resultUrl" placeholder="https://…"
-        /></el-form-item>
+        <el-form-item label="成果链接"><el-input v-model="submitForm.resultUrl" placeholder="https://…" /></el-form-item>
         <el-form-item label="测试说明" required
           ><el-input v-model="submitForm.testNote" type="textarea" :rows="3"
         /></el-form-item>

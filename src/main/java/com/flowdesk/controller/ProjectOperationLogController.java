@@ -27,8 +27,9 @@ public class ProjectOperationLogController {
     @Operation(summary = "查看项目操作日志")
     @GetMapping
     public Result<List<OperationLogVO>> getProjectLogs(
-            @PathVariable Long projectId,
-            @RequestParam(defaultValue = "50") int limit) {
+        @PathVariable Long projectId,
+        @RequestParam(defaultValue = "50") int limit
+    ) {
         return Result.success(operationLogService.getProjectLogs(projectId, limit));
     }
 }

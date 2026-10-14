@@ -38,56 +38,34 @@ async function submitAcceptance(payload: SubmitAcceptancePayload) {
     <p>填写对应 ID 后执行真实后端操作。</p>
   </section>
   <section class="inputs">
-    <el-input v-model="projectId" placeholder="项目 ID" /><el-input
-      v-model="taskId"
-      placeholder="任务 ID"
-    /><el-input v-model="requestId" placeholder="任务申请 ID" /><el-input
-      v-model="acceptanceId"
-      placeholder="验收 ID"
-    /><el-input v-model="username" placeholder="用户名 / 用户 ID" /><el-input
-      v-model="text"
-      placeholder="备注 / 原因 / 内容"
-    />
+    <el-input v-model="projectId" placeholder="项目 ID" /><el-input v-model="taskId" placeholder="任务 ID" /><el-input
+      v-model="requestId"
+      placeholder="任务申请 ID"
+    /><el-input v-model="acceptanceId" placeholder="验收 ID" /><el-input
+      v-model="username"
+      placeholder="用户名 / 用户 ID"
+    /><el-input v-model="text" placeholder="备注 / 原因 / 内容" />
   </section>
   <div class="grid">
     <article>
       <h4>项目与成员</h4>
-      <el-button @click="run('启动项目', () => apiPost(`/projects/${projectId}/start`))"
-        >启动</el-button
-      ><el-button
-        @click="run('取消项目', () => apiPost(`/projects/${projectId}/cancel`, { reason: text }))"
-        >取消</el-button
-      ><el-button @click="run('归档项目', () => apiPost(`/projects/${projectId}/archive`))"
-        >归档</el-button
-      ><el-button
-        @click="run('发送邀请', () => apiPost(`/projects/${projectId}/invitations`, { username }))"
-        >邀请成员</el-button
-      ><el-button @click="run('成员列表', () => apiGet(`/projects/${projectId}/members`))"
-        >成员列表</el-button
-      >
+      <el-button @click="run('启动项目', () => apiPost(`/projects/${projectId}/start`))">启动</el-button
+      ><el-button @click="run('取消项目', () => apiPost(`/projects/${projectId}/cancel`, { reason: text }))">取消</el-button
+      ><el-button @click="run('归档项目', () => apiPost(`/projects/${projectId}/archive`))">归档</el-button
+      ><el-button @click="run('发送邀请', () => apiPost(`/projects/${projectId}/invitations`, { username }))">邀请成员</el-button
+      ><el-button @click="run('成员列表', () => apiGet(`/projects/${projectId}/members`))">成员列表</el-button>
     </article>
     <article>
       <h4>任务协作</h4>
-      <el-button
-        @click="
-          run('分配负责人', () =>
-            apiPatch(`/tasks/${taskId}/assignee`, { assigneeId: Number(username) }),
-          )
-        "
+      <el-button @click="run('分配负责人', () => apiPatch(`/tasks/${taskId}/assignee`, { assigneeId: Number(username) }))"
         >分配负责人</el-button
-      ><el-button
-        @click="run('发表评论', () => apiPost(`/tasks/${taskId}/comments`, { content: text }))"
-        >发表评论</el-button
-      ><el-button @click="run('评论列表', () => apiGet(`/tasks/${taskId}/comments`))"
-        >评论列表</el-button
-      ><el-button @click="run('提交历史', () => apiGet(`/tasks/${taskId}/submissions`))"
-        >提交历史</el-button
-      >
+      ><el-button @click="run('发表评论', () => apiPost(`/tasks/${taskId}/comments`, { content: text }))">发表评论</el-button
+      ><el-button @click="run('评论列表', () => apiGet(`/tasks/${taskId}/comments`))">评论列表</el-button
+      ><el-button @click="run('提交历史', () => apiGet(`/tasks/${taskId}/submissions`))">提交历史</el-button>
     </article>
     <article>
       <h4>任务申请</h4>
-      <el-button @click="run('申请列表', () => apiGet(`/projects/${projectId}/task-requests`))"
-        >申请列表</el-button
+      <el-button @click="run('申请列表', () => apiGet(`/projects/${projectId}/task-requests`))">申请列表</el-button
       ><el-button
         @click="
           run('创建申请', () =>
@@ -119,19 +97,14 @@ async function submitAcceptance(payload: SubmitAcceptancePayload) {
           )
         "
         >驳回</el-button
-      ><el-button
-        @click="
-          run('撤回申请', () => apiPost(`/projects/${projectId}/task-requests/${requestId}/cancel`))
-        "
+      ><el-button @click="run('撤回申请', () => apiPost(`/projects/${projectId}/task-requests/${requestId}/cancel`))"
         >撤回</el-button
       >
     </article>
     <article>
       <h4>项目验收与管理员</h4>
-      <el-button :loading="acceptanceBusy" @click="acceptanceDialog = true"
-        >提交验收</el-button
-      ><el-button @click="run('验收列表', () => apiGet('/admin/project-acceptances'))"
-        >验收列表</el-button
+      <el-button :loading="acceptanceBusy" @click="acceptanceDialog = true">提交验收</el-button
+      ><el-button @click="run('验收列表', () => apiGet('/admin/project-acceptances'))">验收列表</el-button
       ><el-button
         @click="
           run('验收通过', () =>

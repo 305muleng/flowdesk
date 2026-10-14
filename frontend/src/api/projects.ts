@@ -11,24 +11,19 @@ import type {
 } from '@/types/api'
 
 export const getMyProjectsApi = () => request.get<ApiResult<Project[]>>('/projects')
-export const createProjectApi = (payload: CreateProjectPayload) =>
-  request.post<ApiResult<number>>('/projects', payload)
-export const getProjectApi = (projectId: string | number) =>
-  request.get<ApiResult<Project>>(`/projects/${projectId}`)
+export const createProjectApi = (payload: CreateProjectPayload) => request.post<ApiResult<number>>('/projects', payload)
+export const getProjectApi = (projectId: string | number) => request.get<ApiResult<Project>>(`/projects/${projectId}`)
 export const getProjectMembersApi = (projectId: string | number) =>
   request.get<ApiResult<ProjectMember[]>>(`/projects/${projectId}/members`)
-export const getProjectTasksApi = (projectId: string | number) =>
-  request.get<ApiResult<Task[]>>(`/projects/${projectId}/tasks`)
+export const getProjectTasksApi = (projectId: string | number) => request.get<ApiResult<Task[]>>(`/projects/${projectId}/tasks`)
 export const createTaskApi = (projectId: string | number, payload: CreateTaskPayload) =>
   request.post<ApiResult<number>>(`/projects/${projectId}/tasks`, payload)
 export const sendInvitationApi = (projectId: string | number, username: string) =>
   request.post<ApiResult<number>>(`/projects/${projectId}/invitations`, { username })
-export const startProjectApi = (projectId: string | number) =>
-  request.post<ApiResult<void>>(`/projects/${projectId}/start`)
+export const startProjectApi = (projectId: string | number) => request.post<ApiResult<void>>(`/projects/${projectId}/start`)
 export const cancelProjectApi = (projectId: string | number, reason: string) =>
   request.post<ApiResult<void>>(`/projects/${projectId}/cancel`, { reason })
-export const archiveProjectApi = (projectId: string | number) =>
-  request.post<ApiResult<void>>(`/projects/${projectId}/archive`)
+export const archiveProjectApi = (projectId: string | number) => request.post<ApiResult<void>>(`/projects/${projectId}/archive`)
 export interface SubmitAcceptancePayload {
   submissionNote: string
   repositoryUrl: string | null

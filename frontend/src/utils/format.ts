@@ -50,9 +50,6 @@ const tagTypes: Record<string, TagType> = {
 
 export const statusLabel = (value?: string) => (value ? labels[value] || value : '—')
 export const statusType = (value?: string): TagType => (value ? tagTypes[value] || 'info' : 'info')
-export const formatDate = (value?: string) =>
-  value ? new Date(value).toLocaleDateString('zh-CN') : '—'
-export const formatDateTime = (value?: string) =>
-  value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—'
-export const isOverdue = (value?: string) =>
-  Boolean(value && new Date(value).getTime() < Date.now())
+export const formatDate = (value?: string) => (value ? new Date(value).toLocaleDateString('zh-CN') : '—')
+export const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—')
+export const isOverdue = (value?: string) => Boolean(value && new Date(value).getTime() < Date.now())

@@ -11,9 +11,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 @Mapper
-public interface ProjectManagerTransferMapper
-        extends BaseMapper<ProjectManagerTransfer> {
-
+public interface ProjectManagerTransferMapper extends BaseMapper<ProjectManagerTransfer> {
     @Update("""
         UPDATE project_manager_transfer
         SET status = 'ACCEPTED',
@@ -25,11 +23,11 @@ public interface ProjectManagerTransferMapper
           AND expires_at > #{now}
         """)
     int acceptIfPending(
-            @Param("transferId") Long transferId,
-            @Param("projectId") Long projectId,
-            @Param("toUserId") Long toUserId,
-            @Param("respondedAt") LocalDateTime respondedAt,
-            @Param("now") LocalDateTime now
+        @Param("transferId") Long transferId,
+        @Param("projectId") Long projectId,
+        @Param("toUserId") Long toUserId,
+        @Param("respondedAt") LocalDateTime respondedAt,
+        @Param("now") LocalDateTime now
     );
 
     @Update("""
@@ -43,11 +41,11 @@ public interface ProjectManagerTransferMapper
           AND expires_at > #{now}
         """)
     int rejectIfPending(
-            @Param("transferId") Long transferId,
-            @Param("projectId") Long projectId,
-            @Param("toUserId") Long toUserId,
-            @Param("respondedAt") LocalDateTime respondedAt,
-            @Param("now") LocalDateTime now
+        @Param("transferId") Long transferId,
+        @Param("projectId") Long projectId,
+        @Param("toUserId") Long toUserId,
+        @Param("respondedAt") LocalDateTime respondedAt,
+        @Param("now") LocalDateTime now
     );
 
     @Update("""
@@ -61,11 +59,11 @@ public interface ProjectManagerTransferMapper
           AND expires_at > #{now}
         """)
     int cancelIfPending(
-            @Param("transferId") Long transferId,
-            @Param("projectId") Long projectId,
-            @Param("fromUserId") Long fromUserId,
-            @Param("cancelledAt") LocalDateTime cancelledAt,
-            @Param("now") LocalDateTime now
+        @Param("transferId") Long transferId,
+        @Param("projectId") Long projectId,
+        @Param("fromUserId") Long fromUserId,
+        @Param("cancelledAt") LocalDateTime cancelledAt,
+        @Param("now") LocalDateTime now
     );
 
     @Select("""
@@ -104,8 +102,5 @@ public interface ProjectManagerTransferMapper
 
         LIMIT 1
         """)
-    ProjectManagerTransferVO selectDetail(
-            @Param("projectId") Long projectId,
-            @Param("transferId") Long transferId
-    );
+    ProjectManagerTransferVO selectDetail(@Param("projectId") Long projectId, @Param("transferId") Long transferId);
 }

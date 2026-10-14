@@ -4,13 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import {
-  disableAdminUserApi,
-  enableAdminUserApi,
-  getAdminUsersApi,
-  type AdminUser,
-  type AdminUserQuery,
-} from '@/api/adminUsers'
+import { disableAdminUserApi, enableAdminUserApi, getAdminUsersApi, type AdminUser, type AdminUserQuery } from '@/api/adminUsers'
 import { useAuthStore } from '@/stores/auth'
 import { formatDateTime, statusLabel } from '@/utils/format'
 
@@ -119,22 +113,12 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader
-    eyebrow="SYSTEM ADMIN"
-    title="用户管理"
-    description="查询系统用户并管理账号可用状态。角色变更不在当前版本范围内。"
-  >
+  <PageHeader eyebrow="SYSTEM ADMIN" title="用户管理" description="查询系统用户并管理账号可用状态。角色变更不在当前版本范围内。">
     <el-button :icon="Refresh" circle :loading="loading" @click="load" />
   </PageHeader>
 
   <section class="surface-card filter-panel">
-    <el-input
-      v-model="query.keyword"
-      clearable
-      :prefix-icon="Search"
-      placeholder="搜索用户名或姓名"
-      @keyup.enter="search"
-    />
+    <el-input v-model="query.keyword" clearable :prefix-icon="Search" placeholder="搜索用户名或姓名" @keyup.enter="search" />
     <el-select v-model="query.status" clearable placeholder="账号状态">
       <el-option label="正常" value="ACTIVE" />
       <el-option label="已禁用" value="DISABLED" />
@@ -149,14 +133,7 @@ onMounted(load)
     </div>
   </section>
 
-  <el-alert
-    v-if="error"
-    class="load-error"
-    :title="error"
-    type="error"
-    show-icon
-    :closable="false"
-  >
+  <el-alert v-if="error" class="load-error" :title="error" type="error" show-icon :closable="false">
     <template #default><el-button link type="primary" @click="load">重新加载</el-button></template>
   </el-alert>
 
@@ -165,8 +142,13 @@ onMounted(load)
       <el-table-column label="用户" min-width="190">
         <template #default="{ row }">
           <div class="user-cell">
-            <span><el-icon><UserFilled /></el-icon></span>
-            <div><strong>{{ row.realName || row.username }}</strong><small>@{{ row.username }}</small></div>
+            <span
+              ><el-icon><UserFilled /></el-icon
+            ></span>
+            <div>
+              <strong>{{ row.realName || row.username }}</strong
+              ><small>@{{ row.username }}</small>
+            </div>
           </div>
         </template>
       </el-table-column>
@@ -188,11 +170,7 @@ onMounted(load)
       </el-table-column>
       <el-table-column label="操作" fixed="right" width="110" align="right">
         <template #default="{ row }">
-          <el-tooltip
-            :disabled="!(row.status === 'ACTIVE' && isCurrentUser(row))"
-            content="不能禁用当前账号"
-            placement="top"
-          >
+          <el-tooltip :disabled="!(row.status === 'ACTIVE' && isCurrentUser(row))" content="不能禁用当前账号" placement="top">
             <span>
               <el-button
                 :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
@@ -209,7 +187,9 @@ onMounted(load)
       </el-table-column>
     </el-table>
     <footer class="pagination-row">
-      <span>共 {{ total }} 位用户<span v-if="pages"> · {{ pages }} 页</span></span>
+      <span
+        >共 {{ total }} 位用户<span v-if="pages"> · {{ pages }} 页</span></span
+      >
       <el-pagination
         background
         :current-page="query.page"

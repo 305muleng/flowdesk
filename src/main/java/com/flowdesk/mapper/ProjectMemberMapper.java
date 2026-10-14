@@ -19,8 +19,7 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
         WHERE project_id = #{projectId} AND user_id = #{userId}
         FOR UPDATE
         """)
-    ProjectMember selectMemberForUpdate(@Param("projectId") Long projectId,
-                                       @Param("userId") Long userId);
+    ProjectMember selectMemberForUpdate(@Param("projectId") Long projectId, @Param("userId") Long userId);
 
     @Select("""
         SELECT
@@ -61,8 +60,7 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
           AND u.system_role = 'USER'
         LIMIT 1
         """)
-    ProjectMemberVO selectActiveProjectManager(
-            @Param("projectId") Long projectId);
+    ProjectMemberVO selectActiveProjectManager(@Param("projectId") Long projectId);
 
     @Update("""
         UPDATE project_member
@@ -75,9 +73,10 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
           AND status = 'ACTIVE'
         """)
     int deactivateDeveloperIfActive(
-            @Param("projectId") Long projectId,
-            @Param("userId") Long userId,
-            @Param("leftAt") LocalDateTime leftAt);
+        @Param("projectId") Long projectId,
+        @Param("userId") Long userId,
+        @Param("leftAt") LocalDateTime leftAt
+    );
 
     @Update("""
         UPDATE project_member
@@ -89,9 +88,7 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
         WHERE id = #{memberId}
           AND status = 'INACTIVE'
         """)
-    int reactivateAsDeveloper(
-            @Param("memberId") Long memberId,
-            @Param("joinedAt") LocalDateTime joinedAt);
+    int reactivateAsDeveloper(@Param("memberId") Long memberId, @Param("joinedAt") LocalDateTime joinedAt);
 
     @Update("""
         UPDATE project_member
@@ -103,9 +100,9 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
           AND status = 'ACTIVE'
         """)
     int promoteDeveloperToManager(
-            @Param("projectId") Long projectId,
-            @Param("userId") Long userId,
-            @Param("updatedAt") LocalDateTime updatedAt
+        @Param("projectId") Long projectId,
+        @Param("userId") Long userId,
+        @Param("updatedAt") LocalDateTime updatedAt
     );
 
     @Update("""
@@ -118,10 +115,7 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
         WHERE id = #{memberId}
           AND status = 'INACTIVE'
         """)
-    int reactivateAsManager(
-            @Param("memberId") Long memberId,
-            @Param("joinedAt") LocalDateTime joinedAt
-    );
+    int reactivateAsManager(@Param("memberId") Long memberId, @Param("joinedAt") LocalDateTime joinedAt);
 
     @Update("""
         UPDATE project_member
@@ -135,9 +129,9 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
           AND status = 'ACTIVE'
         """)
     int demoteManagerToDeveloper(
-            @Param("projectId") Long projectId,
-            @Param("userId") Long userId,
-            @Param("updatedAt") LocalDateTime updatedAt
+        @Param("projectId") Long projectId,
+        @Param("userId") Long userId,
+        @Param("updatedAt") LocalDateTime updatedAt
     );
 
     @Update("""
@@ -151,9 +145,9 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
           AND status = 'ACTIVE'
         """)
     int deactivateManagerIfActive(
-            @Param("projectId") Long projectId,
-            @Param("userId") Long userId,
-            @Param("leftAt") LocalDateTime leftAt
+        @Param("projectId") Long projectId,
+        @Param("userId") Long userId,
+        @Param("leftAt") LocalDateTime leftAt
     );
 
     @Select("""
@@ -172,9 +166,7 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
           )
           AND p.deleted_at IS NULL
         """)
-    Long countActiveManagedProjects(
-            @Param("userId") Long userId
-    );
+    Long countActiveManagedProjects(@Param("userId") Long userId);
 
     @Select("""
     SELECT
@@ -191,7 +183,5 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
 
     ORDER BY pm.joined_at ASC, pm.id ASC
     """)
-    List<MemberAcceptanceVO> selectAcceptanceMembers(
-            @Param("projectId") Long projectId
-    );
+    List<MemberAcceptanceVO> selectAcceptanceMembers(@Param("projectId") Long projectId);
 }

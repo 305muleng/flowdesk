@@ -11,7 +11,6 @@ import java.util.List;
 
 @Mapper
 public interface TaskCommentMapper extends BaseMapper<TaskComment> {
-
     @Select("""
             SELECT
                 tc.id AS id,

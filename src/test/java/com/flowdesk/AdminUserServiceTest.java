@@ -26,11 +26,14 @@ public class AdminUserServiceTest {
     @Mock
     private UserMapper userMapper;
 
-    @Mock private com.flowdesk.mapper.ProjectMemberMapper projectMemberMapper;
+    @Mock
+    private com.flowdesk.mapper.ProjectMemberMapper projectMemberMapper;
+
     @org.junit.jupiter.api.BeforeEach
     void setUpMemberships() {
         org.mockito.Mockito.lenient().when(projectMemberMapper.countActiveManagedProjects(any())).thenReturn(0L);
     }
+
     @InjectMocks
     private AdminUserService adminUserService;
 
@@ -45,31 +48,20 @@ public class AdminUserServiceTest {
      */
     @Test
     void disableUserChangesStatusToDisabled() {
-
         User user = new User();
         user.setId(2L);
         user.setStatus("ACTIVE");
 
         // 当前登录的是管理员 1
-        UserContext.set(
-                new CurrentUser(
-                        1L,
-                        "SYSTEM_ADMIN"
-                )
-        );
+        UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
 
-        when(userMapper.selectByIdForUpdate(2L))
-                .thenReturn(user);
+        when(userMapper.selectByIdForUpdate(2L)).thenReturn(user);
 
         adminUserService.disableUser(2L);
 
-        assertEquals(
-                "DISABLED",
-                user.getStatus()
-        );
+        assertEquals("DISABLED", user.getStatus());
 
-        verify(userMapper)
-                .updateById(user);
+        verify(userMapper).updateById(user);
     }
 
     /**
@@ -78,30 +70,19 @@ public class AdminUserServiceTest {
      */
     @Test
     void enableUserChangesStatusToActive() {
-
         User user = new User();
         user.setId(2L);
         user.setStatus("DISABLED");
 
-        UserContext.set(
-                new CurrentUser(
-                        1L,
-                        "SYSTEM_ADMIN"
-                )
-        );
+        UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
 
-        when(userMapper.selectById(2L))
-                .thenReturn(user);
+        when(userMapper.selectById(2L)).thenReturn(user);
 
         adminUserService.enableUser(2L);
 
-        assertEquals(
-                "ACTIVE",
-                user.getStatus()
-        );
+        assertEquals("ACTIVE", user.getStatus());
 
-        verify(userMapper)
-                .updateById(user);
+        verify(userMapper).updateById(user);
     }
 
     /**
@@ -109,34 +90,18 @@ public class AdminUserServiceTest {
      */
     @Test
     void adminCannotDisableSelf() {
-
         User admin = new User();
         admin.setId(1L);
         admin.setStatus("ACTIVE");
         admin.setSystemRole("SYSTEM_ADMIN");
 
-        UserContext.set(
-                new CurrentUser(
-                        1L,
-                        "SYSTEM_ADMIN"
-                )
-        );
+        UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
 
-        when(userMapper.selectByIdForUpdate(1L))
-                .thenReturn(admin);
+        when(userMapper.selectByIdForUpdate(1L)).thenReturn(admin);
 
-        BusinessException exception =
-                assertThrows(
-                        BusinessException.class,
-                        () ->
-                                adminUserService
-                                        .disableUser(1L)
-                );
+        BusinessException exception = assertThrows(BusinessException.class, () -> adminUserService.disableUser(1L));
 
-        assertEquals(
-                "不能禁用自己的账号",
-                exception.getMessage()
-        );
+        assertEquals("不能禁用自己的账号", exception.getMessage());
     }
 
     @Test
@@ -168,14 +133,8 @@ public class AdminUserServiceTest {
     void missingUserCannotBeDisabledOrEnabled() {
         when(userMapper.selectById(99L)).thenReturn(null);
 
-        BusinessException disable = assertThrows(
-                BusinessException.class,
-                () -> adminUserService.disableUser(99L)
-        );
-        BusinessException enable = assertThrows(
-                BusinessException.class,
-                () -> adminUserService.enableUser(99L)
-        );
+        BusinessException disable = assertThrows(BusinessException.class, () -> adminUserService.disableUser(99L));
+        BusinessException enable = assertThrows(BusinessException.class, () -> adminUserService.enableUser(99L));
 
         assertEquals(404, disable.getCode());
         assertEquals(404, enable.getCode());
@@ -183,15 +142,25 @@ public class AdminUserServiceTest {
 
     @Test
     void invalidPaginationAndFiltersAreRejected() {
-        assertEquals(400, assertThrows(BusinessException.class,
-                () -> adminUserService.getUsers(0, 10, null, null, null)).getCode());
-        assertEquals(400, assertThrows(BusinessException.class,
-                () -> adminUserService.getUsers(1, 0, null, null, null)).getCode());
-        assertEquals(400, assertThrows(BusinessException.class,
-                () -> adminUserService.getUsers(1, 101, null, null, null)).getCode());
-        assertEquals(400, assertThrows(BusinessException.class,
-                () -> adminUserService.getUsers(1, 10, null, "ABC", null)).getCode());
-        assertEquals(400, assertThrows(BusinessException.class,
-                () -> adminUserService.getUsers(1, 10, null, null, "ROOT")).getCode());
+        assertEquals(
+            400,
+            assertThrows(BusinessException.class, () -> adminUserService.getUsers(0, 10, null, null, null)).getCode()
+        );
+        assertEquals(
+            400,
+            assertThrows(BusinessException.class, () -> adminUserService.getUsers(1, 0, null, null, null)).getCode()
+        );
+        assertEquals(
+            400,
+            assertThrows(BusinessException.class, () -> adminUserService.getUsers(1, 101, null, null, null)).getCode()
+        );
+        assertEquals(
+            400,
+            assertThrows(BusinessException.class, () -> adminUserService.getUsers(1, 10, null, "ABC", null)).getCode()
+        );
+        assertEquals(
+            400,
+            assertThrows(BusinessException.class, () -> adminUserService.getUsers(1, 10, null, null, "ROOT")).getCode()
+        );
     }
 }

@@ -5,5 +5,4 @@ import com.flowdesk.model.Notification;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface NotificationMapper extends BaseMapper<Notification> {
-}
+public interface NotificationMapper extends BaseMapper<Notification> {}

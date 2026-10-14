@@ -57,14 +57,11 @@ onMounted(load)
     />
   </section>
   <section v-loading="loading" class="task-list">
-    <el-alert v-if="taskLoadFailed" title="任务数据加载失败，请重试" type="error" :closable="false"><el-button link type="primary" @click="load">重新加载</el-button></el-alert>
-    <el-empty v-if="!loading && !taskLoadFailed && !filteredTasks.length" description="当前筛选下没有任务" />
-    <article
-      v-for="task in filteredTasks"
-      :key="task.id"
-      class="task-row"
-      @click="router.push('/tasks/' + task.id)"
+    <el-alert v-if="taskLoadFailed" title="任务数据加载失败，请重试" type="error" :closable="false"
+      ><el-button link type="primary" @click="load">重新加载</el-button></el-alert
     >
+    <el-empty v-if="!loading && !taskLoadFailed && !filteredTasks.length" description="当前筛选下没有任务" />
+    <article v-for="task in filteredTasks" :key="task.id" class="task-row" @click="router.push('/tasks/' + task.id)">
       <div class="priority" :class="(task.priority || 'MEDIUM').toLowerCase()" />
       <div class="task-main">
         <div class="task-title">

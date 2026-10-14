@@ -3,6 +3,7 @@ package com.flowdesk.vo;
 import java.util.List;
 
 public class MemberAcceptanceVO {
+
     private Long userId;
     private String userName;
     private String role;

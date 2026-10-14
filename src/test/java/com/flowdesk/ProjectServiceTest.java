@@ -53,25 +53,39 @@ public class ProjectServiceTest {
     @Mock
     private OperationLogService operationLogService;
 
-    @Mock private com.flowdesk.mapper.UserMapper userMapper;
-    @Mock private com.flowdesk.mapper.TaskMapper taskMapper;
-    @Mock private com.flowdesk.mapper.TaskRequestMapper taskRequestMapper;
-    @Mock private com.flowdesk.mapper.MemberLeaveRequestMapper memberLeaveRequestMapper;
-    @Mock private com.flowdesk.service.NotificationService notificationService;
+    @Mock
+    private com.flowdesk.mapper.UserMapper userMapper;
+
+    @Mock
+    private com.flowdesk.mapper.TaskMapper taskMapper;
+
+    @Mock
+    private com.flowdesk.mapper.TaskRequestMapper taskRequestMapper;
+
+    @Mock
+    private com.flowdesk.mapper.MemberLeaveRequestMapper memberLeaveRequestMapper;
+
+    @Mock
+    private com.flowdesk.service.NotificationService notificationService;
+
     @InjectMocks
     private ProjectService projectService;
 
     @BeforeEach
     void setUpAtomicTransitions() {
-        lenient().when(userMapper.selectByIdForUpdate(anyLong())).thenAnswer(invocation -> {
-            com.flowdesk.model.User user = new com.flowdesk.model.User();
-            user.setId(invocation.getArgument(0));
-            user.setStatus("ACTIVE");
-            user.setSystemRole(UserContext.get().getSystemRole());
-            return user;
-        });
+        lenient()
+            .when(userMapper.selectByIdForUpdate(anyLong()))
+            .thenAnswer(invocation -> {
+                com.flowdesk.model.User user = new com.flowdesk.model.User();
+                user.setId(invocation.getArgument(0));
+                user.setStatus("ACTIVE");
+                user.setSystemRole(UserContext.get().getSystemRole());
+                return user;
+            });
         lenient().when(projectMapper.startIfPreparing(anyLong(), any())).thenReturn(1);
-        lenient().when(projectMapper.cancelIfActive(anyLong(), any(), any())).thenReturn(1);
+        lenient()
+            .when(projectMapper.cancelIfActive(anyLong(), any(), any()))
+            .thenReturn(1);
         lenient().when(projectMapper.archiveIfCompleted(anyLong(), any())).thenReturn(1);
     }
 
@@ -82,26 +96,18 @@ public class ProjectServiceTest {
 
     @Test
     void systemAdminCannotCreateProject() {
-
-        UserContext.set(
-                new CurrentUser(1L, "SYSTEM_ADMIN")
-        );
+        UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
 
         CreateProjectDTO dto = new CreateProjectDTO();
         dto.setName("FlowDesk");
 
-        BusinessException exception =
-                assertThrows(
-                        BusinessException.class,
-                        () -> projectService.createProject(dto)
-                );
+        BusinessException exception = assertThrows(BusinessException.class, () -> projectService.createProject(dto));
 
         assertEquals(403, exception.getCode());
         assertEquals("系统管理员不能创建项目", exception.getMessage());
 
         verify(projectMapper, never()).insert(any(Project.class));
-        verify(projectMemberMapper, never())
-                .insert(any(ProjectMember.class));
+        verify(projectMemberMapper, never()).insert(any(ProjectMember.class));
     }
 
     @Test
@@ -114,7 +120,9 @@ public class ProjectServiceTest {
             Project project = invocation.getArgument(0);
             project.setId(4L);
             return 1;
-        }).when(projectMapper).insert(any(Project.class));
+        })
+            .when(projectMapper)
+            .insert(any(Project.class));
 
         Long projectId = projectService.createProject(dto);
 
@@ -138,15 +146,18 @@ public class ProjectServiceTest {
             Project project = invocation.getArgument(0);
             project.setId(4L);
             return 1;
-        }).when(projectMapper).insert(any(Project.class));
-        doThrow(new RuntimeException("member insert failed"))
-                .when(projectMemberMapper).insert(any(ProjectMember.class));
+        })
+            .when(projectMapper)
+            .insert(any(Project.class));
+        doThrow(new RuntimeException("member insert failed")).when(projectMemberMapper).insert(any(ProjectMember.class));
 
         assertThrows(RuntimeException.class, () -> projectService.createProject(dto));
         verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
-        assertNotNull(ProjectService.class
+        assertNotNull(
+            ProjectService.class
                 .getMethod("createProject", CreateProjectDTO.class)
-                .getAnnotation(org.springframework.transaction.annotation.Transactional.class));
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class)
+        );
     }
 
     @Test
@@ -159,115 +170,65 @@ public class ProjectServiceTest {
 
     @Test
     void preparingProjectCanBeStarted() {
-
         Project project = new Project();
         project.setId(4L);
         project.setStatus("PREPARING");
 
-        UserContext.set(
-                new CurrentUser(1L, "USER")
-        );
+        UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectById(4L))
-                .thenReturn(project);
+        when(projectMapper.selectById(4L)).thenReturn(project);
 
         projectService.startProject(4L);
 
-        assertEquals(
-                "IN_PROGRESS",
-                project.getStatus()
-        );
+        assertEquals("IN_PROGRESS", project.getStatus());
 
-        assertNotNull(
-                project.getStartTime()
-        );
+        assertNotNull(project.getStartTime());
 
-        verify(projectMapper)
-                .startIfPreparing(eq(4L), any());
+        verify(projectMapper).startIfPreparing(eq(4L), any());
 
-        verify(operationLogService)
-                .record(
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any()
-                );
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void completedProjectCanBeArchived() {
-
         Project project = new Project();
         project.setId(4L);
         project.setStatus("COMPLETED");
 
-        UserContext.set(
-                new CurrentUser(1L, "USER")
-        );
+        UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectById(4L))
-                .thenReturn(project);
+        when(projectMapper.selectById(4L)).thenReturn(project);
 
         projectService.archiveProject(4L);
 
-        assertEquals(
-                "ARCHIVED",
-                project.getStatus()
-        );
+        assertEquals("ARCHIVED", project.getStatus());
 
-        verify(projectMapper)
-                .archiveIfCompleted(eq(4L), any());
+        verify(projectMapper).archiveIfCompleted(eq(4L), any());
 
-        verify(operationLogService)
-                .record(
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any()
-                );
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"PREPARING", "IN_PROGRESS"})
+    @ValueSource(strings = { "PREPARING", "IN_PROGRESS" })
     void activeProjectCanBeCancelled(String initialStatus) {
-
         Project project = new Project();
         project.setId(4L);
         project.setStatus(initialStatus);
 
-        UserContext.set(
-                new CurrentUser(1L, "USER")
-        );
+        UserContext.set(new CurrentUser(1L, "USER"));
 
         CancelProjectDTO dto = new CancelProjectDTO();
         dto.setReason("测试取消项目");
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         projectService.cancelProject(4L, dto);
 
-        assertEquals(
-                "CANCELLED",
-                project.getStatus()
-        );
+        assertEquals("CANCELLED", project.getStatus());
 
-        assertEquals(
-                "测试取消项目",
-                project.getCancelReason()
-        );
+        assertEquals("测试取消项目", project.getCancelReason());
 
-        assertNotNull(
-                project.getCancelledAt()
-        );
+        assertNotNull(project.getCancelledAt());
 
         InOrder order = inOrder(projectMapper);
         order.verify(projectMapper).selectByIdForUpdate(4L);
@@ -286,8 +247,7 @@ public class ProjectServiceTest {
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class, () -> projectService.cancelProject(4L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () -> projectService.cancelProject(4L, dto));
 
         assertEquals(409, exception.getCode());
         verify(projectMapper).selectByIdForUpdate(4L);
@@ -297,25 +257,17 @@ public class ProjectServiceTest {
 
     @Test
     void nonCompletedProjectCannotBeArchived() {
-
         Project project = new Project();
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        when(projectMapper.selectById(4L))
-                .thenReturn(project);
+        when(projectMapper.selectById(4L)).thenReturn(project);
 
-        BusinessException exception =
-                assertThrows(
-                        BusinessException.class,
-                        () -> projectService.archiveProject(4L)
-                );
+        BusinessException exception = assertThrows(BusinessException.class, () -> projectService.archiveProject(4L));
 
-        assertEquals(
-                "只有已完成的项目可以归档",
-                exception.getMessage()
-        );
+        assertEquals("只有已完成的项目可以归档", exception.getMessage());
     }
+
     @Test
     void concurrentProjectTransitionDoesNotWriteMisleadingLog() {
         Project project = new Project();
@@ -325,8 +277,7 @@ public class ProjectServiceTest {
         when(projectMapper.selectById(4L)).thenReturn(project);
         when(projectMapper.archiveIfCompleted(eq(4L), any())).thenReturn(0);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class, () -> projectService.archiveProject(4L));
+        BusinessException exception = assertThrows(BusinessException.class, () -> projectService.archiveProject(4L));
 
         assertEquals(409, exception.getCode());
         verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());

@@ -38,9 +38,8 @@ class ProjectPermissionServiceTest {
     void systemAdminCannotUseHistoricalProjectMembership() {
         UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> projectPermissionService.requireProjectMember(4L)
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectPermissionService.requireProjectMember(4L)
         );
 
         assertEquals(403, exception.getCode());
@@ -53,9 +52,8 @@ class ProjectPermissionServiceTest {
         UserContext.set(new CurrentUser(2L, "USER"));
         when(projectMemberMapper.selectOne(any())).thenReturn(null);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> projectPermissionService.requireProjectMember(4L)
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectPermissionService.requireProjectMember(4L)
         );
 
         assertEquals(403, exception.getCode());
@@ -68,9 +66,8 @@ class ProjectPermissionServiceTest {
         member.setRole("DEVELOPER");
         when(projectMemberMapper.selectOne(any())).thenReturn(member);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> projectPermissionService.requireProjectManager(4L)
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectPermissionService.requireProjectManager(4L)
         );
 
         assertEquals(403, exception.getCode());

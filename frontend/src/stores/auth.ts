@@ -17,9 +17,7 @@ function savedUser(): LoginUser | null {
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem(TOKEN_KEY) || '')
   const user = ref<LoginUser | null>(savedUser())
-  const displayName = computed(
-    () => user.value?.realName || user.value?.username || 'FlowDesk 用户',
-  )
+  const displayName = computed(() => user.value?.realName || user.value?.username || 'FlowDesk 用户')
   const isSystemAdmin = computed(() => user.value?.systemRole === 'SYSTEM_ADMIN')
   async function login(payload: LoginPayload) {
     const { data } = await loginApi(payload)

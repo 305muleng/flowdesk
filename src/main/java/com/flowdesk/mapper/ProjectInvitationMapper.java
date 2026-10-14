@@ -12,9 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
-public interface ProjectInvitationMapper
-        extends BaseMapper<ProjectInvitation> {
-
+public interface ProjectInvitationMapper extends BaseMapper<ProjectInvitation> {
     @Update("""
             UPDATE project_invitation
             SET status = #{newStatus}, responded_at = #{respondedAt}
@@ -22,9 +20,10 @@ public interface ProjectInvitationMapper
               AND (#{newStatus} != 'ACCEPTED' OR expires_at > #{respondedAt})
             """)
     int transitionPending(
-            @Param("invitationId") Long invitationId,
-            @Param("newStatus") String newStatus,
-            @Param("respondedAt") LocalDateTime respondedAt);
+        @Param("invitationId") Long invitationId,
+        @Param("newStatus") String newStatus,
+        @Param("respondedAt") LocalDateTime respondedAt
+    );
 
     @Select("""
             SELECT
@@ -71,7 +70,8 @@ public interface ProjectInvitationMapper
             ORDER BY pi.created_at DESC
             """)
     List<InvitationVO> selectMyInvitations(
-            @Param("inviteeId") Long inviteeId,
-            @Param("filter") String filter,
-            @Param("now") LocalDateTime now);
+        @Param("inviteeId") Long inviteeId,
+        @Param("filter") String filter,
+        @Param("now") LocalDateTime now
+    );
 }

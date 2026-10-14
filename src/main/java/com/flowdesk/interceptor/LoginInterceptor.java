@@ -28,23 +28,13 @@ public class LoginInterceptor implements HandlerInterceptor {
     }
 
     @Override
-    public boolean preHandle(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Object handler) throws Exception {
-
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         UserContext.remove();
 
         String authorization = request.getHeader("Authorization");
 
-        if (authorization == null
-                || !authorization.startsWith("Bearer ")) {
-
-            ResponseUtil.writeErrorResponse(
-                    response,
-                    401,
-                    "未登录"
-            );
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            ResponseUtil.writeErrorResponse(response, 401, "未登录");
 
             return false;
         }
@@ -59,12 +49,7 @@ public class LoginInterceptor implements HandlerInterceptor {
             claims = jwtUtil.parseToken(token);
             userId = Long.valueOf(claims.getSubject());
         } catch (Exception e) {
-
-            ResponseUtil.writeErrorResponse(
-                    response,
-                    401,
-                    "登录已过期或Token无效"
-            );
+            ResponseUtil.writeErrorResponse(response, 401, "登录已过期或Token无效");
 
             return false;
         }
@@ -73,33 +58,19 @@ public class LoginInterceptor implements HandlerInterceptor {
         User user = userMapper.selectById(userId);
 
         if (user == null) {
-
-            ResponseUtil.writeErrorResponse(
-                    response,
-                    401,
-                    "登录已失效"
-            );
+            ResponseUtil.writeErrorResponse(response, 401, "登录已失效");
 
             return false;
         }
 
         if (!"ACTIVE".equals(user.getStatus())) {
-
-            ResponseUtil.writeErrorResponse(
-                    response,
-                    403,
-                    "账号已被禁用"
-            );
+            ResponseUtil.writeErrorResponse(response, 403, "账号已被禁用");
 
             return false;
         }
 
         // 使用数据库里的最新角色，而不是 JWT 里的旧角色
-        CurrentUser currentUser =
-                new CurrentUser(
-                        user.getId(),
-                        user.getSystemRole()
-                );
+        CurrentUser currentUser = new CurrentUser(user.getId(), user.getSystemRole());
 
         UserContext.set(currentUser);
 
@@ -107,12 +78,7 @@ public class LoginInterceptor implements HandlerInterceptor {
     }
 
     @Override
-    public void afterCompletion(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Object handler,
-            Exception ex) {
-
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
         UserContext.remove();
     }
 }

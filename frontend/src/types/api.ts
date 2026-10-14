@@ -11,8 +11,17 @@ export type ProjectStatus = 'PREPARING' | 'IN_PROGRESS' | 'PENDING_ACCEPTANCE' |
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE' | 'CANCELLED'
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH'
 
-export interface LoginPayload { username: string; password: string }
-export interface LoginUser { userId: number; username: string; realName: string; systemRole: SystemRole; token: string }
+export interface LoginPayload {
+  username: string
+  password: string
+}
+export interface LoginUser {
+  userId: number
+  username: string
+  realName: string
+  systemRole: SystemRole
+  token: string
+}
 export interface UserProfile {
   id: number
   username: string
@@ -48,7 +57,12 @@ export interface ProjectMember {
   joinedAt: string
 }
 
-export interface CreateProjectPayload { name: string; description?: string; goal?: string; expectedEndTime?: string }
+export interface CreateProjectPayload {
+  name: string
+  description?: string
+  goal?: string
+  expectedEndTime?: string
+}
 
 export interface Task {
   id: number
@@ -68,7 +82,14 @@ export interface Task {
   updatedAt: string
 }
 
-export interface CreateTaskPayload { title: string; description?: string; goal?: string; assigneeId?: number; priority?: Priority; deadline: string }
+export interface CreateTaskPayload {
+  title: string
+  description?: string
+  goal?: string
+  assigneeId?: number
+  priority?: Priority
+  deadline: string
+}
 
 export interface TaskRequest {
   id: number
