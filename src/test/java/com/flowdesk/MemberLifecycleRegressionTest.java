@@ -1,5 +1,6 @@
 package com.flowdesk;
 
+import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.*;
 import com.flowdesk.dto.*;
 import com.flowdesk.exception.BusinessException;
@@ -62,6 +63,9 @@ class MemberLifecycleRegressionTest {
     @Mock
     PasswordEncoder passwords;
 
+    @Mock
+    private ProjectTaskSummaryCache taskSummaryCache;
+
     TaskService taskService;
     TaskRequestService requestService;
     MemberLeaveRequestService leaveService;
@@ -77,8 +81,18 @@ class MemberLifecycleRegressionTest {
             ProjectMember.class
         );
         UserContext.set(new CurrentUser(1L, "USER"));
-        taskService = new TaskService(tasks, projects, members, permissions, submissions, comments, logs, notifications, users);
-        requestService = new TaskRequestService(requests, projects, permissions, tasks, members, notifications, users, logs);
+        taskService = new TaskService(tasks, projects, members, permissions, submissions, comments, logs, notifications, users, taskSummaryCache);
+        requestService = new TaskRequestService(
+                requests,
+                projects,
+                permissions,
+                tasks,
+                members,
+                notifications,
+                users,
+                logs,
+                taskSummaryCache
+        );
         transferService = new ProjectManagerTransferService(
             transfers,
             projects,

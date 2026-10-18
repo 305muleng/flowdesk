@@ -4,8 +4,10 @@ import com.flowdesk.common.Result;
 import com.flowdesk.dto.*;
 import com.flowdesk.service.ProjectInvitationService;
 import com.flowdesk.service.ProjectService;
+import com.flowdesk.service.ProjectTaskSummaryService;
 import com.flowdesk.service.TaskService;
 import com.flowdesk.vo.ProjectMemberVO;
+import com.flowdesk.vo.ProjectTaskSummaryVO;
 import com.flowdesk.vo.ProjectVO;
 import com.flowdesk.vo.TaskVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,15 +25,18 @@ public class ProjectController {
     private final ProjectService projectService;
     private final ProjectInvitationService projectInvitationService;
     private final TaskService taskService;
+    private final ProjectTaskSummaryService projectTaskSummaryService;
 
     public ProjectController(
         ProjectService projectService,
         ProjectInvitationService projectInvitationService,
-        TaskService taskService
+        TaskService taskService,
+        ProjectTaskSummaryService projectTaskSummaryService
     ) {
         this.projectService = projectService;
         this.projectInvitationService = projectInvitationService;
         this.taskService = taskService;
+        this.projectTaskSummaryService = projectTaskSummaryService;
     }
 
     @GetMapping("/{projectId}/member-candidates")
@@ -121,5 +126,11 @@ public class ProjectController {
     ) {
         projectService.removeProjectMember(projectId, userId, dto);
         return Result.success("成员移除成功", null);
+    }
+
+    @Operation(summary = "查看项目任务统计", description = "项目成员查看当前任务状态数量与完成率")
+    @GetMapping("/{projectId}/task-summary")
+    public Result<ProjectTaskSummaryVO> getTaskSummary(@PathVariable Long projectId) {
+        return Result.success(projectTaskSummaryService.getTaskSummary(projectId));
     }
 }

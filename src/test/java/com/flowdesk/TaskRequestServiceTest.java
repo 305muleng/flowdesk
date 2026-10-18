@@ -1,5 +1,6 @@
 package com.flowdesk;
 
+import com.flowdesk.cache.ProjectTaskSummaryCache;
 import  com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CreateNotificationDTO;
@@ -66,6 +67,9 @@ public class TaskRequestServiceTest {
 
     @Mock
     private OperationLogService operationLogService;
+
+    @Mock
+    private ProjectTaskSummaryCache taskSummaryCache;
 
     @BeforeEach
     void setUpActiveUsers() {
@@ -665,5 +669,76 @@ public class TaskRequestServiceTest {
 
         assertEquals(List.of(), taskRequestService.getMyTaskRequests("ALL"));
         verify(taskRequestMapper, never()).selectMyTaskRequests(anyLong(), anyString());
+    }
+
+    @Test
+    void approvingTaskRequestRegistersCacheEviction() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        TaskRequest request = new TaskRequest();
+        request.setId(10L);
+        request.setProjectId(4L);
+        request.setRequesterId(2L);
+        request.setTitle("缓存测试任务");
+        request.setDescription("测试描述");
+        request.setGoal("测试目标");
+        request.setStatus("PENDING");
+
+        ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
+        dto.setAction("APPROVE");
+        dto.setReviewNote("同意");
+        dto.setPriority("MEDIUM");
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+
+        UserContext.set(new CurrentUser(1L, "USER"));
+
+        when(projectMapper.selectByIdForUpdate(4L))
+                .thenReturn(project);
+        when(taskRequestMapper.selectById(10L))
+                .thenReturn(request);
+
+        // 模拟数据库插入任务后生成主键
+        doAnswer(invocation -> {
+            Task task = invocation.getArgument(0);
+            task.setId(99L);
+            return 1;
+        }).when(taskMapper).insert(any(Task.class));
+
+        taskRequestService.reviewTaskRequest(4L, 10L, dto);
+
+        verify(taskMapper).insert(any(Task.class));
+        verify(taskSummaryCache).evictAfterCommit(4L);
+    }
+
+    @Test
+    void rejectingTaskRequestDoesNotRegisterCacheEviction() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        TaskRequest request = new TaskRequest();
+        request.setId(10L);
+        request.setProjectId(4L);
+        request.setRequesterId(2L);
+        request.setTitle("缓存测试任务");
+        request.setStatus("PENDING");
+
+        ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
+        dto.setAction("REJECT");
+        dto.setReviewNote("暂时不需要");
+
+        UserContext.set(new CurrentUser(1L, "USER"));
+
+        when(projectMapper.selectByIdForUpdate(4L))
+                .thenReturn(project);
+        when(taskRequestMapper.selectById(10L))
+                .thenReturn(request);
+
+        taskRequestService.reviewTaskRequest(4L, 10L, dto);
+
+        verify(taskMapper, never()).insert(any(Task.class));
+        verifyNoInteractions(taskSummaryCache);
     }
 }

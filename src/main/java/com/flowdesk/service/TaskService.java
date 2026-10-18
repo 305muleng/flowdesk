@@ -1,6 +1,7 @@
 package com.flowdesk.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.*;
@@ -28,6 +29,7 @@ public class TaskService {
     private final OperationLogService operationLogService;
     private final NotificationService notificationService;
     private final UserMapper userMapper;
+    private final ProjectTaskSummaryCache taskSummaryCache;
 
     public TaskService(
         TaskMapper taskMapper,
@@ -38,7 +40,8 @@ public class TaskService {
         TaskCommentMapper taskCommentMapper,
         OperationLogService operationLogService,
         NotificationService notificationService,
-        UserMapper userMapper
+        UserMapper userMapper,
+        ProjectTaskSummaryCache taskSummaryCache
     ) {
         this.taskMapper = taskMapper;
         this.projectMapper = projectMapper;
@@ -49,6 +52,7 @@ public class TaskService {
         this.operationLogService = operationLogService;
         this.notificationService = notificationService;
         this.userMapper = userMapper;
+        this.taskSummaryCache = taskSummaryCache;
     }
 
     @Transactional
@@ -160,6 +164,7 @@ public class TaskService {
 
             notificationService.createNotification(notificationDTO);
         }
+        taskSummaryCache.evictAfterCommit(projectId);
 
         return task.getId();
     }
@@ -261,6 +266,7 @@ public class TaskService {
             beforeData,
             afterData
         );
+        taskSummaryCache.evictAfterCommit(task.getProjectId());
     }
 
     @Transactional
@@ -402,6 +408,7 @@ public class TaskService {
 
             notificationService.createNotification(notificationDTO);
         }
+        taskSummaryCache.evictAfterCommit(task.getProjectId());
 
         return submission.getId();
     }
@@ -593,6 +600,7 @@ public class TaskService {
 
             notificationService.createNotification(notificationDTO);
         }
+        taskSummaryCache.evictAfterCommit(task.getProjectId());
     }
 
     public List<TaskSubmissionVO> getTaskSubmissions(Long taskId) {
@@ -895,5 +903,6 @@ public class TaskService {
             beforeData,
             afterData
         );
+        taskSummaryCache.evictAfterCommit(task.getProjectId());
     }
 }

@@ -1,6 +1,7 @@
 package com.flowdesk.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.flowdesk.dto.TaskStatusCountDTO;
 import com.flowdesk.model.Task;
 import com.flowdesk.vo.TaskVO;
 import org.apache.ibatis.annotations.Mapper;
@@ -204,5 +205,16 @@ public interface TaskMapper extends BaseMapper<Task> {
         @Param("taskId") Long taskId,
         @Param("expectedAssigneeId") Long expectedAssigneeId,
         @Param("updatedAt") LocalDateTime updatedAt
+    );
+
+    @Select("""
+    SELECT status, COUNT(*) AS taskCount
+    FROM task
+    WHERE project_id = #{projectId}
+      AND deleted_at IS NULL
+    GROUP BY status
+    """)
+    List<TaskStatusCountDTO> selectTaskStatusCounts(
+            @Param("projectId") Long projectId
     );
 }

@@ -1,6 +1,7 @@
 package com.flowdesk;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.*;
@@ -68,6 +69,9 @@ public class TaskServiceTest {
 
     @Mock
     private UserMapper userMapper;
+
+    @Mock
+    private ProjectTaskSummaryCache taskSummaryCache;
 
     @BeforeEach
     void setUpActiveUsers() {
@@ -1099,5 +1103,109 @@ public class TaskServiceTest {
             }
             default -> throw new IllegalArgumentException(operation);
         }
+    }
+
+    @Test
+    void createTaskRegistersCacheEviction() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        when(projectMapper.selectByIdForUpdate(4L))
+                .thenReturn(project);
+
+        CreateTaskDTO dto = new CreateTaskDTO();
+        dto.setTitle("缓存测试任务");
+        dto.setDescription("测试描述");
+        dto.setGoal("测试目标");
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+
+        taskService.createTask(4L, dto);
+
+        verify(taskSummaryCache).evictAfterCommit(4L);
+    }
+
+    @Test
+    void createTaskDoesNotRegisterCacheEvictionWhenPermissionDenied() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+
+        when(projectMapper.selectByIdForUpdate(4L))
+                .thenReturn(project);
+
+        doThrow(new BusinessException(403, "你不是该项目负责人"))
+                .when(projectPermissionService)
+                .requireProjectManagerForUpdate(4L);
+
+        CreateTaskDTO dto = new CreateTaskDTO();
+        dto.setTitle("缓存测试任务");
+        dto.setDescription("测试描述");
+        dto.setGoal("测试目标");
+        dto.setDeadline(LocalDateTime.now().plusDays(1));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> taskService.createTask(4L, dto)
+        );
+
+        assertEquals(403, exception.getCode());
+        verifyNoInteractions(taskSummaryCache);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "START, TODO",
+            "CANCEL, TODO",
+            "CANCEL, IN_PROGRESS"
+    })
+    void startingOrCancellingTaskRegistersCacheEviction(
+            String operation,
+            String initialStatus) {
+        mockTaskWriteContext(initialStatus, "IN_PROGRESS");
+
+        performTaskWrite(operation);
+
+        verify(taskSummaryCache).evictAfterCommit(4L);
+    }
+
+    @Test
+    void submittingTaskRegistersCacheEviction() {
+        mockTaskWriteContext("IN_PROGRESS", "IN_PROGRESS");
+
+        when(taskSubmissionMapper.selectMaxSubmissionNo(10L))
+                .thenReturn(0);
+
+        when(projectMemberMapper.selectList(any()))
+                .thenReturn(List.of());
+
+        doAnswer(invocation -> {
+            TaskSubmission submission = invocation.getArgument(0);
+            submission.setId(100L);
+            return 1;
+        }).when(taskSubmissionMapper).insert(any(TaskSubmission.class));
+
+        performTaskWrite("SUBMIT");
+
+        verify(taskSummaryCache).evictAfterCommit(4L);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"APPROVE", "REJECT"})
+    void reviewingTaskRegistersCacheEviction(String action) {
+        mockTaskWriteContext("REVIEW", "IN_PROGRESS");
+
+        TaskSubmission submission = new TaskSubmission();
+        submission.setId(100L);
+        submission.setTaskId(10L);
+        submission.setSubmissionNo(1);
+        submission.setReviewStatus("PENDING");
+
+        when(taskSubmissionMapper.selectPendingSubmission(10L))
+                .thenReturn(submission);
+
+        performTaskWrite(action);
+
+        verify(taskSummaryCache).evictAfterCommit(4L);
     }
 }

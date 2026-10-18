@@ -1,6 +1,7 @@
 package com.flowdesk.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CreateNotificationDTO;
@@ -38,6 +39,7 @@ public class TaskRequestService {
     private final NotificationService notificationService;
     private final UserMapper userMapper;
     private final OperationLogService operationLogService;
+    private final ProjectTaskSummaryCache taskSummaryCache;
 
     public TaskRequestService(
         TaskRequestMapper taskRequestMapper,
@@ -47,7 +49,8 @@ public class TaskRequestService {
         ProjectMemberMapper projectMemberMapper,
         NotificationService notificationService,
         UserMapper userMapper,
-        OperationLogService operationLogService
+        OperationLogService operationLogService,
+        ProjectTaskSummaryCache taskSummaryCache
     ) {
         this.taskRequestMapper = taskRequestMapper;
         this.projectMapper = projectMapper;
@@ -57,6 +60,7 @@ public class TaskRequestService {
         this.notificationService = notificationService;
         this.userMapper = userMapper;
         this.operationLogService = operationLogService;
+        this.taskSummaryCache = taskSummaryCache;
     }
 
     @Transactional
@@ -422,6 +426,8 @@ public class TaskRequestService {
 
             notificationService.createNotification(assignedNotification);
         }
+
+        taskSummaryCache.evictAfterCommit(projectId);
 
         return task.getId();
     }
