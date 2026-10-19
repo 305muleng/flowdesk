@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Bell, Check, Refresh, Right } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import { usePagedList } from '@/composables/usePagedList'
 import { getNotificationsApi, type NotificationItem } from '@/api/notifications'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
@@ -25,19 +26,19 @@ type CategoryFilter =
   | 'MEMBER_LEAVE_REQUEST'
   | 'PROJECT_MANAGER_TRANSFER'
   | 'PROJECT_MEMBER_REMOVED'
+  | 'PROJECT_MEMBER_DISABLED'
 
 const router = useRouter()
 const auth = useAuthStore()
 const notificationStore = useNotificationStore()
-const notifications = ref<NotificationItem[]>([])
-const loading = ref(false)
-const error = ref('')
+const listing = usePagedList<NotificationItem>()
+const { records: notifications, page, size, total, loading, error } = listing
 const processingIds = ref(new Set<number>())
 const markingAll = ref(false)
 const readFilter = ref<ReadFilter>('UNREAD')
 const categoryFilter = ref<CategoryFilter>('ALL')
 const readRequests = new Map<number, Promise<void>>()
-const hasUnread = computed(() => notifications.value.some((item) => !item.readAt))
+const hasUnread = computed(() => notificationStore.unreadCount > 0)
 
 function isManagerTransferNotification(type: string): boolean {
   return type === 'PROJECT_MANAGER_TRANSFER' || type.startsWith('PROJECT_MANAGER_TRANSFER_')
@@ -52,22 +53,15 @@ function categoryFor(type: string): Exclude<CategoryFilter, 'ALL'> | 'OTHER' {
   if (type.startsWith('MEMBER_LEAVE_REQUEST_')) return 'MEMBER_LEAVE_REQUEST'
   if (isManagerTransferNotification(type)) return 'PROJECT_MANAGER_TRANSFER'
   if (type === 'PROJECT_MEMBER_REMOVED') return 'PROJECT_MEMBER_REMOVED'
+  if (type === 'PROJECT_MEMBER_DISABLED') return 'PROJECT_MEMBER_DISABLED'
   return 'OTHER'
 }
 
-const filteredNotifications = computed(() =>
-  notifications.value.filter((item) => {
-    const matchesReadStatus =
-      readFilter.value === 'ALL' ||
-      (readFilter.value === 'UNREAD' && !item.readAt) ||
-      (readFilter.value === 'READ' && Boolean(item.readAt))
-    const matchesCategory = categoryFilter.value === 'ALL' || categoryFor(item.type) === categoryFilter.value
-    return matchesReadStatus && matchesCategory
-  }),
-)
-
 function actionFor(item: NotificationItem): NotificationAction | undefined {
-  if (item.type === 'PROJECT_MEMBER_REMOVED') return undefined
+  const category = categoryFor(item.type)
+  if (category === 'PROJECT_MEMBER_REMOVED') return undefined
+  if (category === 'PROJECT_MEMBER_DISABLED' && item.projectId)
+    return { label: '查看项目成员', to: '/projects/' + item.projectId + '?tab=members' }
   if (
     item.projectId &&
     item.targetId &&
@@ -78,11 +72,10 @@ function actionFor(item: NotificationItem): NotificationAction | undefined {
   }
   if (item.type === 'PROJECT_INVITATION') {
     const invitationQuery = item.targetId ? `?invitationId=${item.targetId}` : ''
-    return { label: '处理邀请', to: `/invitations${invitationQuery}` }
+    return { label: '查看邀请', to: `/invitations${invitationQuery}` }
   }
   if (item.type === 'PROJECT_ACCEPTANCE_SUBMITTED' && auth.isSystemAdmin) {
-    const acceptanceQuery = item.targetId ? `?acceptanceId=${item.targetId}` : ''
-    return { label: '审核验收', to: `/admin/acceptances${acceptanceQuery}` }
+    return { label: '查看验收', to: item.targetId ? `/admin/acceptances/${item.targetId}` : '/admin/acceptances' }
   }
   if (item.type === 'TASK_REQUEST_SUBMITTED' && item.projectId) {
     const requestQuery = item.targetId ? `&requestId=${item.targetId}` : ''
@@ -114,18 +107,26 @@ function actionFor(item: NotificationItem): NotificationAction | undefined {
 }
 
 async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    const listResponse = await getNotificationsApi()
-    notifications.value = listResponse.data.data
-    await notificationStore.loadUnreadCount().catch(() => undefined)
-  } catch {
-    error.value = '通知加载失败，请稍后重试。'
-  } finally {
-    loading.value = false
+  const read = readFilter.value
+  const category = categoryFilter.value
+  await listing.load((page, size) => getNotificationsApi({ page, size, readFilter: read, category }).then((r) => r.data.data))
+  await notificationStore.loadUnreadCount().catch(() => undefined)
+}
+function changePage(value: number) {
+  if (page.value !== value) {
+    page.value = value
+    void load()
   }
 }
+function changeSize(value: number) {
+  size.value = value
+  listing.reset()
+  void load()
+}
+watch([readFilter, categoryFilter], () => {
+  listing.reset()
+  void load()
+})
 
 function markRead(item: NotificationItem, showSuccess = true): Promise<void> {
   if (item.readAt) return Promise.resolve()
@@ -136,9 +137,10 @@ function markRead(item: NotificationItem, showSuccess = true): Promise<void> {
   processingIds.value = new Set(processingIds.value).add(item.id)
   const request = notificationStore
     .markAsRead(item.id)
-    .then(() => {
+    .then(async () => {
       item.readAt = new Date().toISOString()
       if (showSuccess) ElMessage.success('已标记为已读')
+      await load()
     })
     .finally(() => {
       readRequests.delete(item.id)
@@ -161,10 +163,7 @@ async function markAllRead() {
   markingAll.value = true
   try {
     await notificationStore.markAllAsRead()
-    const readAt = new Date().toISOString()
-    notifications.value.forEach((item) => {
-      if (!item.readAt) item.readAt = readAt
-    })
+    await load()
     ElMessage.success('全部通知已标记为已读')
   } finally {
     markingAll.value = false
@@ -203,15 +202,13 @@ onMounted(load)
       <el-option label="退出申请" value="MEMBER_LEAVE_REQUEST" />
       <el-option label="负责人转让" value="PROJECT_MANAGER_TRANSFER" />
       <el-option label="成员移除" value="PROJECT_MEMBER_REMOVED" />
+      <el-option label="成员账号禁用" value="PROJECT_MEMBER_DISABLED" />
     </el-select>
   </section>
 
   <section v-loading="loading" class="notification-list">
-    <el-empty
-      v-if="!loading && !error && !filteredNotifications.length"
-      :description="notifications.length ? '当前筛选条件下没有通知' : '当前没有通知'"
-    />
-    <article v-for="item in filteredNotifications" :key="item.id" class="notification-card" :class="{ unread: !item.readAt }">
+    <el-empty v-if="!loading && !error && !notifications.length" description="当前筛选条件下没有通知" />
+    <article v-for="item in notifications" :key="item.id" class="notification-card" :class="{ unread: !item.readAt }">
       <div class="notification-icon">
         <el-icon><Bell /></el-icon>
       </div>
@@ -230,6 +227,15 @@ onMounted(load)
         <el-button v-if="!item.readAt" :loading="processingIds.has(item.id)" @click="markRead(item)"> 标记已读 </el-button>
       </div>
     </article>
+    <el-pagination
+      :current-page="page"
+      :page-size="size"
+      :page-sizes="[20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      :total="total"
+      @current-change="changePage"
+      @size-change="changeSize"
+    />
   </section>
 </template>
 

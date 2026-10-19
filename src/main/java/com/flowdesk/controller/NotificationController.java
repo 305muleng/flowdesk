@@ -1,13 +1,12 @@
 package com.flowdesk.controller;
 
 import com.flowdesk.common.Result;
+import com.flowdesk.common.PageResult;
 import com.flowdesk.service.NotificationService;
 import com.flowdesk.vo.NotificationVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @Tag(name = "通知", description = "当前用户通知查询与已读状态管理")
 @RestController
@@ -22,8 +21,13 @@ public class NotificationController {
 
     @Operation(summary = "查询我的通知")
     @GetMapping
-    public Result<List<NotificationVO>> getMyNotifications() {
-        return Result.success(notificationService.getMyNotifications());
+    public Result<PageResult<NotificationVO>> getMyNotifications(
+        @RequestParam(defaultValue = "1") long page,
+        @RequestParam(defaultValue = "20") long size,
+        @RequestParam(defaultValue = "ALL") String readFilter,
+        @RequestParam(defaultValue = "ALL") String category
+    ) {
+        return Result.success(notificationService.getMyNotifications(page, size, readFilter, category));
     }
 
     @Operation(summary = "查询未读通知数量")

@@ -167,7 +167,7 @@ public class TaskRequestService {
 
         String normalizedStatus = status.trim().toUpperCase();
 
-        Set<String> allowedStatuses = Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED");
+        Set<String> allowedStatuses = Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "CLOSED");
 
         if (!allowedStatuses.contains(normalizedStatus)) {
             throw new BusinessException(400, "任务申请状态筛选条件不正确");
@@ -186,7 +186,7 @@ public class TaskRequestService {
 
     private String normalizeStatus(String status) {
         String normalizedStatus = status.trim().toUpperCase();
-        if (!Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED").contains(normalizedStatus)) {
+        if (!Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "CLOSED").contains(normalizedStatus)) {
             throw new BusinessException(400, "任务申请状态筛选条件不正确");
         }
         return normalizedStatus;
@@ -458,6 +458,14 @@ public class TaskRequestService {
         // 3. 只有 PENDING 可以撤回
         if (!"PENDING".equals(request.getStatus())) {
             throw new BusinessException(409, "只有待审批的任务申请可以撤回");
+        }
+
+        Project project = projectMapper.selectByIdForUpdate(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许处理该请求");
         }
 
         // 4. 以 PENDING 为前置条件撤回，避免与审批并发双重生效

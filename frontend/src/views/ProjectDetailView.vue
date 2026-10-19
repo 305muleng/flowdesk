@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import RequestClosureNotice from '@/components/RequestClosureNotice.vue'
 import { ArrowLeft, Message, Plus, Refresh, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { usePagedList } from '@/composables/usePagedList'
 import { useRoute, useRouter } from 'vue-router'
 import {
   candidatesApi,
@@ -25,13 +27,14 @@ import {
   getProjectLogsApi,
   getProjectMembersApi,
   getProjectTasksApi,
+  getProjectTaskSummaryApi,
   sendInvitationApi,
   startProjectApi,
   submitAcceptanceApi,
   type SubmitAcceptancePayload,
 } from '@/api/projects'
 import { createTaskRequestApi, getProjectTaskRequestsApi, reviewTaskRequestApi } from '@/api/taskRequests'
-import { formatDate, formatDateTime, statusLabel } from '@/utils/format'
+import { formatDate, formatDateTime, statusLabel, projectRestrictionMessage } from '@/utils/format'
 import type {
   CreateTaskPayload,
   OperationLog,
@@ -41,6 +44,7 @@ import type {
   ProjectMember,
   Task,
   TaskRequest,
+  ProjectTaskSummary,
 } from '@/types/api'
 
 const route = useRoute()
@@ -48,15 +52,53 @@ const router = useRouter()
 const auth = useAuthStore()
 const id = computed(() => route.params.projectId as string)
 const project = ref<Project>()
-const tasks = ref<Task[]>([])
+const taskListing = usePagedList<Task>()
+const { records: tasks, page: taskPage, size: taskSize, total: taskTotal, loading: taskLoading, error: taskError } = taskListing
+const taskSummary = ref<ProjectTaskSummary | null>(null)
+let summaryRevision = 0
+let loadRevision = 0
+async function loadSummary() {
+  const revision = ++summaryRevision
+  const projectId = id.value
+  taskSummary.value = null
+  try {
+    const result = await getProjectTaskSummaryApi(projectId)
+    if (revision === summaryRevision) taskSummary.value = result.data.data
+  } catch {
+    if (revision === summaryRevision) taskSummary.value = null
+  }
+}
+async function loadTasks() {
+  const projectId = id.value
+  const assigneeId = focusedAssignee.value
+  await taskListing.load((page, size) =>
+    getProjectTasksApi(projectId, { page, size, assigneeId, unfinishedOnly: assigneeId !== undefined }).then((r) => r.data.data),
+  )
+}
+function changeTaskPage(value: number) {
+  if (taskPage.value !== value) {
+    taskPage.value = value
+    void loadTasks()
+  }
+}
+function changeTaskSize(value: number) {
+  taskSize.value = value
+  taskListing.reset()
+  void loadTasks()
+}
 const members = ref<ProjectMember[]>([])
 const requests = ref<TaskRequest[]>([])
 const acceptances = ref<ProjectAcceptance[]>([])
 const logs = ref<OperationLog[]>([])
 const loading = ref(false)
+const loadError = ref('')
+const acceptancesLoadFailed = ref(false)
+const logsLoadFailed = ref(false)
+const requestsLoadFailed = ref(false)
+const memberRequestsLoadFailed = ref(false)
 const saving = ref(false)
 const actionBusy = ref(false)
-const activeTab = ref(route.query.tab === 'requests' ? 'requests' : 'tasks')
+const activeTab = ref(['requests', 'members'].includes(String(route.query.tab)) ? String(route.query.tab) : 'tasks')
 const taskDialog = ref(false)
 const requestDialog = ref(false)
 const inviteDialog = ref(false)
@@ -147,15 +189,25 @@ const currentRole = computed(() => members.value.find((item) => item.userId === 
 const focusedRequestId = computed(() => Number(route.query.requestId) || undefined)
 const isManager = computed(() => currentRole.value === 'PROJECT_MANAGER')
 const assignableMembers = computed(() => members.value.filter((member) => member.effective))
-const taskProgress = computed(() =>
-  tasks.value.filter((item) => item.status !== 'CANCELLED').length
-    ? Math.round(
-        (tasks.value.filter((item) => item.status === 'DONE').length /
-          tasks.value.filter((item) => item.status !== 'CANCELLED').length) *
-          100,
-      )
-    : 0,
-)
+const focusedAssignee = computed(() => Number(route.query.assigneeId) || undefined)
+watch(focusedAssignee, () => {
+  taskListing.reset()
+  void loadTasks()
+})
+
+function viewMemberTasks(member: ProjectMember) {
+  activeTab.value = 'tasks'
+  taskListing.reset()
+  if (focusedAssignee.value === member.userId) void loadTasks()
+  void router.replace({ query: { ...route.query, tab: 'tasks', assigneeId: String(member.userId) } })
+}
+function clearMemberFilter() {
+  const query = { ...route.query }
+  delete query.assigneeId
+  void router.replace({ query })
+}
+
+const taskProgress = computed(() => taskSummary.value?.completionRate ?? null)
 const pendingRequests = computed(() => requests.value.filter((item) => item.status === 'PENDING').length)
 const taskForm = ref<CreateTaskPayload>({
   title: '',
@@ -189,40 +241,61 @@ const taskRules = {
 const requestRules = { title: [{ required: true, message: '请输入任务申请标题', trigger: 'blur' }] }
 
 async function load() {
+  const revision = ++loadRevision
+  const projectId = id.value
   loading.value = true
+  loadError.value = ''
+  project.value = undefined
+  members.value = []
   try {
-    const [detail, taskList, memberList] = await Promise.all([
-      getProjectApi(id.value),
-      getProjectTasksApi(id.value),
-      getProjectMembersApi(id.value),
+    const [detail, , memberList] = await Promise.all([
+      getProjectApi(projectId),
+      loadTasks(),
+      getProjectMembersApi(projectId),
+      loadSummary(),
     ])
+    if (revision !== loadRevision) return
     project.value = detail.data.data
-    tasks.value = taskList.data.data
     members.value = memberList.data.data
     if (activeTab.value === 'requests' && currentRole.value !== 'PROJECT_MANAGER') {
       activeTab.value = 'tasks'
     }
     const [acceptanceResult, logResult] = await Promise.allSettled([
-      getProjectAcceptancesApi(id.value),
-      getProjectLogsApi(id.value, 30),
+      getProjectAcceptancesApi(projectId),
+      getProjectLogsApi(projectId, 30),
     ])
+    if (revision !== loadRevision) return
+    acceptancesLoadFailed.value = acceptanceResult.status === 'rejected'
+    logsLoadFailed.value = logResult.status === 'rejected'
     acceptances.value = acceptanceResult.status === 'fulfilled' ? acceptanceResult.value.data.data : []
     logs.value = logResult.status === 'fulfilled' ? logResult.value.data.data : []
     requests.value = []
     leaveRequests.value = []
     pendingTransfers.value = []
+    requestsLoadFailed.value = false
+    memberRequestsLoadFailed.value = false
     if (isManager.value) {
-      const [taskRequests, pendingLeaves, transfers] = await Promise.all([
-        getProjectTaskRequestsApi(id.value),
-        leavesApi(id.value),
-        pendingTransfersApi(id.value),
+      const [taskRequests, pendingLeaves, transfers] = await Promise.allSettled([
+        getProjectTaskRequestsApi(projectId),
+        leavesApi(projectId),
+        pendingTransfersApi(projectId),
       ])
-      requests.value = taskRequests.data.data
-      leaveRequests.value = pendingLeaves.data.data
-      pendingTransfers.value = transfers.data.data
+      if (revision !== loadRevision) return
+      requestsLoadFailed.value = taskRequests.status === 'rejected'
+      memberRequestsLoadFailed.value = pendingLeaves.status === 'rejected' || transfers.status === 'rejected'
+      requests.value = taskRequests.status === 'fulfilled' ? taskRequests.value.data.data : []
+      leaveRequests.value = pendingLeaves.status === 'fulfilled' ? pendingLeaves.value.data.data : []
+      pendingTransfers.value = transfers.status === 'fulfilled' ? transfers.value.data.data : []
+    }
+  } catch (error) {
+    if (revision === loadRevision) {
+      project.value = undefined
+      members.value = []
+      loadError.value =
+        (error as { response?: { data?: { message?: string } } }).response?.data?.message || '项目资料加载失败，请重试'
     }
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 
@@ -349,11 +422,18 @@ async function rejectRequest(item: TaskRequest) {
   }
 }
 
+watch(id, () => {
+  taskListing.reset()
+  void load()
+})
 onMounted(load)
 </script>
 <template>
   <section v-loading="loading">
     <el-button text :icon="ArrowLeft" @click="router.push('/projects')">返回项目中心</el-button>
+    <el-result v-if="loadError" icon="error" title="无法加载项目" :sub-title="loadError">
+      <template #extra><el-button @click="load">重试</el-button></template>
+    </el-result>
     <header v-if="project" class="project-hero surface-card">
       <div>
         <div class="hero-tags"><StatusTag :value="project.status" /><StatusTag :value="currentRole" /></div>
@@ -383,13 +463,21 @@ onMounted(load)
         >
       </div>
     </header>
+    <el-alert
+      v-if="projectRestrictionMessage(project?.status)"
+      :title="projectRestrictionMessage(project?.status)"
+      type="info"
+      :closable="false"
+      show-icon
+    />
     <section v-if="project" class="project-facts">
       <article>
-        <span>项目进度</span><strong>{{ taskProgress }}%</strong><el-progress :percentage="taskProgress" :show-text="false" />
+        <span>项目进度</span><strong>{{ taskProgress === null ? '统计暂不可用' : taskProgress + '%' }}</strong
+        ><el-progress v-if="taskProgress !== null" :percentage="taskProgress" :show-text="false" />
       </article>
       <article>
-        <span>任务总数</span><strong>{{ tasks.length }}</strong
-        ><small>{{ tasks.filter((item) => item.status === 'DONE').length }} 项已完成</small>
+        <span>任务总数</span><strong>{{ taskSummary?.totalTaskCount ?? '—' }}</strong
+        ><small>{{ taskSummary?.doneTaskCount ?? '—' }} 项已完成</small>
       </article>
       <article>
         <span>项目成员</span><strong>{{ members.length }}</strong
@@ -400,12 +488,12 @@ onMounted(load)
         ><small>{{ project.startTime ? '启动于 ' + formatDate(project.startTime) : '尚未启动' }}</small>
       </article>
     </section>
-    <el-tabs v-model="activeTab" class="project-tabs">
+    <el-tabs v-if="project" v-model="activeTab" class="project-tabs">
       <el-tab-pane label="项目任务" name="tasks">
         <section class="section-title">
           <div>
             <h3>项目任务</h3>
-            <p>共 {{ tasks.length }} 项任务</p>
+            <p>{{ taskError ? '任务列表暂不可用' : '共 ' + taskTotal + ' 项任务' }}</p>
           </div>
           <div>
             <el-button
@@ -422,7 +510,18 @@ onMounted(load)
             >
           </div>
         </section>
-        <div class="table-card">
+        <div v-loading="taskLoading" class="table-card">
+          <el-alert v-if="taskError" :title="taskError" type="error" :closable="false"
+            ><el-button link @click="loadTasks">重试</el-button></el-alert
+          >
+          <el-alert
+            v-if="focusedAssignee"
+            :title="'正在查看成员 #' + focusedAssignee + ' 承担的 TODO、IN_PROGRESS、REVIEW 任务'"
+            type="info"
+            :closable="false"
+          >
+            <el-button link @click="clearMemberFilter">查看全部任务</el-button>
+          </el-alert>
           <el-table :data="tasks"
             ><el-table-column label="任务" min-width="260"
               ><template #default="{ row }"
@@ -434,12 +533,21 @@ onMounted(load)
               ><template #default="{ row }"><StatusTag :value="row.status" /></template></el-table-column
             ><el-table-column label="优先级" width="90"
               ><template #default="{ row }">{{ statusLabel(row.priority) }}</template></el-table-column
-            ><el-table-column label="负责人" width="120"
+            ><el-table-column label="任务负责人" width="120"
               ><template #default="{ row }">{{ row.assigneeName || '待分配' }}</template></el-table-column
             ><el-table-column label="截止日期" width="125"
               ><template #default="{ row }">{{ formatDate(row.deadline) }}</template></el-table-column
             ></el-table
-          ><el-empty v-if="!tasks.length" description="这个项目还没有任务" />
+          ><el-empty v-if="!taskLoading && !taskError && !tasks.length" description="当前筛选下没有任务" />
+          <el-pagination
+            :current-page="taskPage"
+            :page-size="taskSize"
+            :page-sizes="[20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            :total="taskTotal"
+            @current-change="changeTaskPage"
+            @size-change="changeTaskSize"
+          />
         </div>
       </el-tab-pane>
       <el-tab-pane name="members"
@@ -472,6 +580,7 @@ onMounted(load)
               >
             </div>
             <StatusTag :value="member.role" />
+            <el-button v-if="member.userStatus === 'DISABLED'" @click="viewMemberTasks(member)">查看未完成任务</el-button>
             <el-tooltip
               v-if="isManager && mutable && member.role === 'DEVELOPER'"
               :disabled="member.unfinishedTaskCount === 0"
@@ -496,19 +605,25 @@ onMounted(load)
         </div>
         <div v-if="isManager" class="member-actions">
           <h3>退出申请</h3>
+          <el-alert v-if="memberRequestsLoadFailed" title="成员流程记录加载失败，请刷新重试" type="error" :closable="false"
+            ><el-button link @click="load">重试</el-button></el-alert
+          >
           <p v-for="item in leaveRequests" :key="item.id">
             <el-button @click="router.push(recordPath('leave-requests', item.id))"
               >{{ item.applicantName }}：{{ item.reason }} · 待处理</el-button
             >
           </p>
-          <p v-if="!leaveRequests.length">暂无有效待处理退出申请</p>
+          <p v-if="!memberRequestsLoadFailed && !leaveRequests.length">暂无有效待处理退出申请</p>
         </div></el-tab-pane
       >
       <el-tab-pane v-if="isManager" name="requests"
         ><template #label
-          >任务申请 <span class="tab-count">{{ pendingRequests }}</span></template
+          >任务申请 <span class="tab-count">{{ requestsLoadFailed ? '—' : pendingRequests }}</span></template
         >
         <div class="request-list">
+          <el-alert v-if="requestsLoadFailed" title="任务申请加载失败，请刷新重试" type="error" :closable="false"
+            ><el-button link @click="load">重试</el-button></el-alert
+          >
           <article
             v-for="item in requests"
             :key="item.id"
@@ -521,16 +636,20 @@ onMounted(load)
               </div>
               <h3>{{ item.title }}</h3>
               <p>{{ item.description || item.goal || '未填写补充说明' }}</p>
+              <RequestClosureNotice :status="item.status" :closed-at="item.closedAt" :close-reason="item.closeReason" />
             </div>
             <div v-if="item.status === 'PENDING' && ['PREPARING', 'IN_PROGRESS'].includes(project?.status || '')">
               <el-button :loading="actionBusy" @click="rejectRequest(item)">驳回</el-button
               ><el-button type="primary" :disabled="actionBusy" @click="openReview(item)">批准并创建任务</el-button>
             </div>
           </article>
-          <el-empty v-if="!requests.length" description="暂无任务申请" /></div
+          <el-empty v-if="!requestsLoadFailed && !requests.length" description="暂无任务申请" /></div
       ></el-tab-pane>
       <el-tab-pane label="验收记录" name="acceptances"
         ><div class="timeline">
+          <el-alert v-if="acceptancesLoadFailed" title="验收记录加载失败，请刷新重试" type="error" :closable="false"
+            ><el-button link @click="load">重试</el-button></el-alert
+          >
           <article v-for="item in acceptances" :key="item.id" class="surface-card timeline-card">
             <span>第 {{ item.acceptanceNo }} 次</span>
             <div>
@@ -540,10 +659,13 @@ onMounted(load)
             </div>
             <StatusTag :value="item.reviewStatus" />
           </article>
-          <el-empty v-if="!acceptances.length" description="还没有验收记录" /></div
+          <el-empty v-if="!acceptancesLoadFailed && !acceptances.length" description="还没有验收记录" /></div
       ></el-tab-pane>
       <el-tab-pane label="操作记录" name="logs"
         ><div class="timeline">
+          <el-alert v-if="logsLoadFailed" title="操作记录加载失败，请刷新重试" type="error" :closable="false"
+            ><el-button link @click="load">重试</el-button></el-alert
+          >
           <article v-for="log in logs" :key="log.id" class="log-item">
             <span />
             <div>
@@ -551,7 +673,7 @@ onMounted(load)
               <p>{{ log.actorName }} · {{ formatDateTime(log.createdAt) }}</p>
             </div>
           </article>
-          <el-empty v-if="!logs.length" description="还没有操作记录" /></div
+          <el-empty v-if="!logsLoadFailed && !logs.length" description="还没有操作记录" /></div
       ></el-tab-pane>
     </el-tabs>
     <el-dialog v-model="taskDialog" title="新建正式任务" width="min(92vw,600px)"

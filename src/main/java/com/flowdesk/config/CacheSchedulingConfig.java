@@ -10,8 +10,7 @@ public class CacheSchedulingConfig {
 
     @Bean(name = "taskSummaryCacheScheduler", destroyMethod = "shutdown")
     public ScheduledThreadPoolExecutor taskSummaryCacheScheduler() {
-        ScheduledThreadPoolExecutor scheduler =
-                new ScheduledThreadPoolExecutor(1);
+        ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1);
 
         scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 

@@ -81,17 +81,28 @@ class MemberLifecycleRegressionTest {
             ProjectMember.class
         );
         UserContext.set(new CurrentUser(1L, "USER"));
-        taskService = new TaskService(tasks, projects, members, permissions, submissions, comments, logs, notifications, users, taskSummaryCache);
+        taskService = new TaskService(
+            tasks,
+            projects,
+            members,
+            permissions,
+            submissions,
+            comments,
+            logs,
+            notifications,
+            users,
+            taskSummaryCache
+        );
         requestService = new TaskRequestService(
-                requests,
-                projects,
-                permissions,
-                tasks,
-                members,
-                notifications,
-                users,
-                logs,
-                taskSummaryCache
+            requests,
+            projects,
+            permissions,
+            tasks,
+            members,
+            notifications,
+            users,
+            logs,
+            taskSummaryCache
         );
         transferService = new ProjectManagerTransferService(
             transfers,
@@ -397,7 +408,8 @@ class MemberLifecycleRegressionTest {
             requests,
             leaves,
             notifications,
-            users
+            users,
+            mock(ProjectRequestClosureService.class)
         );
         when(users.selectMemberCandidates(eq(4L), any())).thenReturn(List.of());
         service.getMemberCandidates(4L);
@@ -433,7 +445,8 @@ class MemberLifecycleRegressionTest {
             requests,
             leaves,
             notifications,
-            users
+            users,
+            mock(ProjectRequestClosureService.class)
         );
         ProjectMemberVO vo = new ProjectMemberVO();
         vo.setUserId(2L);

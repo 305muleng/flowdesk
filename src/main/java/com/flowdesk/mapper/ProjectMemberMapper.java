@@ -2,6 +2,7 @@ package com.flowdesk.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.flowdesk.model.ProjectMember;
+import com.flowdesk.model.Project;
 import com.flowdesk.vo.MemberAcceptanceVO;
 import com.flowdesk.vo.ProjectMemberVO;
 import org.apache.ibatis.annotations.Mapper;
@@ -14,6 +15,25 @@ import java.util.List;
 
 @Mapper
 public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
+    @Select("""
+        SELECT p.* FROM project p
+        JOIN project_member pm ON pm.project_id = p.id
+        WHERE pm.user_id = #{userId} AND pm.status = 'ACTIVE'
+          AND pm.role = 'PROJECT_MANAGER' AND p.deleted_at IS NULL
+          AND p.status IN ('PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE', 'COMPLETED')
+        ORDER BY p.id
+        """)
+    List<Project> selectManagedProjectsBlockingDisable(@Param("userId") Long userId);
+
+    @Select("""
+        SELECT DISTINCT p.id FROM project p
+        JOIN project_member pm ON pm.project_id = p.id
+        WHERE pm.user_id = #{userId} AND pm.status = 'ACTIVE' AND p.deleted_at IS NULL
+          AND p.status IN ('PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE')
+        ORDER BY p.id
+        """)
+    List<Long> selectNotificationProjectIds(@Param("userId") Long userId);
+
     @Select("""
         SELECT * FROM project_member
         WHERE project_id = #{projectId} AND user_id = #{userId}

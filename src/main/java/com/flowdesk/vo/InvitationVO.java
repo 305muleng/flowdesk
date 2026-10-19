@@ -6,6 +6,16 @@ public class InvitationVO {
 
     private Long id;
     private Long projectId;
+    private String projectStatus;
+
+    public String getProjectStatus() {
+        return projectStatus;
+    }
+
+    public void setProjectStatus(String projectStatus) {
+        this.projectStatus = projectStatus;
+    }
+
     private String projectName;
     private Long inviterId;
     private String inviterName;
@@ -14,6 +24,25 @@ public class InvitationVO {
     private LocalDateTime expiresAt;
     private LocalDateTime respondedAt;
     private boolean expired;
+
+    private LocalDateTime closedAt;
+    private String closeReason;
+
+    public LocalDateTime getClosedAt() {
+        return closedAt;
+    }
+
+    public void setClosedAt(LocalDateTime closedAt) {
+        this.closedAt = closedAt;
+    }
+
+    public String getCloseReason() {
+        return closeReason;
+    }
+
+    public void setCloseReason(String closeReason) {
+        this.closeReason = closeReason;
+    }
 
     public Long getId() {
         return id;

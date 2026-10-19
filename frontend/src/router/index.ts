@@ -124,7 +124,8 @@ router.beforeEach(async (to) => {
     }
   }
   if (to.meta.requiresAuth && !auth.token) return { name: 'login', query: { redirect: to.fullPath } }
-  if (to.meta.guestOnly && auth.token) return { name: 'dashboard' }
+  if (to.meta.guestOnly && auth.token) return { name: auth.isSystemAdmin ? 'admin-acceptances' : 'dashboard' }
+  if (to.name === 'dashboard' && auth.isSystemAdmin) return { name: 'admin-acceptances' }
   if (to.meta.systemAdmin && !auth.isSystemAdmin) return { name: 'dashboard' }
   if (to.meta.ordinaryUser && auth.isSystemAdmin) return { name: 'admin-acceptances' }
   return true

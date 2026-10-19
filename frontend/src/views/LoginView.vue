@@ -18,7 +18,9 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(form.value)
-    await router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard')
+    await router.replace(
+      typeof route.query.redirect === 'string' ? route.query.redirect : auth.isSystemAdmin ? '/admin/acceptances' : '/dashboard',
+    )
   } finally {
     loading.value = false
   }

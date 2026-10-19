@@ -3,6 +3,8 @@ package com.flowdesk.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.flowdesk.context.UserContext;
+import com.flowdesk.common.ListPagination;
+import com.flowdesk.common.PageResult;
 import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.NotificationMapper;
@@ -13,7 +15,6 @@ import com.flowdesk.vo.NotificationVO;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 public class NotificationService {
@@ -52,17 +53,59 @@ public class NotificationService {
         notificationMapper.insert(notification);
     }
 
-    public List<NotificationVO> getMyNotifications() {
+    public PageResult<NotificationVO> getMyNotifications(long page, long size, String readFilter, String category) {
         Long userId = UserContext.get().getUserId();
-
-        List<Notification> notifications = notificationMapper.selectList(
-            new LambdaQueryWrapper<Notification>()
-                .eq(Notification::getRecipientId, userId)
-                .orderByDesc(Notification::getCreatedAt)
-                .orderByDesc(Notification::getId)
+        var notificationPage = ListPagination.<Notification>page(page, size);
+        String normalizedRead = readFilter.trim().toUpperCase(java.util.Locale.ROOT);
+        String normalizedCategory = category.trim().toUpperCase(java.util.Locale.ROOT);
+        LambdaQueryWrapper<Notification> query = new LambdaQueryWrapper<Notification>().eq(Notification::getRecipientId, userId);
+        switch (normalizedRead) {
+            case "ALL" -> {
+            }
+            case "UNREAD" -> query.isNull(Notification::getReadAt);
+            case "READ" -> query.isNotNull(Notification::getReadAt);
+            default -> throw new BusinessException(400, "readFilter 只能是 ALL、UNREAD 或 READ");
+        }
+        // 与页面原有字面量 startsWith / === 匹配一致，避免 LIKE 把下划线当通配符。
+        switch (normalizedCategory) {
+            case "ALL" -> {
+            }
+            case "TASK" -> query.apply("CAST(type AS BINARY) = CAST({0} AS BINARY)", "TASK_ASSIGNED");
+            case "PROJECT_INVITATION", "TASK_REQUEST", "TASK_SUBMISSION", "PROJECT_ACCEPTANCE" -> query.apply(
+                "CAST(LEFT(type, {0}) AS BINARY) = CAST({1} AS BINARY)",
+                normalizedCategory.length(),
+                normalizedCategory
+            );
+            case "MEMBER_LEAVE_REQUEST" -> query.apply(
+                "CAST(LEFT(type, {0}) AS BINARY) = CAST({1} AS BINARY)",
+                "MEMBER_LEAVE_REQUEST_".length(),
+                "MEMBER_LEAVE_REQUEST_"
+            );
+            case "PROJECT_MANAGER_TRANSFER" -> query.and(group ->
+                group
+                    .apply("CAST(type AS BINARY) = CAST({0} AS BINARY)", "PROJECT_MANAGER_TRANSFER")
+                    .or()
+                    .apply(
+                        "CAST(LEFT(type, {0}) AS BINARY) = CAST({1} AS BINARY)",
+                        "PROJECT_MANAGER_TRANSFER_".length(),
+                        "PROJECT_MANAGER_TRANSFER_"
+                    )
+            );
+            case "PROJECT_MEMBER_REMOVED", "PROJECT_MEMBER_DISABLED" -> query.apply(
+                "CAST(type AS BINARY) = CAST({0} AS BINARY)",
+                normalizedCategory
+            );
+            default -> throw new BusinessException(400, "通知类别筛选条件不正确");
+        }
+        query.orderByDesc(Notification::getCreatedAt).orderByDesc(Notification::getId);
+        var result = notificationMapper.selectPage(notificationPage, query);
+        return new PageResult<>(
+            result.getRecords().stream().map(this::toVO).toList(),
+            result.getTotal(),
+            result.getCurrent(),
+            result.getSize(),
+            result.getPages()
         );
-
-        return notifications.stream().map(this::toVO).toList();
     }
 
     public Long getUnreadCount() {

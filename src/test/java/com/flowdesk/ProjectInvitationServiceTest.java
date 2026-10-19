@@ -332,6 +332,10 @@ public class ProjectInvitationServiceTest {
      */
     @Test
     void rejectingInvitationNotifiesInviter() {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus("IN_PROGRESS");
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         ProjectInvitation invitation = new ProjectInvitation();
 
         invitation.setId(50L);

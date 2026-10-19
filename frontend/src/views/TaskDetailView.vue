@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ArrowLeft, ChatDotRound } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProjectApi, getProjectMembersApi } from '@/api/projects'
 import {
   addTaskCommentApi,
   assignTaskApi,
+  handoverTaskApi,
   cancelTaskApi,
   getTaskApi,
   getTaskCommentsApi,
@@ -18,7 +19,7 @@ import {
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { Project, ProjectMember, Task, TaskComment, TaskSubmission } from '@/types/api'
-import { formatDateTime, statusLabel } from '@/utils/format'
+import { formatDateTime, statusLabel, projectRestrictionMessage } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +31,8 @@ const members = ref<ProjectMember[]>([])
 const comments = ref<TaskComment[]>([])
 const submissions = ref<TaskSubmission[]>([])
 const loading = ref(false)
+const loadError = ref('')
+let loadRevision = 0
 const commentsLoadFailed = ref(false)
 const submissionsLoadFailed = ref(false)
 const actionBusy = ref(false)
@@ -38,6 +41,31 @@ const submittingComment = ref(false)
 const submitVisible = ref(false)
 const assignVisible = ref(false)
 const selectedAssignee = ref<number>()
+const handoverVisible = ref(false)
+const handoverReason = ref('')
+const handoverAssignee = ref<number>()
+const disabledAssignee = computed(() =>
+  members.value.some((member) => member.userId === task.value?.assigneeId && member.userStatus === 'DISABLED'),
+)
+async function handover() {
+  if (actionBusy.value || !task.value?.assigneeId) return
+  if (!handoverAssignee.value || !handoverReason.value.trim()) {
+    ElMessage.warning('请选择新任务负责人并填写交接原因')
+    return
+  }
+  actionBusy.value = true
+  try {
+    await handoverTaskApi(id.value, task.value.assigneeId, handoverAssignee.value, handoverReason.value.trim())
+    handoverVisible.value = false
+    handoverReason.value = ''
+    handoverAssignee.value = undefined
+    ElMessage.success('任务已交接，等待新任务负责人确认开始')
+    await load()
+  } finally {
+    actionBusy.value = false
+  }
+}
+
 const submitForm = reactive({ completionNote: '', resultUrl: '', testNote: '' })
 
 const myMembership = computed(() => members.value.find((member) => member.userId === auth.user?.userId))
@@ -47,35 +75,59 @@ const projectAllowsPlanning = computed(() => ['PREPARING', 'IN_PROGRESS'].includ
 const projectIsRunning = computed(() => project.value?.status === 'IN_PROGRESS')
 
 async function load() {
+  const revision = ++loadRevision
+  const taskId = id.value
   loading.value = true
+  loadError.value = ''
+  task.value = undefined
+  project.value = undefined
+  members.value = []
   try {
-    task.value = (await getTaskApi(id.value)).data.data
+    const taskResponse = await getTaskApi(taskId)
+    if (revision !== loadRevision) return
+    const currentTask = taskResponse.data.data
     const [projectResponse, memberResponse] = await Promise.all([
-      getProjectApi(task.value.projectId),
-      getProjectMembersApi(task.value.projectId),
+      getProjectApi(currentTask.projectId),
+      getProjectMembersApi(currentTask.projectId),
     ])
+    if (revision !== loadRevision) return
+    task.value = currentTask
     project.value = projectResponse.data.data
     members.value = memberResponse.data.data
     selectedAssignee.value = task.value.assigneeId
     await Promise.all([loadComments(), loadSubmissions()])
+  } catch (error) {
+    if (revision === loadRevision) {
+      task.value = undefined
+      loadError.value =
+        (error as { response?: { data?: { message?: string } } }).response?.data?.message || '任务资料加载失败，请重试'
+    }
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 async function loadComments() {
+  const taskId = id.value
   try {
-    comments.value = (await getTaskCommentsApi(id.value)).data.data
+    const result = await getTaskCommentsApi(taskId)
+    if (id.value !== taskId) return
+    comments.value = result.data.data
     commentsLoadFailed.value = false
   } catch {
+    if (id.value !== taskId) return
     comments.value = []
     commentsLoadFailed.value = true
   }
 }
 async function loadSubmissions() {
+  const taskId = id.value
   try {
-    submissions.value = (await getTaskSubmissionsApi(id.value)).data.data
+    const result = await getTaskSubmissionsApi(taskId)
+    if (id.value !== taskId) return
+    submissions.value = result.data.data
     submissionsLoadFailed.value = false
   } catch {
+    if (id.value !== taskId) return
     submissions.value = []
     submissionsLoadFailed.value = true
   }
@@ -185,13 +237,24 @@ async function addComment() {
   }
 }
 
+watch(id, load)
 onMounted(load)
 </script>
 
 <template>
   <section v-loading="loading" class="task-page">
     <el-button text :icon="ArrowLeft" @click="router.back()">返回</el-button>
+    <el-result v-if="loadError" icon="error" title="无法加载任务" :sub-title="loadError">
+      <template #extra><el-button @click="load">重试</el-button></template>
+    </el-result>
     <template v-if="task">
+      <el-alert
+        v-if="projectRestrictionMessage(project?.status)"
+        :title="projectRestrictionMessage(project?.status)"
+        type="info"
+        :closable="false"
+        show-icon
+      />
       <article class="task-hero">
         <div class="hero-main">
           <div class="eyebrow"><StatusTag :value="task.status" /><StatusTag :value="task.priority || 'MEDIUM'" /></div>
@@ -199,6 +262,12 @@ onMounted(load)
           <p>{{ task.description || '暂无任务描述' }}</p>
         </div>
         <div class="actions">
+          <el-button
+            v-if="isManager && projectAllowsPlanning && task.status === 'IN_PROGRESS' && disabledAssignee"
+            :disabled="actionBusy"
+            @click="handoverVisible = true"
+            >交接任务</el-button
+          >
           <el-button
             v-if="isManager && projectAllowsPlanning && task.status === 'TODO'"
             :disabled="actionBusy"
@@ -262,7 +331,7 @@ onMounted(load)
         <section class="panel">
           <div class="panel-title">
             <h2>提交记录</h2>
-            <span>{{ submissions.length }} 次</span>
+            <span>{{ submissionsLoadFailed ? '—' : submissions.length }} 次</span>
           </div>
           <el-alert v-if="submissionsLoadFailed" title="提交记录加载失败" type="error" :closable="false"
             ><el-button link type="primary" @click="loadSubmissions">重新加载</el-button></el-alert
@@ -288,7 +357,7 @@ onMounted(load)
         <section class="panel">
           <div class="panel-title">
             <h2>协作讨论</h2>
-            <span>{{ comments.length }} 条</span>
+            <span>{{ commentsLoadFailed ? '—' : comments.length }} 条</span>
           </div>
           <div v-if="projectAllowsPlanning" class="comment-compose">
             <el-input
@@ -304,7 +373,11 @@ onMounted(load)
           <el-alert v-if="commentsLoadFailed" title="讨论记录加载失败" type="error" :closable="false"
             ><el-button link type="primary" @click="loadComments">重新加载</el-button></el-alert
           >
-          <el-empty v-if="!commentsLoadFailed && !comments.length" description="暂无讨论，来写第一条评论吧" :image-size="72" />
+          <el-empty
+            v-if="!commentsLoadFailed && !comments.length"
+            :description="projectAllowsPlanning ? '暂无讨论，来写第一条评论吧' : '暂无讨论记录'"
+            :image-size="72"
+          />
           <article v-for="comment in comments" :key="comment.id" class="comment-item">
             <div class="avatar">{{ comment.authorName.slice(0, 1) }}</div>
             <div>
@@ -332,6 +405,23 @@ onMounted(load)
       <template #footer
         ><el-button @click="submitVisible = false">取消</el-button
         ><el-button type="primary" :loading="actionBusy" @click="submitTask">提交审核</el-button></template
+      >
+    </el-dialog>
+
+    <el-dialog v-model="handoverVisible" title="交接禁用成员的进行中任务" width="440px">
+      <p>交接后任务回到待开始；评论与提交历史保留。</p>
+      <el-select v-model="handoverAssignee" placeholder="选择新任务负责人" style="width: 100%">
+        <el-option
+          v-for="member in members.filter((item) => item.effective)"
+          :key="member.userId"
+          :label="member.realName"
+          :value="member.userId"
+        />
+      </el-select>
+      <el-input v-model="handoverReason" type="textarea" maxlength="500" show-word-limit placeholder="交接原因（必填）" />
+      <template #footer
+        ><el-button @click="handoverVisible = false">取消</el-button
+        ><el-button type="primary" :loading="actionBusy" @click="handover">确认交接</el-button></template
       >
     </el-dialog>
 

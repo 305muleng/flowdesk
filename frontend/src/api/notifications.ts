@@ -1,5 +1,5 @@
 import request from './request'
-import type { ApiResult } from '@/types/api'
+import type { ApiResult, PageResult } from '@/types/api'
 
 export interface NotificationItem {
   id: number
@@ -13,7 +13,8 @@ export interface NotificationItem {
   createdAt: string
 }
 
-export const getNotificationsApi = () => request.get<ApiResult<NotificationItem[]>>('/notifications')
+export const getNotificationsApi = (params: { page?: number; size?: number; readFilter?: string; category?: string } = {}) =>
+  request.get<ApiResult<PageResult<NotificationItem>>>('/notifications', { params })
 
 export const getUnreadNotificationCountApi = () => request.get<ApiResult<number>>('/notifications/unread-count')
 

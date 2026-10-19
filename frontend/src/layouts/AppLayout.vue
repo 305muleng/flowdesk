@@ -46,7 +46,7 @@ onMounted(() => {
 <template>
   <el-container class="app-shell">
     <el-aside width="252px" class="sidebar">
-      <RouterLink class="logo" to="/dashboard"
+      <RouterLink class="logo" :to="auth.isSystemAdmin ? '/admin/acceptances' : '/dashboard'"
         ><span>F</span>
         <div>FlowDesk<small>TEAM WORKSPACE</small></div></RouterLink
       >

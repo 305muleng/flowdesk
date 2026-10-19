@@ -8,8 +8,11 @@ export interface Candidate {
   candidateStatus: 'JOINED' | 'DISABLED' | 'PENDING' | 'REINVITE' | 'INVITE'
 }
 export interface LeaveRequest {
+  closedAt?: string | null
+  closeReason?: string | null
   id: number
   projectId: number
+  projectStatus: string
   applicantId: number
   applicantName: string
   reason: string
@@ -18,8 +21,11 @@ export interface LeaveRequest {
   reviewNote?: string
 }
 export interface ManagerTransfer {
+  closedAt?: string | null
+  closeReason?: string | null
   id: number
   projectId: number
+  projectStatus: string
   projectName: string
   fromUserId: number
   fromUserName: string

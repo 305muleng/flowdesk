@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -31,24 +32,16 @@ class ProjectTaskSummaryCacheTransactionTest {
     private Long projectId;
     private String key;
 
+    @Value("${flowdesk.test.redis-confirmed:false}")
+    private boolean testRedisConfirmed;
+
     @BeforeEach
     void prepareCache() {
-        projectId = ThreadLocalRandom.current().nextLong(
-                1_000_000_000_000L,
-                Long.MAX_VALUE
-        );
+        assertTrue(testRedisConfirmed, "必须明确确认专用 Redis 测试环境后才能写入测试 Key");
+        projectId = ThreadLocalRandom.current().nextLong(1_000_000_000_000L, Long.MAX_VALUE);
         key = "flowdesk:project:" + projectId + ":task-summary:v1";
 
-        ProjectTaskSummaryVO summary = new ProjectTaskSummaryVO(
-                projectId,
-                0L,
-                0L,
-                0L,
-                0L,
-                0L,
-                0L,
-                new BigDecimal("0.00")
-        );
+        ProjectTaskSummaryVO summary = new ProjectTaskSummaryVO(projectId, 0L, 0L, 0L, 0L, 0L, 0L, new BigDecimal("0.00"));
 
         taskSummaryCache.put(projectId, summary);
 

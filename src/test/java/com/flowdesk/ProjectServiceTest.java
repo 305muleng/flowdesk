@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -67,6 +68,9 @@ public class ProjectServiceTest {
 
     @Mock
     private com.flowdesk.service.NotificationService notificationService;
+
+    @Mock
+    private com.flowdesk.service.ProjectRequestClosureService requestClosureService;
 
     @InjectMocks
     private ProjectService projectService;
@@ -204,6 +208,7 @@ public class ProjectServiceTest {
         assertEquals("ARCHIVED", project.getStatus());
 
         verify(projectMapper).archiveIfCompleted(eq(4L), any());
+        verifyNoInteractions(requestClosureService);
 
         verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
@@ -229,6 +234,7 @@ public class ProjectServiceTest {
         assertEquals("测试取消项目", project.getCancelReason());
 
         assertNotNull(project.getCancelledAt());
+        verify(requestClosureService).closeForCancelledProject(eq(4L), same(project.getCancelledAt()));
 
         InOrder order = inOrder(projectMapper);
         order.verify(projectMapper).selectByIdForUpdate(4L);

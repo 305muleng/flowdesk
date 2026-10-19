@@ -1,9 +1,7 @@
 package com.flowdesk.interceptor;
 
-import com.flowdesk.common.Result;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
-import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.User;
 import com.flowdesk.util.JwtUtil;
@@ -13,14 +11,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
-import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
     private final UserMapper userMapper;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public LoginInterceptor(JwtUtil jwtUtil, UserMapper userMapper) {
         this.jwtUtil = jwtUtil;

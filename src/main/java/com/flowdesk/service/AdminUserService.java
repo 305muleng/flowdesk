@@ -5,24 +5,29 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.flowdesk.common.PageResult;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.exception.BusinessException;
+import com.flowdesk.event.UserDisabledEvent;
 import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.User;
 import com.flowdesk.vo.AdminUserVO;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 @Service
 public class AdminUserService {
 
     private final UserMapper userMapper;
     private final ProjectMemberMapper projectMemberMapper;
+    private final ApplicationEventPublisher events;
 
-    public AdminUserService(UserMapper userMapper, ProjectMemberMapper projectMemberMapper) {
+    public AdminUserService(UserMapper userMapper, ProjectMemberMapper projectMemberMapper, ApplicationEventPublisher events) {
         this.userMapper = userMapper;
         this.projectMemberMapper = projectMemberMapper;
+        this.events = events;
     }
 
     public PageResult<AdminUserVO> getUsers(long page, long size, String keyword, String status, String systemRole) {
@@ -69,6 +74,9 @@ public class AdminUserService {
 
     @Transactional
     public void disableUser(Long userId) {
+        if (UserContext.get() == null || !"SYSTEM_ADMIN".equals(UserContext.get().getSystemRole())) {
+            throw new BusinessException(403, "无系统管理员权限");
+        }
         User user = userMapper.selectByIdForUpdate(userId);
 
         if (user == null) {
@@ -85,15 +93,27 @@ public class AdminUserService {
             return;
         }
 
-        Long managedProjectCount = projectMemberMapper.countActiveManagedProjects(userId);
-
-        if (managedProjectCount > 0) {
-            throw new BusinessException(409, "该用户仍担任活动项目负责人，请先完成项目负责人转让");
+        var managedProjects = projectMemberMapper.selectManagedProjectsBlockingDisable(userId);
+        if (!managedProjects.isEmpty()) {
+            String details = managedProjects
+                .stream()
+                .map(project -> {
+                    String reason = switch (project.getStatus()) {
+                        case "PENDING_ACCEPTANCE" -> "先完成验收处理，当前不能转让";
+                        case "COMPLETED" -> "先归档项目";
+                        default -> "先转让项目负责人";
+                    };
+                    return "项目 #" + project.getId() + " “" + project.getName() + "”：" + reason;
+                })
+                .collect(java.util.stream.Collectors.joining("；"));
+            throw new BusinessException(409, "该用户仍担任以下项目的项目负责人：" + details);
         }
 
         user.setStatus("DISABLED");
+        user.setUpdatedAt(LocalDateTime.now());
 
         userMapper.updateById(user);
+        events.publishEvent(new UserDisabledEvent(userId, user.getRealName(), currentUserId));
     }
 
     public void enableUser(Long userId) {
@@ -108,6 +128,7 @@ public class AdminUserService {
         }
 
         user.setStatus("ACTIVE");
+        user.setUpdatedAt(LocalDateTime.now());
 
         userMapper.updateById(user);
     }

@@ -5,6 +5,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import RequestClosureNotice from '@/components/RequestClosureNotice.vue'
 import { cancelTaskRequestApi, getMyTaskRequestsApi } from '@/api/taskRequests'
 import { getMyProjectsApi } from '@/api/projects'
 import { formatDateTime } from '@/utils/format'
@@ -17,17 +18,22 @@ const projects = ref<Project[]>([])
 const filter = ref('ALL')
 const loading = ref(false)
 const requestLoadFailed = ref(false)
+const projectLoadFailed = ref(false)
+let loadRevision = 0
 const projectMap = computed(() => new Map(projects.value.map((item) => [item.id, item.name])))
 
 async function load() {
+  const revision = ++loadRevision
   loading.value = true
   try {
     const [requestResult, projectResult] = await Promise.allSettled([getMyTaskRequestsApi(filter.value), getMyProjectsApi()])
+    if (revision !== loadRevision) return
     requestLoadFailed.value = requestResult.status === 'rejected'
+    projectLoadFailed.value = projectResult.status === 'rejected'
     requests.value = requestResult.status === 'fulfilled' ? requestResult.value.data.data : []
     projects.value = projectResult.status === 'fulfilled' ? projectResult.value.data.data : []
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 
@@ -57,7 +63,7 @@ onMounted(load)
   <section class="toolbar">
     <div>
       <h3>申请记录</h3>
-      <p>共 {{ requests.length }} 条</p>
+      <p>{{ requestLoadFailed ? '列表暂不可用' : '共 ' + requests.length + ' 条' }}</p>
     </div>
     <el-segmented
       v-model="filter"
@@ -67,12 +73,21 @@ onMounted(load)
         { label: '已通过', value: 'APPROVED' },
         { label: '已驳回', value: 'REJECTED' },
         { label: '已撤回', value: 'CANCELLED' },
+        { label: '已关闭', value: 'CLOSED' },
       ]"
     />
   </section>
   <section v-loading="loading" class="request-list">
     <el-alert v-if="requestLoadFailed" title="任务申请加载失败，请重试" type="error" :closable="false">
       <el-button link type="primary" @click="load">重新加载</el-button>
+    </el-alert>
+    <el-alert
+      v-if="projectLoadFailed"
+      title="项目信息加载失败，暂时无法确认任务访问权限，请刷新重试"
+      type="warning"
+      :closable="false"
+    >
+      <el-button link @click="load">重试</el-button>
     </el-alert>
     <article
       v-for="item in requests"
@@ -87,11 +102,26 @@ onMounted(load)
         </div>
         <h3>{{ item.title }}</h3>
         <p>{{ item.description || item.goal || '未填写补充说明' }}</p>
+        <RequestClosureNotice :status="item.status" :closed-at="item.closedAt" :close-reason="item.closeReason" />
       </div>
       <div class="request-side">
         <p v-if="item.reviewNote"><strong>审批意见</strong>{{ item.reviewNote }}</p>
-        <el-button v-if="item.status === 'PENDING'" type="danger" link @click="cancel(item)">撤回申请</el-button
-        ><el-button v-if="item.taskId" type="primary" link @click="$router.push('/tasks/' + item.taskId)">查看正式任务</el-button>
+        <el-button
+          v-if="item.status === 'PENDING' && ['PREPARING', 'IN_PROGRESS'].includes(item.projectStatus)"
+          type="danger"
+          link
+          @click="cancel(item)"
+          >撤回申请</el-button
+        ><el-button
+          v-if="item.taskId && !projectLoadFailed && projectMap.has(item.projectId)"
+          type="primary"
+          link
+          @click="$router.push('/tasks/' + item.taskId)"
+          >查看正式任务</el-button
+        >
+        <p v-else-if="item.taskId">
+          {{ projectLoadFailed ? '任务访问状态暂不可用，请刷新重试' : '当前已无项目访问权限，申请历史仍保留' }}
+        </p>
       </div>
     </article>
     <el-empty v-if="!loading && !requestLoadFailed && !requests.length" description="暂无符合条件的任务申请" />

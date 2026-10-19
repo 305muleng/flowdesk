@@ -896,8 +896,8 @@ public class TaskServiceTest {
     void systemAdminHasNoPersonalTaskWorklist() {
         UserContext.set(new CurrentUser(99L, "SYSTEM_ADMIN"));
 
-        assertEquals(List.of(), taskService.getMyTasks());
-        verify(taskMapper, never()).selectMyTasks(anyLong());
+        assertEquals(List.of(), taskService.getMyTasks(1, 20, "ALL", null).getRecords());
+        verify(taskMapper, never()).selectMyTasks(any(), anyLong(), anyString(), anyString());
     }
 
     @ParameterizedTest
@@ -990,15 +990,13 @@ public class TaskServiceTest {
         );
     }
 
-
     @Test
     void createTaskChecksManagerAfterProjectLock() {
         Project project = new Project();
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         CreateTaskDTO dto = new CreateTaskDTO();
         dto.setTitle("并发测试任务");
@@ -1009,24 +1007,16 @@ public class TaskServiceTest {
         taskService.createTask(4L, dto);
 
         // 验证执行顺序
-        org.mockito.InOrder order = inOrder(
-                projectMapper,
-                projectPermissionService,
-                taskMapper
-        );
+        org.mockito.InOrder order = inOrder(projectMapper, projectPermissionService, taskMapper);
 
-        order.verify(projectMapper)
-                .selectByIdForUpdate(4L);
+        order.verify(projectMapper).selectByIdForUpdate(4L);
 
-        order.verify(projectPermissionService)
-                .requireProjectManagerForUpdate(4L);
+        order.verify(projectPermissionService).requireProjectManagerForUpdate(4L);
 
-        order.verify(taskMapper)
-                .insert(any(Task.class));
+        order.verify(taskMapper).insert(any(Task.class));
 
         // 不允许再使用加锁前的普通权限检查
-        verify(projectPermissionService, never())
-                .requireProjectManager(4L);
+        verify(projectPermissionService, never()).requireProjectManager(4L);
     }
 
     @Test
@@ -1035,13 +1025,12 @@ public class TaskServiceTest {
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         // 模拟负责人在获得项目锁之前已经被降级
         doThrow(new BusinessException(403, "你不是该项目负责人"))
-                .when(projectPermissionService)
-                .requireProjectManagerForUpdate(4L);
+            .when(projectPermissionService)
+            .requireProjectManagerForUpdate(4L);
 
         CreateTaskDTO dto = new CreateTaskDTO();
         dto.setTitle("并发测试任务");
@@ -1049,18 +1038,13 @@ public class TaskServiceTest {
         dto.setGoal("测试目标");
         dto.setDeadline(LocalDateTime.now().plusDays(1));
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> taskService.createTask(4L, dto)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> taskService.createTask(4L, dto));
 
         assertEquals(403, exception.getCode());
 
         // 权限失败，不能创建任务
-        verify(taskMapper, never())
-                .insert(any(Task.class));
+        verify(taskMapper, never()).insert(any(Task.class));
     }
-
 
     private Task mockTaskWriteContext(String taskStatus, String projectStatus) {
         Task task = new Task();
@@ -1111,8 +1095,7 @@ public class TaskServiceTest {
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         CreateTaskDTO dto = new CreateTaskDTO();
         dto.setTitle("缓存测试任务");
@@ -1131,12 +1114,11 @@ public class TaskServiceTest {
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         doThrow(new BusinessException(403, "你不是该项目负责人"))
-                .when(projectPermissionService)
-                .requireProjectManagerForUpdate(4L);
+            .when(projectPermissionService)
+            .requireProjectManagerForUpdate(4L);
 
         CreateTaskDTO dto = new CreateTaskDTO();
         dto.setTitle("缓存测试任务");
@@ -1144,24 +1126,15 @@ public class TaskServiceTest {
         dto.setGoal("测试目标");
         dto.setDeadline(LocalDateTime.now().plusDays(1));
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> taskService.createTask(4L, dto)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> taskService.createTask(4L, dto));
 
         assertEquals(403, exception.getCode());
         verifyNoInteractions(taskSummaryCache);
     }
 
     @ParameterizedTest
-    @CsvSource({
-            "START, TODO",
-            "CANCEL, TODO",
-            "CANCEL, IN_PROGRESS"
-    })
-    void startingOrCancellingTaskRegistersCacheEviction(
-            String operation,
-            String initialStatus) {
+    @CsvSource({ "START, TODO", "CANCEL, TODO", "CANCEL, IN_PROGRESS" })
+    void startingOrCancellingTaskRegistersCacheEviction(String operation, String initialStatus) {
         mockTaskWriteContext(initialStatus, "IN_PROGRESS");
 
         performTaskWrite(operation);
@@ -1173,17 +1146,17 @@ public class TaskServiceTest {
     void submittingTaskRegistersCacheEviction() {
         mockTaskWriteContext("IN_PROGRESS", "IN_PROGRESS");
 
-        when(taskSubmissionMapper.selectMaxSubmissionNo(10L))
-                .thenReturn(0);
+        when(taskSubmissionMapper.selectMaxSubmissionNo(10L)).thenReturn(0);
 
-        when(projectMemberMapper.selectList(any()))
-                .thenReturn(List.of());
+        when(projectMemberMapper.selectList(any())).thenReturn(List.of());
 
         doAnswer(invocation -> {
             TaskSubmission submission = invocation.getArgument(0);
             submission.setId(100L);
             return 1;
-        }).when(taskSubmissionMapper).insert(any(TaskSubmission.class));
+        })
+            .when(taskSubmissionMapper)
+            .insert(any(TaskSubmission.class));
 
         performTaskWrite("SUBMIT");
 
@@ -1191,7 +1164,7 @@ public class TaskServiceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"APPROVE", "REJECT"})
+    @CsvSource({ "APPROVE", "REJECT" })
     void reviewingTaskRegistersCacheEviction(String action) {
         mockTaskWriteContext("REVIEW", "IN_PROGRESS");
 
@@ -1201,8 +1174,7 @@ public class TaskServiceTest {
         submission.setSubmissionNo(1);
         submission.setReviewStatus("PENDING");
 
-        when(taskSubmissionMapper.selectPendingSubmission(10L))
-                .thenReturn(submission);
+        when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
 
         performTaskWrite(action);
 

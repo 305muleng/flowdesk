@@ -4,6 +4,36 @@ export interface ApiResult<T> {
   data: T
 }
 
+export interface PageResult<T> {
+  records: T[]
+  total: number
+  page: number
+  size: number
+  pages: number
+}
+
+export interface ProjectTaskSummary {
+  projectId: number
+  totalTaskCount: number
+  todoTaskCount: number
+  inProgressTaskCount: number
+  reviewTaskCount: number
+  doneTaskCount: number
+  cancelledTaskCount: number
+  completionRate: number
+}
+
+export interface MyTaskSummary {
+  totalTaskCount: number
+  todoTaskCount: number
+  inProgressTaskCount: number
+  reviewTaskCount: number
+  doneTaskCount: number
+  unfinishedTaskCount: number
+  nonCancelledTaskCount: number
+  dueSoonTaskCount: number
+}
+
 export type SystemRole = 'SYSTEM_ADMIN' | 'USER'
 export type UserStatus = 'ACTIVE' | 'DISABLED' | string
 export type ProjectRole = 'PROJECT_MANAGER' | 'DEVELOPER'
@@ -92,15 +122,18 @@ export interface CreateTaskPayload {
 }
 
 export interface TaskRequest {
+  closedAt?: string | null
+  closeReason?: string | null
   id: number
   projectId: number
+  projectStatus: string
   requesterId: number
   requesterName: string
   title: string
   description?: string
   goal?: string
   suggestedDeadline?: string
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'CLOSED'
   reviewerId?: number
   reviewerName?: string
   reviewNote?: string

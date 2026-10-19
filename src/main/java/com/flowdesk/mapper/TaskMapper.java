@@ -1,9 +1,12 @@
 package com.flowdesk.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.flowdesk.dto.TaskStatusCountDTO;
 import com.flowdesk.model.Task;
 import com.flowdesk.vo.TaskVO;
+import com.flowdesk.vo.MyTaskSummaryVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -15,6 +18,36 @@ import java.util.List;
 
 @Mapper
 public interface TaskMapper extends BaseMapper<Task> {
+    // 列表与个人汇总共用权限范围；汇总不应用列表状态或标题筛选。
+    String MY_TASK_SCOPE = """
+        FROM task t
+        JOIN `user` creator ON t.creator_id = creator.id
+        LEFT JOIN `user` assignee ON t.assignee_id = assignee.id
+        JOIN project p ON p.id = t.project_id AND p.deleted_at IS NULL
+        JOIN project_member pm ON pm.project_id = t.project_id
+          AND pm.user_id = #{userId} AND pm.status = 'ACTIVE'
+        JOIN `user` current_account ON current_account.id = #{userId}
+          AND current_account.status = 'ACTIVE' AND current_account.system_role = 'USER'
+        WHERE t.assignee_id = #{userId} AND t.deleted_at IS NULL
+        """;
+
+    @Select("SELECT * FROM task WHERE id = #{taskId} AND deleted_at IS NULL FOR UPDATE")
+    Task selectByIdForUpdate(@Param("taskId") Long taskId);
+
+    @Update("""
+        UPDATE task
+        SET status = 'TODO', assignee_id = #{newAssigneeId}, updated_at = #{updatedAt}
+        WHERE id = #{taskId} AND project_id = #{projectId} AND status = 'IN_PROGRESS'
+          AND assignee_id = #{expectedAssigneeId} AND deleted_at IS NULL
+        """)
+    int handoverDisabledAssigneeIfCurrent(
+        @Param("taskId") Long taskId,
+        @Param("projectId") Long projectId,
+        @Param("expectedAssigneeId") Long expectedAssigneeId,
+        @Param("newAssigneeId") Long newAssigneeId,
+        @Param("updatedAt") LocalDateTime updatedAt
+    );
+
     @Update("""
             UPDATE task
             SET status = #{newStatus}, completed_at = #{completedAt}, updated_at = #{updatedAt}
@@ -114,14 +147,19 @@ public interface TaskMapper extends BaseMapper<Task> {
             #{status} = 'ALL'
             OR t.status = #{status}
         )
+        AND (#{assigneeId} IS NULL OR t.assignee_id = #{assigneeId})
+        AND (#{unfinishedOnly} = FALSE OR t.status IN ('TODO', 'IN_PROGRESS', 'REVIEW'))
         
         ORDER BY t.created_at DESC, t.id DESC
         """)
-    List<TaskVO> selectProjectTasks(
+    IPage<TaskVO> selectProjectTasks(
+        Page<TaskVO> page,
         @Param("projectId") Long projectId,
         @Param("scope") String scope,
         @Param("currentUserId") Long currentUserId,
-        @Param("status") String status
+        @Param("status") String status,
+        @Param("assigneeId") Long assigneeId,
+        @Param("unfinishedOnly") boolean unfinishedOnly
     );
 
     @Select("""
@@ -168,27 +206,34 @@ public interface TaskMapper extends BaseMapper<Task> {
            assignee.real_name AS assigneeName, t.title, t.description, t.goal,
            t.status, t.priority, t.deadline, t.completed_at AS completedAt,
            t.created_at AS createdAt, t.updated_at AS updatedAt
-    FROM task t
-    JOIN `user` creator
-      ON t.creator_id = creator.id
-    LEFT JOIN `user` assignee
-      ON t.assignee_id = assignee.id
-    JOIN project p
-      ON p.id = t.project_id
-     AND p.deleted_at IS NULL
-    JOIN project_member pm
-      ON pm.project_id = t.project_id
-     AND pm.user_id = #{userId}
-     AND pm.status = 'ACTIVE'
-    JOIN `user` current_account
-      ON current_account.id = #{userId}
-     AND current_account.status = 'ACTIVE'
-     AND current_account.system_role = 'USER'
-    WHERE t.assignee_id = #{userId}
-      AND t.deleted_at IS NULL
+    """ + MY_TASK_SCOPE + """
+    AND (#{status} = 'ALL' OR t.status = #{status})
+    AND (#{keyword} = '' OR LOCATE(CAST(#{keyword} AS BINARY), CAST(LOWER(t.title) AS BINARY)) > 0)
     ORDER BY t.updated_at DESC, t.id DESC
     """)
-    List<TaskVO> selectMyTasks(@Param("userId") Long userId);
+    IPage<TaskVO> selectMyTasks(
+        Page<TaskVO> page,
+        @Param("userId") Long userId,
+        @Param("status") String status,
+        @Param("keyword") String keyword
+    );
+
+    @Select("""
+        SELECT COUNT(*) AS totalTaskCount,
+               COALESCE(SUM(t.status = 'TODO'), 0) AS todoTaskCount,
+               COALESCE(SUM(t.status = 'IN_PROGRESS'), 0) AS inProgressTaskCount,
+               COALESCE(SUM(t.status = 'REVIEW'), 0) AS reviewTaskCount,
+               COALESCE(SUM(t.status = 'DONE'), 0) AS doneTaskCount,
+               COALESCE(SUM(t.status NOT IN ('DONE', 'CANCELLED')), 0) AS unfinishedTaskCount,
+               COALESCE(SUM(t.status != 'CANCELLED'), 0) AS nonCancelledTaskCount,
+               COALESCE(SUM(t.status NOT IN ('DONE', 'CANCELLED') AND t.deadline >= #{now}
+                   AND t.deadline < #{dueBefore}), 0) AS dueSoonTaskCount
+        """ + MY_TASK_SCOPE)
+    MyTaskSummaryVO selectMyTaskSummary(
+        @Param("userId") Long userId,
+        @Param("now") LocalDateTime now,
+        @Param("dueBefore") LocalDateTime dueBefore
+    );
 
     @Update("""
         UPDATE task
@@ -214,7 +259,5 @@ public interface TaskMapper extends BaseMapper<Task> {
       AND deleted_at IS NULL
     GROUP BY status
     """)
-    List<TaskStatusCountDTO> selectTaskStatusCounts(
-            @Param("projectId") Long projectId
-    );
+    List<TaskStatusCountDTO> selectTaskStatusCounts(@Param("projectId") Long projectId);
 }

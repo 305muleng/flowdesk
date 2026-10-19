@@ -12,7 +12,9 @@ const functions = ast.statements
   .filter((node) => ts.isFunctionDeclaration(node) && ['load', 'loadComments', 'loadSubmissions'].includes(node.name.text))
   .map((node) => node.getText(ast))
   .join('\n')
-const executable = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+const executable = ts.transpileModule('let loadRevision = 0;\n' + functions, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022 },
+}).outputText
 
 async function loadWithFailure(failedPanel) {
   const refs = {
@@ -25,6 +27,7 @@ async function loadWithFailure(failedPanel) {
     commentsLoadFailed: { value: false },
     submissionsLoadFailed: { value: false },
     loading: { value: false },
+    loadError: { value: '' },
     id: { value: '10' },
   }
   const context = vm.createContext({

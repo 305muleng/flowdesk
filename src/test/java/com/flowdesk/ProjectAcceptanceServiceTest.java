@@ -73,6 +73,9 @@ public class ProjectAcceptanceServiceTest {
     @Mock
     private TaskRequestMapper taskRequestMapper;
 
+    @Mock
+    private com.flowdesk.service.ProjectRequestClosureService requestClosureService;
+
     @InjectMocks
     private ProjectAcceptanceService projectAcceptanceService;
 
@@ -130,22 +133,17 @@ public class ProjectAcceptanceServiceTest {
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
-        when(taskMapper.selectCount(any()))
-                .thenReturn(1L);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+        when(taskMapper.selectCount(any())).thenReturn(1L);
 
-        SubmitProjectAcceptanceDTO dto =
-                new SubmitProjectAcceptanceDTO();
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
         dto.setRepositoryUrl("https://github.com/test/project");
 
-        assertThrows(BusinessException.class,
-                () -> projectAcceptanceService.submitAcceptance(4L, dto));
+        assertThrows(BusinessException.class, () -> projectAcceptanceService.submitAcceptance(4L, dto));
 
         // 不允许在项目加锁前执行普通权限查询
-        verify(projectPermissionService, never())
-                .requireProjectManager(4L);
+        verify(projectPermissionService, never()).requireProjectManager(4L);
     }
 
     @Test
@@ -231,6 +229,7 @@ public class ProjectAcceptanceServiceTest {
 
         // 项目应该进入待验收状态
         assertEquals("PENDING_ACCEPTANCE", project.getStatus());
+        verifyNoInteractions(requestClosureService);
 
         // 应该插入一条验收记录
         verify(projectAcceptanceMapper).insert(any(ProjectAcceptance.class));
@@ -345,6 +344,7 @@ public class ProjectAcceptanceServiceTest {
         assertEquals("APPROVED", acceptance.getReviewStatus());
 
         assertEquals("COMPLETED", project.getStatus());
+        verify(requestClosureService).closeForCompletedProject(eq(4L), same(project.getActualEndTime()));
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
@@ -396,6 +396,7 @@ public class ProjectAcceptanceServiceTest {
         assertEquals("REJECTED", acceptance.getReviewStatus());
 
         assertEquals("IN_PROGRESS", project.getStatus());
+        verifyNoInteractions(requestClosureService);
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
@@ -426,62 +427,45 @@ public class ProjectAcceptanceServiceTest {
         verify(projectAcceptanceMapper, never()).selectById(anyLong());
     }
 
-
     @Test
     void developerCannotSubmitAcceptance() {
-
         // 1. 模拟项目存在，并且状态为进行中
         Project project = new Project();
         project.setId(4L);
         project.setStatus("IN_PROGRESS");
 
-        when(projectMapper.selectByIdForUpdate(4L))
-                .thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         // 2. 模拟当前用户是开发人员，而不是项目负责人
         UserContext.set(new CurrentUser(2L, "USER"));
 
         doThrow(new BusinessException(403, "你不是该项目负责人"))
-                .when(projectPermissionService)
-                .requireProjectManagerForUpdate(4L);
+            .when(projectPermissionService)
+            .requireProjectManagerForUpdate(4L);
 
         // 3. 准备提交验收的数据
-        SubmitProjectAcceptanceDTO dto =
-                new SubmitProjectAcceptanceDTO();
+        SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
         dto.setSubmissionNote("提交验收");
         dto.setRepositoryUrl("https://github.com/test/project");
 
         // 4. 执行方法，预期抛出 403 异常
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> projectAcceptanceService.submitAcceptance(4L, dto)
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            projectAcceptanceService.submitAcceptance(4L, dto)
         );
 
         assertEquals(403, exception.getCode());
 
         // 5. 验证执行顺序：先锁项目，再检查当前权限
-        org.mockito.InOrder order = inOrder(
-                projectMapper,
-                projectPermissionService
-        );
+        org.mockito.InOrder order = inOrder(projectMapper, projectPermissionService);
 
-        order.verify(projectMapper)
-                .selectByIdForUpdate(4L);
+        order.verify(projectMapper).selectByIdForUpdate(4L);
 
-        order.verify(projectPermissionService)
-                .requireProjectManagerForUpdate(4L);
+        order.verify(projectPermissionService).requireProjectManagerForUpdate(4L);
 
         // 6. 权限检查失败后，不能继续统计或提交验收
-        verifyNoInteractions(
-                taskMapper,
-                taskRequestMapper,
-                projectAcceptanceMapper,
-                operationLogService,
-                notificationService
-        );
+        verifyNoInteractions(taskMapper, taskRequestMapper, projectAcceptanceMapper, operationLogService, notificationService);
     }
-
 
     @Test
     void deletedProjectCannotSubmitAcceptance() {

@@ -6,14 +6,18 @@ import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.User;
 import com.flowdesk.service.AdminUserService;
+import com.flowdesk.event.UserDisabledEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
@@ -29,9 +33,12 @@ public class AdminUserServiceTest {
     @Mock
     private com.flowdesk.mapper.ProjectMemberMapper projectMemberMapper;
 
+    @Mock
+    private ApplicationEventPublisher events;
+
     @org.junit.jupiter.api.BeforeEach
     void setUpMemberships() {
-        org.mockito.Mockito.lenient().when(projectMemberMapper.countActiveManagedProjects(any())).thenReturn(0L);
+        UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
     }
 
     @InjectMocks
@@ -51,6 +58,8 @@ public class AdminUserServiceTest {
         User user = new User();
         user.setId(2L);
         user.setStatus("ACTIVE");
+        user.setUpdatedAt(LocalDateTime.of(2020, 1, 1, 0, 0));
+        LocalDateTime before = LocalDateTime.now();
 
         // 当前登录的是管理员 1
         UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
@@ -60,8 +69,10 @@ public class AdminUserServiceTest {
         adminUserService.disableUser(2L);
 
         assertEquals("DISABLED", user.getStatus());
+        assertTrue(!user.getUpdatedAt().isBefore(before) && !user.getUpdatedAt().isAfter(LocalDateTime.now()));
 
         verify(userMapper).updateById(user);
+        verify(events).publishEvent(any(UserDisabledEvent.class));
     }
 
     /**
@@ -73,6 +84,8 @@ public class AdminUserServiceTest {
         User user = new User();
         user.setId(2L);
         user.setStatus("DISABLED");
+        user.setUpdatedAt(LocalDateTime.of(2020, 1, 1, 0, 0));
+        LocalDateTime before = LocalDateTime.now();
 
         UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
 
@@ -81,6 +94,7 @@ public class AdminUserServiceTest {
         adminUserService.enableUser(2L);
 
         assertEquals("ACTIVE", user.getStatus());
+        assertTrue(!user.getUpdatedAt().isBefore(before) && !user.getUpdatedAt().isAfter(LocalDateTime.now()));
 
         verify(userMapper).updateById(user);
     }
@@ -109,12 +123,16 @@ public class AdminUserServiceTest {
         User user = new User();
         user.setId(2L);
         user.setStatus("DISABLED");
+        LocalDateTime previousUpdate = LocalDateTime.of(2020, 1, 1, 0, 0);
+        user.setUpdatedAt(previousUpdate);
         UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
         when(userMapper.selectByIdForUpdate(2L)).thenReturn(user);
 
         adminUserService.disableUser(2L);
 
         verify(userMapper, never()).updateById(any(User.class));
+        assertEquals(previousUpdate, user.getUpdatedAt());
+        org.mockito.Mockito.verifyNoInteractions(events);
     }
 
     @Test
@@ -122,15 +140,19 @@ public class AdminUserServiceTest {
         User user = new User();
         user.setId(2L);
         user.setStatus("ACTIVE");
+        LocalDateTime previousUpdate = LocalDateTime.of(2020, 1, 1, 0, 0);
+        user.setUpdatedAt(previousUpdate);
         when(userMapper.selectById(2L)).thenReturn(user);
 
         adminUserService.enableUser(2L);
 
         verify(userMapper, never()).updateById(any(User.class));
+        assertEquals(previousUpdate, user.getUpdatedAt());
     }
 
     @Test
     void missingUserCannotBeDisabledOrEnabled() {
+        when(userMapper.selectByIdForUpdate(99L)).thenReturn(null);
         when(userMapper.selectById(99L)).thenReturn(null);
 
         BusinessException disable = assertThrows(BusinessException.class, () -> adminUserService.disableUser(99L));

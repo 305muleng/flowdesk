@@ -2,6 +2,8 @@ package com.flowdesk.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.cache.ProjectTaskSummaryCache;
+import com.flowdesk.common.ListPagination;
+import com.flowdesk.common.PageResult;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.*;
@@ -11,6 +13,7 @@ import com.flowdesk.model.*;
 import com.flowdesk.vo.TaskCommentVO;
 import com.flowdesk.vo.TaskSubmissionVO;
 import com.flowdesk.vo.TaskVO;
+import com.flowdesk.vo.MyTaskSummaryVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,20 +100,10 @@ public class TaskService {
 
         // 5. 如果指定负责人，负责人必须是项目 ACTIVE 成员
         if (dto.getAssigneeId() != null) {
-            ProjectMember assignee =
-                    projectMemberMapper.selectMemberForUpdate(
-                            projectId,
-                            dto.getAssigneeId()
-                    );
+            ProjectMember assignee = projectMemberMapper.selectMemberForUpdate(projectId, dto.getAssigneeId());
 
-            if (assignee == null
-                    || !"ACTIVE".equals(assignee.getStatus())
-                    || !isActiveProjectUser(dto.getAssigneeId())) {
-
-                throw new BusinessException(
-                        409,
-                        "任务负责人不是该项目的有效开发成员"
-                );
+            if (assignee == null || !"ACTIVE".equals(assignee.getStatus()) || !isActiveProjectUser(dto.getAssigneeId())) {
+                throw new BusinessException(409, "任务负责人不是该项目的有效开发成员");
             }
         }
 
@@ -169,9 +162,21 @@ public class TaskService {
         return task.getId();
     }
 
-    public List<TaskVO> getProjectTasks(Long projectId, String scope, String status) {
+    public PageResult<TaskVO> getProjectTasks(
+        Long projectId,
+        String scope,
+        String status,
+        long page,
+        long size,
+        Long assigneeId,
+        boolean unfinishedOnly
+    ) {
         projectPermissionService.requireProjectMember(projectId);
         requireExistingProject(projectId);
+        var taskPage = ListPagination.<TaskVO>page(page, size);
+        if (assigneeId != null && assigneeId <= 0) {
+            throw new BusinessException(400, "assigneeId 必须为正数");
+        }
 
         String normalizedScope = scope.trim().toUpperCase();
 
@@ -189,14 +194,36 @@ public class TaskService {
 
         CurrentUser currentUser = UserContext.get();
 
-        return taskMapper.selectProjectTasks(projectId, normalizedScope, currentUser.getUserId(), normalizedStatus);
+        var result = taskMapper.selectProjectTasks(
+            taskPage,
+            projectId,
+            normalizedScope,
+            currentUser.getUserId(),
+            normalizedStatus,
+            assigneeId,
+            unfinishedOnly
+        );
+        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
     }
 
-    public List<TaskVO> getMyTasks() {
-        if (!"USER".equals(UserContext.get().getSystemRole())) {
-            return List.of();
+    public PageResult<TaskVO> getMyTasks(long page, long size, String status, String keyword) {
+        var taskPage = ListPagination.<TaskVO>page(page, size);
+        String normalizedStatus = status.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("ALL", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "CANCELLED").contains(normalizedStatus)) {
+            throw new BusinessException(400, "任务状态筛选条件不正确");
         }
-        return taskMapper.selectMyTasks(UserContext.get().getUserId());
+        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
+        if (!"USER".equals(UserContext.get().getSystemRole())) {
+            return new PageResult<>(List.of(), 0, page, size, 0);
+        }
+        var result = taskMapper.selectMyTasks(taskPage, UserContext.get().getUserId(), normalizedStatus, normalizedKeyword);
+        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
+    }
+
+    public MyTaskSummaryVO getMyTaskSummary() {
+        if (!"USER".equals(UserContext.get().getSystemRole())) return MyTaskSummaryVO.empty();
+        LocalDateTime now = LocalDateTime.now();
+        return taskMapper.selectMyTaskSummary(UserContext.get().getUserId(), now, now.plusDays(3));
     }
 
     @Transactional
@@ -729,6 +756,96 @@ public class TaskService {
 
             notificationService.createNotification(notificationDTO);
         }
+    }
+
+    @Transactional
+    public void handoverDisabledAssignee(Long taskId, HandoverTaskDTO dto) {
+        if (
+            dto.reason() == null ||
+            dto.reason().isBlank() ||
+            dto.reason().trim().length() > 500 ||
+            dto.assigneeId() == null ||
+            dto.expectedAssigneeId() == null
+        ) {
+            throw new BusinessException(400, "交接须指定原、新任务负责人及不超过500字的原因");
+        }
+        Task observed = taskMapper.selectById(taskId);
+        if (observed == null || observed.getDeletedAt() != null) {
+            throw new BusinessException(404, "任务不存在");
+        }
+        Long projectId = observed.getProjectId();
+        projectPermissionService.requireProjectManager(projectId);
+        Project project = projectMapper.selectByIdForUpdate(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        if (!Set.of("PREPARING", "IN_PROGRESS").contains(project.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许交接任务");
+        }
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+        // 等待项目锁后进行当前读，避免使用提交/开始/交接前的旧任务状态。
+        Task task = taskMapper.selectByIdForUpdate(taskId);
+        if (
+            task == null ||
+            !projectId.equals(task.getProjectId()) ||
+            !"IN_PROGRESS".equals(task.getStatus()) ||
+            !Objects.equals(dto.expectedAssigneeId(), task.getAssigneeId())
+        ) {
+            throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
+        }
+        if (Objects.equals(dto.expectedAssigneeId(), dto.assigneeId())) {
+            throw new BusinessException(409, "新任务负责人不能是原任务负责人");
+        }
+        ProjectMember target = projectMemberMapper.selectMemberForUpdate(projectId, dto.assigneeId());
+        if (
+            target == null ||
+            !"ACTIVE".equals(target.getStatus()) ||
+            (!"PROJECT_MANAGER".equals(target.getRole()) && !"DEVELOPER".equals(target.getRole()))
+        ) {
+            throw new BusinessException(409, "新任务负责人不是该项目的有效成员");
+        }
+        // 固定用户锁顺序；锁住账号资格直到交接事务结束。
+        Map<Long, User> accounts = new HashMap<>();
+        for (Long userId : java.util.stream.Stream.of(dto.expectedAssigneeId(), dto.assigneeId()).sorted().toList()) {
+            accounts.put(userId, userMapper.selectByIdForUpdate(userId));
+        }
+        User original = accounts.get(dto.expectedAssigneeId());
+        User replacement = accounts.get(dto.assigneeId());
+        if (original == null || !"DISABLED".equals(original.getStatus())) {
+            throw new BusinessException(409, "只能交接禁用账号承担的进行中任务");
+        }
+        if (replacement == null || !"ACTIVE".equals(replacement.getStatus()) || !"USER".equals(replacement.getSystemRole())) {
+            throw new BusinessException(409, "新任务负责人不是该项目的有效成员");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (
+            taskMapper.handoverDisabledAssigneeIfCurrent(taskId, projectId, dto.expectedAssigneeId(), dto.assigneeId(), now) != 1
+        ) {
+            throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
+        }
+        Long actorId = UserContext.get().getUserId();
+        operationLogService.record(
+            projectId,
+            actorId,
+            "TASK",
+            taskId,
+            "HANDOVER_TASK",
+            "交接禁用成员的任务",
+            Map.of("assigneeId", dto.expectedAssigneeId(), "status", "IN_PROGRESS"),
+            Map.of("assigneeId", dto.assigneeId(), "status", "TODO", "reason", dto.reason().trim(), "handedOverAt", now)
+        );
+
+        CreateNotificationDTO notification = new CreateNotificationDTO();
+        notification.setRecipientId(dto.assigneeId());
+        notification.setActorId(actorId);
+        notification.setType("TASK_ASSIGNED");
+        notification.setTitle("任务已交接给你");
+        notification.setContent("任务“" + task.getTitle() + "”已交接给你，请确认开始。");
+        notification.setProjectId(projectId);
+        notification.setTargetType("TASK");
+        notification.setTargetId(taskId);
+        notificationService.createNotification(notification);
+        taskSummaryCache.evictAfterCommit(projectId);
     }
 
     private boolean isActiveProjectUser(Long userId) {

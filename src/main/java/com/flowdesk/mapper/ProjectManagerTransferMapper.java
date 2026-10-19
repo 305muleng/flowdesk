@@ -14,6 +14,18 @@ import java.time.LocalDateTime;
 public interface ProjectManagerTransferMapper extends BaseMapper<ProjectManagerTransfer> {
     @Update("""
         UPDATE project_manager_transfer
+        SET status = 'CLOSED', closed_at = #{closedAt}, close_reason = #{closeReason}
+        WHERE project_id = #{projectId} AND status = 'PENDING'
+          AND expires_at > #{closedAt}
+        """)
+    int closePendingForProject(
+        @Param("projectId") Long projectId,
+        @Param("closedAt") LocalDateTime closedAt,
+        @Param("closeReason") String closeReason
+    );
+
+    @Update("""
+        UPDATE project_manager_transfer
         SET status = 'ACCEPTED',
             responded_at = #{respondedAt}
         WHERE id = #{transferId}
@@ -71,6 +83,7 @@ public interface ProjectManagerTransferMapper extends BaseMapper<ProjectManagerT
             pmt.id AS id,
             pmt.project_id AS projectId,
             p.name AS projectName,
+            p.status AS projectStatus,
 
             pmt.from_user_id AS fromUserId,
             from_user.real_name AS fromUserName,
@@ -80,6 +93,7 @@ public interface ProjectManagerTransferMapper extends BaseMapper<ProjectManagerT
 
             pmt.old_manager_action AS oldManagerAction,
             pmt.status AS status,
+            pmt.closed_at AS closedAt, pmt.close_reason AS closeReason,
 
             pmt.created_at AS createdAt,
             pmt.expires_at AS expiresAt,

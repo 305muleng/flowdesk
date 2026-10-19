@@ -9,18 +9,20 @@ export const useNotificationStore = defineStore('notifications', () => {
   const pendingReadRequests = new Map<number, Promise<void>>()
   let revision = 0
   let generation = 0
+  let countRequest = 0
 
   async function loadUnreadCount() {
+    const requestId = ++countRequest
     const startedAtRevision = revision
     const startedAtGeneration = generation
     loading.value = true
     try {
       const count = (await getUnreadNotificationCountApi()).data.data
-      if (startedAtRevision === revision && startedAtGeneration === generation) {
+      if (requestId === countRequest && startedAtRevision === revision && startedAtGeneration === generation) {
         unreadCount.value = count
       }
     } finally {
-      loading.value = false
+      if (requestId === countRequest) loading.value = false
     }
   }
 
@@ -57,6 +59,8 @@ export const useNotificationStore = defineStore('notifications', () => {
   }
 
   function reset() {
+    countRequest += 1
+    loading.value = false
     generation += 1
     revision += 1
     unreadCount.value = 0

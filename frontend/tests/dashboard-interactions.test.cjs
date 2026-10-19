@@ -16,23 +16,12 @@ function compiled(text) {
 
 const dashboardScript = script('views/DashboardView.vue')
 const dashboardAst = ts.createSourceFile('dashboard.ts', dashboardScript, ts.ScriptTarget.Latest, true)
-const rateFunction = dashboardAst.statements.find((node) => ts.isFunctionDeclaration(node) && node.name.text === 'completionRate')
-const rateContext = vm.createContext({})
-vm.runInContext(compiled(rateFunction.getText(dashboardAst)), rateContext)
-
-test('project progress counts DONE over non-CANCELLED tasks', () => {
-  const tasks = ['DONE', 'TODO', 'IN_PROGRESS', 'REVIEW', 'CANCELLED'].map((status) => ({ status }))
-  assert.equal(rateContext.completionRate(tasks), 25)
-  assert.equal(rateContext.completionRate([{ status: 'CANCELLED' }]), 0)
-  assert.equal(rateContext.completionRate([]), 0)
-  assert.equal(rateContext.completionRate([{ status: 'DONE' }, { status: 'CANCELLED' }]), 100)
-})
-
 const loadFunction = dashboardAst.statements.find((node) => ts.isFunctionDeclaration(node) && node.name.text === 'load')
 async function runDashboardLoad({ failProjects = false, failTasks = false, failOneProgress = false } = {}) {
   const state = {
     projects: { value: [] },
     tasks: { value: [] },
+    myTaskSummary: { value: null },
     activities: { value: [] },
     loading: { value: false },
     projectLoadFailed: { value: false },
@@ -58,16 +47,20 @@ async function runDashboardLoad({ failProjects = false, failTasks = false, failO
     getMyProjectsApi: () =>
       failProjects ? Promise.reject(new Error('projects failed')) : Promise.resolve({ data: { data: projects } }),
     getMyTasksApi: () =>
-      failTasks ? Promise.reject(new Error('tasks failed')) : Promise.resolve({ data: { data: [{ status: 'TODO' }] } }),
-    getProjectTasksApi: (id) => {
+      failTasks
+        ? Promise.reject(new Error('tasks failed'))
+        : Promise.resolve({ data: { data: { records: [{ status: 'TODO' }], total: 55, page: 1, size: 20, pages: 3 } } }),
+    getMyTaskSummaryApi: () =>
+      Promise.resolve({ data: { data: { totalTaskCount: 55, unfinishedTaskCount: 30, doneTaskCount: 20, todoTaskCount: 10 } } }),
+    getProjectTaskSummaryApi: (id) => {
       queried.push(id)
       return failOneProgress && id === 2
         ? Promise.reject(new Error('project tasks failed'))
-        : Promise.resolve({ data: { data: [{ status: 'DONE' }, { status: 'TODO' }, { status: 'CANCELLED' }] } })
+        : Promise.resolve({ data: { data: { completionRate: 50 } } })
     },
     getProjectLogsApi: () => Promise.resolve({ data: { data: [] } }),
   })
-  vm.runInContext(compiled(`${rateFunction.getText(dashboardAst)}\n${loadFunction.getText(dashboardAst)}`), context)
+  vm.runInContext(compiled(`let loadRevision = 0;\n${loadFunction.getText(dashboardAst)}`), context)
   await vm.runInContext('load()', context)
   return { state, queried }
 }
@@ -89,7 +82,18 @@ test('dashboard keeps task data when project list fails', async () => {
   assert.equal(state.projectLoadFailed.value, true)
   assert.equal(state.taskLoadFailed.value, false)
   assert.equal(state.tasks.value.length, 1)
+  assert.equal(state.myTaskSummary.value.totalTaskCount, 55)
+  assert.equal(state.myTaskSummary.value.unfinishedTaskCount, 30)
   assert.deepEqual(queried, [])
+})
+
+test('project progress and personal totals use full summaries, not paged tasks', () => {
+  assert.ok(dashboardScript.includes('getProjectTaskSummaryApi(project.id)'))
+  assert.ok(!dashboardScript.includes('getProjectTasksApi('))
+  const dashboardTemplate = fs.readFileSync(path.join(__dirname, '../src/views/DashboardView.vue'), 'utf8')
+  assert.ok(dashboardTemplate.includes('myTaskSummary?.unfinishedTaskCount'))
+  assert.ok(dashboardTemplate.includes('myTaskSummary?.doneTaskCount'))
+  assert.ok(dashboardScript.includes('?? null'))
 })
 
 const layoutScript = script('layouts/AppLayout.vue')

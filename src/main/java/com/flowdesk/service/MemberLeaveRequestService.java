@@ -196,6 +196,15 @@ public class MemberLeaveRequestService {
             throw new BusinessException(409, "退出申请已经过期");
         }
 
+        Project currentProject = projectMapper.selectByIdForUpdate(projectId);
+        if (currentProject == null || currentProject.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        if (!"PREPARING".equals(currentProject.getStatus()) && !"IN_PROGRESS".equals(currentProject.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许处理该请求");
+        }
+        now = LocalDateTime.now();
+
         // 6. 真正修改数据库
         int updated = memberLeaveRequestMapper.cancelIfPending(requestId, projectId, currentUser.getUserId(), now, now);
 
@@ -299,6 +308,7 @@ public class MemberLeaveRequestService {
                 throw new BusinessException(400, "拒绝退出申请时必须填写原因");
             }
 
+            now = LocalDateTime.now();
             int updated = memberLeaveRequestMapper.reviewIfPending(
                 requestId,
                 projectId,
@@ -378,6 +388,7 @@ public class MemberLeaveRequestService {
         }
 
         // 9. 先把退出申请改成 APPROVED
+        now = LocalDateTime.now();
         int reviewed = memberLeaveRequestMapper.reviewIfPending(
             requestId,
             projectId,

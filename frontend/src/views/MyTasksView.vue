@@ -1,40 +1,51 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getMyTasksApi } from '@/api/tasks'
 import { getMyProjectsApi } from '@/api/projects'
 import PageHeader from '@/components/PageHeader.vue'
+import { usePagedList } from '@/composables/usePagedList'
 import StatusTag from '@/components/StatusTag.vue'
 import type { Project, Task, TaskStatus } from '@/types/api'
 import { formatDateTime, isOverdue } from '@/utils/format'
 
 const router = useRouter()
-const tasks = ref<Task[]>([])
+const listing = usePagedList<Task>()
+const { records: tasks, page, size, total, loading, error } = listing
 const projects = ref<Project[]>([])
 const projectMap = computed(() => new Map(projects.value.map((item) => [item.id, item.name])))
-const loading = ref(false)
-const taskLoadFailed = ref(false)
 const filter = ref<'ALL' | TaskStatus>('ALL')
 const keyword = ref('')
-const filteredTasks = computed(() =>
-  tasks.value.filter(
-    (task) =>
-      (filter.value === 'ALL' || task.status === filter.value) &&
-      task.title.toLowerCase().includes(keyword.value.trim().toLowerCase()),
-  ),
-)
 
 async function load() {
-  loading.value = true
-  try {
-    const [taskResult, projectResult] = await Promise.allSettled([getMyTasksApi(), getMyProjectsApi()])
-    taskLoadFailed.value = taskResult.status === 'rejected'
-    tasks.value = taskResult.status === 'fulfilled' ? taskResult.value.data.data : []
-    projects.value = projectResult.status === 'fulfilled' ? projectResult.value.data.data : []
-  } finally {
-    loading.value = false
+  const status = filter.value
+  const title = keyword.value
+  await Promise.all([
+    listing.load((page, size) => getMyTasksApi({ page, size, status, keyword: title }).then((r) => r.data.data)),
+    getMyProjectsApi()
+      .then((r) => {
+        projects.value = r.data.data
+      })
+      .catch(() => {
+        projects.value = []
+      }),
+  ])
+}
+function changePage(value: number) {
+  if (page.value !== value) {
+    page.value = value
+    void load()
   }
 }
+function changeSize(value: number) {
+  size.value = value
+  listing.reset()
+  void load()
+}
+watch([filter, keyword], () => {
+  listing.reset()
+  void load()
+})
 onMounted(load)
 </script>
 
@@ -57,11 +68,11 @@ onMounted(load)
     />
   </section>
   <section v-loading="loading" class="task-list">
-    <el-alert v-if="taskLoadFailed" title="任务数据加载失败，请重试" type="error" :closable="false"
+    <el-alert v-if="error" :title="error" type="error" :closable="false"
       ><el-button link type="primary" @click="load">重新加载</el-button></el-alert
     >
-    <el-empty v-if="!loading && !taskLoadFailed && !filteredTasks.length" description="当前筛选下没有任务" />
-    <article v-for="task in filteredTasks" :key="task.id" class="task-row" @click="router.push('/tasks/' + task.id)">
+    <el-empty v-if="!loading && !error && !tasks.length" description="当前筛选下没有任务" />
+    <article v-for="task in tasks" :key="task.id" class="task-row" @click="router.push('/tasks/' + task.id)">
       <div class="priority" :class="(task.priority || 'MEDIUM').toLowerCase()" />
       <div class="task-main">
         <div class="task-title">
@@ -84,6 +95,15 @@ onMounted(load)
       </div>
       <StatusTag :value="task.priority || 'MEDIUM'" />
     </article>
+    <el-pagination
+      :current-page="page"
+      :page-size="size"
+      :page-sizes="[20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      :total="total"
+      @current-change="changePage"
+      @size-change="changeSize"
+    />
   </section>
 </template>
 

@@ -30,6 +30,7 @@ public class ProjectAcceptanceService {
     private final UserMapper userMapper;
     private final NotificationService notificationService;
     private final ProjectMemberMapper projectMemberMapper;
+    private final ProjectRequestClosureService requestClosureService;
 
     public ProjectAcceptanceService(
         ProjectAcceptanceMapper projectAcceptanceMapper,
@@ -40,7 +41,8 @@ public class ProjectAcceptanceService {
         TaskRequestMapper taskRequestMapper,
         UserMapper userMapper,
         NotificationService notificationService,
-        ProjectMemberMapper projectMemberMapper
+        ProjectMemberMapper projectMemberMapper,
+        ProjectRequestClosureService requestClosureService
     ) {
         this.projectAcceptanceMapper = projectAcceptanceMapper;
         this.projectMapper = projectMapper;
@@ -51,6 +53,7 @@ public class ProjectAcceptanceService {
         this.userMapper = userMapper;
         this.notificationService = notificationService;
         this.projectMemberMapper = projectMemberMapper;
+        this.requestClosureService = requestClosureService;
     }
 
     @Transactional
@@ -306,6 +309,10 @@ public class ProjectAcceptanceService {
         );
         if (acceptanceUpdated != 1) {
             throw new BusinessException(409, "该项目验收已经处理，请刷新后重试");
+        }
+
+        if ("APPROVE".equals(action)) {
+            requestClosureService.closeForCompletedProject(project.getId(), now);
         }
 
         // 准备修改前的数据

@@ -10,6 +10,10 @@ const projects = ref<Project[]>([])
 const projectId = ref<number>()
 const logs = ref<OperationLog[]>([])
 const loading = ref(false)
+const error = ref('')
+const projectsError = ref('')
+const projectsLoading = ref(false)
+let logRevision = 0
 const targetNames: Record<string, string> = {
   PROJECT: '项目',
   TASK: '任务',
@@ -21,22 +25,40 @@ const targetNames: Record<string, string> = {
 }
 
 async function loadLogs() {
-  if (!projectId.value) {
-    logs.value = []
+  const revision = ++logRevision
+  const currentProjectId = projectId.value
+  error.value = ''
+  logs.value = []
+  if (!currentProjectId) {
+    loading.value = false
     return
   }
   loading.value = true
   try {
-    logs.value = (await getProjectLogsApi(projectId.value, 100)).data.data
+    const result = await getProjectLogsApi(currentProjectId, 100)
+    if (revision === logRevision) logs.value = result.data.data
+  } catch {
+    if (revision === logRevision) error.value = '操作记录加载失败，请重试'
   } finally {
-    loading.value = false
+    if (revision === logRevision) loading.value = false
   }
 }
 
-onMounted(async () => {
-  projects.value = (await getMyProjectsApi()).data.data
-  projectId.value = projects.value[0]?.id
-})
+async function loadProjects() {
+  projectsLoading.value = true
+  projectsError.value = ''
+  try {
+    projects.value = (await getMyProjectsApi()).data.data
+    projectId.value = projects.value[0]?.id
+  } catch {
+    projects.value = []
+    projectId.value = undefined
+    projectsError.value = '项目列表加载失败，请重试'
+  } finally {
+    projectsLoading.value = false
+  }
+}
+onMounted(loadProjects)
 watch(projectId, loadLogs)
 </script>
 
@@ -45,9 +67,15 @@ watch(projectId, loadLogs)
     <el-select v-model="projectId" placeholder="选择项目" filterable style="width: 220px"
       ><el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id"
     /></el-select>
-    <el-button :icon="Refresh" circle @click="loadLogs" />
+    <el-button :icon="Refresh" circle aria-label="刷新操作记录" @click="projectsError ? loadProjects() : loadLogs()" />
   </PageHeader>
-  <section v-loading="loading" class="surface-card activity-panel">
+  <section v-loading="loading || projectsLoading" class="surface-card activity-panel">
+    <el-alert v-if="projectsError" :title="projectsError" type="error" :closable="false"
+      ><el-button link @click="loadProjects">重试</el-button></el-alert
+    >
+    <el-alert v-else-if="error" :title="error" type="error" :closable="false"
+      ><el-button link @click="loadLogs">重试</el-button></el-alert
+    >
     <div v-for="log in logs" :key="log.id" class="log-row">
       <div class="log-mark" />
       <div class="log-content">
@@ -59,7 +87,10 @@ watch(projectId, loadLogs)
       </div>
       <time>{{ formatDateTime(log.createdAt) }}</time>
     </div>
-    <el-empty v-if="!loading && !logs.length" description="该项目还没有操作记录" />
+    <el-empty
+      v-if="!loading && !projectsLoading && !error && !projectsError && !logs.length"
+      :description="!projects.length ? '还没有参与任何项目' : !projectId ? '请选择项目查看操作记录' : '该项目还没有操作记录'"
+    />
   </section>
 </template>
 

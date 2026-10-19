@@ -4,23 +4,23 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getCurrentUserApi } from '@/api/auth'
 import { getMyProjectsApi, getProjectMembersApi } from '@/api/projects'
-import { getMyTasksApi } from '@/api/tasks'
+import { getMyTasksApi, getMyTaskSummaryApi } from '@/api/tasks'
 import MetricCard from '@/components/MetricCard.vue'
 import StatusTag from '@/components/StatusTag.vue'
-import type { Project, ProjectRole, Task, UserProfile } from '@/types/api'
+import type { Project, ProjectRole, Task, UserProfile, MyTaskSummary } from '@/types/api'
 import { formatDate, formatDateTime, statusLabel } from '@/utils/format'
 
 const router = useRouter()
 const profile = ref<UserProfile>()
 const projects = ref<Project[]>([])
 const tasks = ref<Task[]>([])
+const taskSummary = ref<MyTaskSummary | null>(null)
+let loadRevision = 0
 const projectRoles = ref(new Map<number, ProjectRole>())
 const loading = ref(false)
 const loadFailed = ref(false)
 
 const displayName = computed(() => profile.value?.realName || profile.value?.username || 'FlowDesk 用户')
-const inProgressTasks = computed(() => tasks.value.filter((task) => task.status === 'IN_PROGRESS').length)
-const pendingTasks = computed(() => tasks.value.filter((task) => task.status === 'TODO').length)
 const recentTasks = computed(() =>
   tasks.value
     .slice()
@@ -31,17 +31,24 @@ const recentProjects = computed(() => projects.value.slice(0, 5))
 const projectNames = computed(() => new Map(projects.value.map((project) => [project.id, project.name])))
 
 async function load() {
+  const revision = ++loadRevision
   loading.value = true
+  taskSummary.value = null
   loadFailed.value = false
   try {
-    const [profileResponse, projectResponse, taskResponse] = await Promise.all([
+    const [profileResponse, projectResponse, taskResponse, summary] = await Promise.all([
       getCurrentUserApi(),
       getMyProjectsApi(),
       getMyTasksApi(),
+      getMyTaskSummaryApi()
+        .then((r) => r.data.data)
+        .catch(() => null),
     ])
+    if (revision !== loadRevision) return
+    taskSummary.value = summary
     profile.value = profileResponse.data.data
     projects.value = projectResponse.data.data
-    tasks.value = taskResponse.data.data
+    tasks.value = taskResponse.data.data.records
 
     const membershipResults = await Promise.allSettled(
       projects.value
@@ -50,6 +57,7 @@ async function load() {
           getProjectMembersApi(project.id).then((response) => ({ projectId: project.id, members: response.data.data })),
         ),
     )
+    if (revision !== loadRevision) return
     const roles = new Map<number, ProjectRole>()
     membershipResults.forEach((result) => {
       if (result.status !== 'fulfilled') return
@@ -58,9 +66,9 @@ async function load() {
     })
     projectRoles.value = roles
   } catch {
-    loadFailed.value = true
+    if (revision === loadRevision) loadFailed.value = true
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 
@@ -87,9 +95,27 @@ onMounted(load)
 
       <section class="metrics">
         <MetricCard label="参与项目" :value="projects.length" note="当前有效加入的项目" tone="blue"><FolderOpened /></MetricCard>
-        <MetricCard label="我的任务" :value="tasks.length" note="当前分配给我的全部任务" tone="violet"><List /></MetricCard>
-        <MetricCard label="进行中" :value="inProgressTasks" note="正在执行的任务" tone="green"><Timer /></MetricCard>
-        <MetricCard label="待我处理" :value="pendingTasks" note="尚未开始的任务" tone="amber"><UserFilled /></MetricCard>
+        <MetricCard
+          label="我的任务"
+          :value="taskSummary?.totalTaskCount ?? '—'"
+          :note="taskSummary ? '当前分配给我的全部任务' : '统计暂不可用'"
+          tone="violet"
+          ><List
+        /></MetricCard>
+        <MetricCard
+          label="进行中"
+          :value="taskSummary?.inProgressTaskCount ?? '—'"
+          :note="taskSummary ? '正在执行的任务' : '统计暂不可用'"
+          tone="green"
+          ><Timer
+        /></MetricCard>
+        <MetricCard
+          label="待我处理"
+          :value="taskSummary?.todoTaskCount ?? '—'"
+          :note="taskSummary ? '尚未开始的任务' : '统计暂不可用'"
+          tone="amber"
+          ><UserFilled
+        /></MetricCard>
       </section>
 
       <section class="profile-grid">

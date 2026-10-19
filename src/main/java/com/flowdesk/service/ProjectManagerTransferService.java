@@ -305,6 +305,7 @@ public class ProjectManagerTransferService {
         }
 
         // 10. 先正式把转让状态改成 ACCEPTED
+        now = LocalDateTime.now();
         int accepted = transferMapper.acceptIfPending(transferId, projectId, currentUser.getUserId(), now, now);
 
         if (accepted != 1) {
@@ -420,6 +421,15 @@ public class ProjectManagerTransferService {
             throw new BusinessException(409, "该负责人转让已经过期");
         }
 
+        Project currentProject = projectMapper.selectByIdForUpdate(projectId);
+        if (currentProject == null || currentProject.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        if (!"PREPARING".equals(currentProject.getStatus()) && !"IN_PROGRESS".equals(currentProject.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许处理该请求");
+        }
+        now = LocalDateTime.now();
+
         int updated = transferMapper.rejectIfPending(transferId, projectId, currentUser.getUserId(), now, now);
 
         if (updated != 1) {
@@ -483,6 +493,15 @@ public class ProjectManagerTransferService {
         if (!transfer.getExpiresAt().isAfter(now)) {
             throw new BusinessException(409, "该负责人转让已经过期");
         }
+
+        Project currentProject = projectMapper.selectByIdForUpdate(projectId);
+        if (currentProject == null || currentProject.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        if (!"PREPARING".equals(currentProject.getStatus()) && !"IN_PROGRESS".equals(currentProject.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许处理该请求");
+        }
+        now = LocalDateTime.now();
 
         int updated = transferMapper.cancelIfPending(transferId, projectId, currentUser.getUserId(), now, now);
 

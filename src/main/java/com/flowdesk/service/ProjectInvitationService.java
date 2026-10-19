@@ -305,7 +305,7 @@ public class ProjectInvitationService {
         String normalizedFilter = filter.trim().toUpperCase();
 
         switch (normalizedFilter) {
-            case "ALL", "PENDING", "ACCEPTED", "REJECTED", "EXPIRED":
+            case "ALL", "PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "CLOSED":
                 break;
             default:
                 throw new BusinessException(400, "邀请筛选条件不正确");
@@ -355,6 +355,15 @@ public class ProjectInvitationService {
         if (!invitation.getExpiresAt().isAfter(now)) {
             throw new BusinessException(409, "该邀请已经过期");
         }
+
+        Project currentProject = projectMapper.selectByIdForUpdate(invitation.getProjectId());
+        if (currentProject == null || currentProject.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        if (!"PREPARING".equals(currentProject.getStatus()) && !"IN_PROGRESS".equals(currentProject.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许处理该请求");
+        }
+        now = LocalDateTime.now();
 
         int rejected = projectInvitationMapper.transitionPending(invitationId, "REJECTED", now);
 

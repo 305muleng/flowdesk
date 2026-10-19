@@ -14,10 +14,22 @@ import java.util.List;
 @Mapper
 public interface ProjectInvitationMapper extends BaseMapper<ProjectInvitation> {
     @Update("""
+        UPDATE project_invitation
+        SET status = 'CLOSED', closed_at = #{closedAt}, close_reason = #{closeReason}
+        WHERE project_id = #{projectId} AND status = 'PENDING'
+          AND expires_at > #{closedAt}
+        """)
+    int closePendingForProject(
+        @Param("projectId") Long projectId,
+        @Param("closedAt") LocalDateTime closedAt,
+        @Param("closeReason") String closeReason
+    );
+
+    @Update("""
             UPDATE project_invitation
             SET status = #{newStatus}, responded_at = #{respondedAt}
             WHERE id = #{invitationId} AND status = 'PENDING'
-              AND (#{newStatus} != 'ACCEPTED' OR expires_at > #{respondedAt})
+              AND expires_at > #{respondedAt}
             """)
     int transitionPending(
         @Param("invitationId") Long invitationId,
@@ -30,9 +42,11 @@ public interface ProjectInvitationMapper extends BaseMapper<ProjectInvitation> {
                 pi.id AS id,
                 pi.project_id AS projectId,
                 p.name AS projectName,
+                p.status AS projectStatus,
                 pi.inviter_id AS inviterId,
                 u.real_name AS inviterName,
                 pi.status AS status,
+                pi.closed_at AS closedAt, pi.close_reason AS closeReason,
                 pi.created_at AS createdAt,
                 pi.expires_at AS expiresAt,
                 pi.responded_at AS respondedAt
@@ -44,6 +58,7 @@ public interface ProjectInvitationMapper extends BaseMapper<ProjectInvitation> {
             WHERE pi.invitee_id = #{inviteeId}
               AND (
                     #{filter} = 'ALL'
+                    OR (#{filter} = 'CLOSED' AND pi.status = 'CLOSED')
             
                     OR (
                         #{filter} = 'PENDING'

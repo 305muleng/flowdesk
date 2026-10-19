@@ -1,458 +1,407 @@
 # FlowDesk
 
-FlowDesk 是一个面向研发团队的项目、任务与交付协作平台。
+FlowDesk 是一个以研发团队协作为背景的项目、任务与交付验收系统，覆盖项目创建、成员协作、任务执行、成果审核、项目验收与归档。
 
-项目以真实研发协作流程为背景，围绕项目生命周期、任务流转、成员协作、交付审核、项目验收、权限控制和操作审计进行设计。
+项目用于 Java 后端工程实践和实习、校招准备，重点展示业务建模、权限控制、事务并发、缓存一致性、异常处理和测试能力。
 
-当前已完成 Backend V1，后续将继续扩展前端、容器化部署、CI/CD 和 AI 协作能力。
+## 业务流程
 
-## 核心亮点
+```text
+创建项目
+  → 邀请成员、规划任务
+  → 启动项目
+  → 执行任务、提交成果
+  → 项目负责人审核
+  → 提交项目验收
+  → 系统管理员审核
+  → 完成并归档
+```
 
-- 基于 JWT + Interceptor 实现身份认证
-- 系统级角色与项目级角色分离的 RBAC 权限模型
-- 项目、任务、任务申请、项目验收等完整状态机设计
-- 使用事务保证关键业务操作与审计日志一致性
-- 统一异常处理与 HTTP 状态码规范
-- Swagger / OpenAPI 接口文档
-- JUnit + Mockito + MockMvc 自动化测试
-- 为后续 RAG、Agent Tool Calling 和 AI 权限控制预留业务基础
+项目验收被驳回后，可以继续整改并再次提交。成员退出、负责人转让、站内通知和操作审计为主流程提供支持。
 
 ## 技术栈
 
-Backend
-
-```text
-Java 17
-Spring Boot 4
-Spring MVC
-MyBatis-Plus
-MySQL
-Maven
-```
-
-Authentication & Authorization
-
-```text
-JWT
-BCrypt
-HandlerInterceptor
-ThreadLocal UserContext
-RBAC
-```
-
-Engineering
-
-```text
-Jakarta Validation
-Global Exception Handling
-Transaction Management
-Operation Audit
-Swagger / OpenAPI
-```
-
-Testing
-
-```text
-JUnit
-Mockito
-MockMvc
-```
-
-## 系统架构
-
-```text
-Client
-  │
-  ▼
-Interceptor
-  │
-  ├── JWT Authentication
-  └── System Permission Check
-  │
-  ▼
-Controller
-  │
-  ▼
-Service
-  │
-  ├── Business Rules
-  ├── State Machine
-  ├── Project Permission
-  ├── Transaction
-  └── Operation Audit
-  │
-  ▼
-Mapper
-  │
-  ▼
-MySQL
-```
-
-## 权限模型
-
-FlowDesk 将权限拆分为两个层级。
-
-系统角色：
-
-```text
-SYSTEM_ADMIN
-USER
-```
-
-项目角色：
-
-```text
-PROJECT_MANAGER
-DEVELOPER
-```
-
-项目角色属于用户与项目之间的成员关系。
-
-因此，同一个用户可以：
-
-```text
-Project A → PROJECT_MANAGER
-
-Project B → DEVELOPER
-```
-
-SYSTEM_ADMIN 也不会自动获得所有项目的项目负责人权限，只拥有明确授权的系统级能力。
-
-## 核心业务
-
-### 项目生命周期
-
-```text
-PREPARING
-    ↓
-IN_PROGRESS
-    ↓
-PENDING_ACCEPTANCE
-    ↓
-COMPLETED
-    ↓
-ARCHIVED
-```
-
-项目还可以根据业务状态进入：
-
-```text
-CANCELLED
-```
-
-支持：
-
-- 创建与启动项目
-- 成员管理与邀请
-- 项目取消
-- 项目验收
-- 项目归档
-
-### 任务生命周期
-
-```text
-TODO
- ↓
-IN_PROGRESS
- ↓
-REVIEW
- ├── APPROVE → DONE
- └── REJECT  → IN_PROGRESS
-```
-
-支持：
-
-- 创建任务
-- 分配与重新分配负责人
-- 启动任务
-- 提交开发成果
-- 审核任务
-- 取消任务
-- 任务评论
-
-Backend V1 中 `DONE` 为终态。
-
-### 任务申请
-
-开发人员可以主动提交任务申请：
-
-```text
-PENDING
-├── APPROVED
-├── REJECTED
-└── CANCELLED
-```
-
-申请通过后自动生成正式 Task。
-
-### 项目验收
-
-项目负责人可以提交项目验收。
-
-提交前系统会检查：
-
-- 是否存在未完成任务
-- 是否存在待处理任务申请
-- 当前项目状态是否允许验收
-
-SYSTEM_ADMIN 负责最终审核：
-
-```text
-APPROVE
-→ COMPLETED
-
-REJECT
-→ IN_PROGRESS
-```
-
-## JWT 与用户状态
-
-JWT 中仅保存用户 ID。
-
-受保护请求到达系统后：
-
-```text
-JWT
- ↓
-解析 userId
- ↓
-查询当前数据库用户
- ↓
-检查用户状态
- ↓
-写入 UserContext
-```
-
-因此，即使 JWT 本身尚未过期，账号被禁用后也会在下一次请求中立即失去访问权限。
-
-## 操作审计
-
-系统通过 `operation_log` 记录关键业务行为，例如：
-
-```text
-CREATE_PROJECT
-START_PROJECT
-CREATE_TASK
-ASSIGN_TASK
-START_TASK
-SUBMIT_TASK
-APPROVE_TASK
-REJECT_TASK
-SUBMIT_PROJECT_ACCEPTANCE
-APPROVE_PROJECT_ACCEPTANCE
-CANCEL_PROJECT
-ARCHIVE_PROJECT
-```
-
-日志包含：
-
-- 操作用户
-- 目标对象
-- 操作类型
-- 修改前数据
-- 修改后数据
-- 操作时间
-
-关键日志与业务修改在同一事务中执行。
-
-## HTTP 错误规范
-
-| Status | 含义 |
+| 层次 | 技术 |
 | --- | --- |
-| 400 | 请求参数或格式不合法 |
-| 401 | 身份认证失败 |
-| 403 | 已认证，但无操作权限 |
-| 404 | 目标资源不存在 |
-| 409 | 请求与当前业务状态冲突 |
-| 500 | 服务端内部异常 |
+| 后端 | Java 17、Spring Boot 4、Spring MVC |
+| 数据访问 | MyBatis-Plus、MySQL |
+| 缓存 | Spring Data Redis、Redis |
+| 认证 | JWT、BCrypt、Interceptor、ThreadLocal |
+| 前端 | Vue 3、TypeScript、Element Plus、Pinia、Vue Router、Vite |
+| 测试 | JUnit、Mockito、MockMvc、Node 测试 |
+| 构建 | Maven、npm |
 
-例如：
+## 角色与权限
 
-```text
-非任务负责人启动任务
-→ 403 Forbidden
+系统角色和项目角色分开管理。
 
-DONE 任务再次提交
-→ 409 Conflict
+| 角色 | 职责 |
+| --- | --- |
+| 普通用户 `USER` | 创建项目、接受邀请，在不同项目承担不同职责 |
+| 系统管理员 `SYSTEM_ADMIN` | 管理账号、审核项目验收，不自动拥有普通项目管理权限 |
+| 项目负责人 `PROJECT_MANAGER` | 管理本项目成员、任务、审批、交付及生命周期 |
+| 开发人员 `DEVELOPER` | 执行任务、提出任务申请、参与讨论和申请退出 |
 
-指定非有效项目成员为任务负责人
-→ 409 Conflict
-```
+项目角色属于用户与项目之间的关系。同一个用户可以是一个项目的负责人，同时是另一个项目的开发人员。
 
-## 自动化测试
+后端根据当前账号和项目成员关系校验权限。前端菜单和按钮用于引导操作，不代替后端鉴权。
 
-Backend V1 已建立 Service 与 Web 两层测试。
+## 主要功能
 
-覆盖内容包括：
+### 项目管理
 
-- 项目状态流转
-- 任务状态流转
-- 任务申请
-- 项目验收
-- JWT
-- GlobalExceptionHandler
-- LoginInterceptor
-- SystemAdminInterceptor
-- HTTP 状态码
-- 权限边界
-- 关键异常场景
+- 创建项目，创建者自动成为项目负责人。
+- 查看参与项目、项目详情、成员及操作记录。
+- 启动、取消、提交验收和归档。
+- 项目取消后冻结正常推进，但不批量修改正式任务状态。
 
-部分典型场景：
+项目状态：
 
 ```text
-无 JWT → 401
+PREPARING → IN_PROGRESS → PENDING_ACCEPTANCE → COMPLETED → ARCHIVED
+                              │
+                              └─验收驳回→ IN_PROGRESS
 
-无效 JWT → 401
-
-账号被禁用 → 403
-
-普通用户访问管理员接口 → 403
-
-非任务负责人启动任务 → 403
-
-DONE 任务再次提交 → 409
-
-非项目有效成员被指定为负责人 → 409
-
-开发人员审核任务申请 → 403
-
-存在未完成任务时提交验收 → 409
+PREPARING / IN_PROGRESS → CANCELLED
 ```
 
-Backend V1 当前全量自动化测试通过。
+待验收期间暂停日常修改，完成、归档和取消后限制业务写操作。
 
-## API 文档
+### 任务与任务申请
 
-项目集成 Swagger / OpenAPI。
+- 项目负责人创建正式任务，设置任务负责人、优先级和截止时间。
+- 开发人员提出任务申请，负责人批准后生成正式任务。
+- 任务支持开始、提交、审核、取消、评论和提交历史查询。
+- TODO 状态允许重新分配任务负责人。
+- 项目负责人也可以承担任务，当前允许其审核自己提交的成果。
 
-启动项目后访问：
+任务状态：
+
+```text
+TODO → IN_PROGRESS → REVIEW → DONE
+                       │
+                       └─驳回→ IN_PROGRESS
+
+TODO / IN_PROGRESS → CANCELLED
+```
+
+审核驳回时，如果原任务负责人账号已不可用，任务回到 TODO 并清空负责人，等待重新分配。
+
+### 成员管理
+
+- 邀请普通用户加入项目，支持接受、拒绝和过期判断。
+- 开发人员申请退出，由项目负责人审批。
+- 项目负责人可以移除符合条件的开发人员。
+- 负责人转让需要密码确认，并由目标用户接受。
+- 转让时，原项目负责人可以留任开发人员或退出项目。
+
+退出或移除成员前检查未完成任务。成员关系停用后保留历史任务归属和贡献，不直接删除历史关系。
+
+### 账号禁用与任务交接
+
+- 管理员可启用或禁用账号。
+- 仍负责特定状态项目的账号不能直接禁用，页面按项目说明转让、验收处理或归档要求。
+- 禁用不自动删除成员关系，也不自动重新分配任务。
+- 禁用提交后，向相关活动项目的负责人尽力发送站内通知。
+- 项目成员页可定位禁用成员承担的未完成任务。
+- 对禁用账号承担的 IN_PROGRESS 任务，项目负责人可以填写原因，交接给有效项目成员。
+- 交接后任务回到 TODO，保留内容、评论和提交历史，并记录审计。
+- 重新启用账号不会自动撤销已经完成的交接。
+
+通知失败不会回滚已提交的禁用操作。当前没有持久化通知重试或通知必达保障。
+
+### 项目交付与验收
+
+提交验收前要求：
+
+- 项目处于 IN_PROGRESS。
+- 没有 TODO、IN_PROGRESS、REVIEW 任务。
+- 没有 PENDING 任务申请。
+- 提供验收说明及至少一个代码仓库、部署或文档链接。
+
+管理员通过后项目进入 COMPLETED；驳回后回到 IN_PROGRESS，整改后生成新一轮验收记录。
+
+当前不单独禁止零任务或全部任务取消的项目提交验收，由其他条件和管理员审阅共同约束。
+
+验收详情包含本轮提交及审核记录，并展示项目当前资料、任务统计、取消任务和成员贡献。
+
+**当前资料不是提交时快照。** 旧验收记录中的项目链接、任务和成员汇总可能随当前数据变化；页面明确提示这一点，项目不提供验收快照功能。
+
+### 两种统计口径
+
+| 指标 | 公式 | 含义 |
+| --- | --- | --- |
+| 执行进度 | `DONE / (总任务数 - CANCELLED) × 100%` | 有效工作范围完成了多少 |
+| 验收完成占比 | `DONE / (DONE + CANCELLED) × 100%` | 已结束任务中，完成而非取消的比例 |
+
+分母为零时均返回 0。
+
+例如 8 个任务完成、2 个取消，执行进度为 100%，验收完成占比为 80%。后者不是管理员审批通过率。
+
+### 请求关闭与过期
+
+- 验收通过：关闭仍有效的待处理邀请、退出申请和负责人转让。
+- 项目取消：额外关闭待处理任务申请。
+- 关闭使用 `CLOSED`，保存关闭时间和原因。
+- 已处理或已过期记录不被覆盖。
+- 待验收期间只暂停操作；驳回后，未过期且符合条件的请求可以继续处理。
+- 项目结束与请求关闭位于同一事务。
+- 不追溯关闭以前已结束项目的遗留请求。
+
+查询时识别过期，操作时重新检查有效期。CLOSED、用户撤回、拒绝和时间过期具有不同含义。
+
+### 分页、筛选与统计
+
+项目任务、我的任务和通知列表使用后端分页：
+
+- 默认每页 20 条，最多 100 条。
+- 筛选在分页前执行，总数对应完整筛选结果。
+- 项目任务支持范围、状态、任务负责人及仅未完成筛选。
+- 我的任务支持状态和标题关键词筛选。
+- 通知支持分类及已读筛选。
+- 相同时间使用 ID 作为第二排序条件。
+- 筛选变化重置页码，数据减少后处理空页回退。
+
+项目进度使用项目汇总接口，个人统计使用当前用户汇总接口，不从当前页计算全量统计。
+
+通知未读总数与“全部已读”覆盖当前用户的全部通知，不受当前页或分类限制。
+
+### 通知与审计
+
+站内通知关联邀请、申请、任务、验收及成员事件，支持已读处理和历史跳转。
+
+已读不表示关联业务已经处理。历史记录能否查看、能否操作，仍由对应业务权限和状态决定。
+
+操作审计保存操作者、对象、动作、修改前后信息和时间，用于追踪关键业务变化。
+
+## 后端设计
+
+### 认证与权限
+
+- BCrypt 保存密码哈希。
+- JWT 标识登录用户。
+- 请求拦截器读取当前账号状态及系统角色。
+- Service 根据当前项目成员关系校验业务权限。
+- 请求结束后清理 ThreadLocal 用户上下文。
+
+退出登录当前清除客户端凭证，不提供服务端 Token 黑名单或会话吊销机制。
+
+### 事务与并发控制
+
+关键状态变化结合数据库事务、项目行锁和条件更新，协调任务写入、成员变更及项目验收。
+
+条件更新检查预期状态或负责人，避免过期请求直接覆盖已经变化的业务结果。
+
+请求关闭使用 MANDATORY 参与项目结束事务；禁用通知使用提交后本地事务事件，并以独立事务隔离各项目通知失败。
+
+这些机制有不同的业务目的，不代表已经实现所有故障场景下的可靠投递或分布式事务。
+
+### Redis 任务统计缓存
+
+接口：
+
+```text
+GET /projects/{projectId}/task-summary
+```
+
+设计：
+
+- 先校验项目权限和存在性，再读取缓存。
+- Key：`flowdesk:project:{projectId}:task-summary:v1`。
+- Value：任务统计 JSON，TTL 为 60 秒。
+- 未命中时查询数据库并回填。
+- Redis 读取失败时回退数据库，跳过本次回填。
+- 影响统计的业务提交后删除缓存，回滚不删除。
+- 使用延迟补删降低旧值回填的影响。
+
+配置项：
+
+```properties
+flowdesk.cache.task-summary.second-delete-delay-ms=10000
+```
+
+当前 10 秒为实验配置，不是已论证的生产参数。
+
+延迟补删不保证强一致；删除失败、进程退出、调度拒绝和更晚的旧值回填仍是边界。当前没有可靠补偿队列或跨请求熔断。
+
+个人任务汇总接口为：
+
+```text
+GET /tasks/my/summary
+```
+
+只统计当前登录用户有权访问的任务，本接口当前不增加 Redis 缓存。
+
+## 目录
+
+```text
+database/                 当前数据库结构
+src/main/java/com/flowdesk/
+  controller/             HTTP 接口
+  service/                业务规则与事务
+  mapper/                 数据查询和条件更新
+  model/                  持久化实体
+  dto/                    输入与查询数据结构
+  vo/                     返回数据
+  cache/                  统计缓存
+  event/                  本地业务事件
+  interceptor/            认证及系统权限拦截
+  config/                 配置
+src/test/                 后端测试及测试配置
+frontend/                 Vue 前端
+```
+
+AI 目录为独立实验，不作为已完成的产品能力。
+
+## 本地运行
+
+### 环境
+
+- Java 17。
+- MySQL；当前结构导出自 MySQL 9.7.0。
+- Redis；本地实践使用 Redis 8.2。
+- Node.js 版本遵循 `frontend/package.json` 的 engines。
+- Maven Wrapper 或兼容的本地 Maven。
+
+以下命令以 Windows CMD 为例，在项目根目录执行。
+
+### 数据库初始化
+
+结构文件：
+
+```text
+database/flowdesk-schema-20261018.sql
+```
+
+包含当前 13 张表和索引，包括任务统计覆盖索引及请求关闭字段，不包含业务数据。
+
+**仅导入已选中的空数据库。当前已有结构的数据库不要重复执行，不把此文件用作升级脚本。**
+
+若使用名为 mysql 的 Docker 容器，可以：
+
+```bat
+docker cp database/flowdesk-schema-20261018.sql mysql:/tmp/flowdesk-schema.sql
+docker exec -it mysql mysql -u root -p
+```
+
+在 MySQL 客户端中创建并选择数据库：
+
+```sql
+CREATE DATABASE flowdesk
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_0900_ai_ci;
+
+USE flowdesk;
+```
+
+然后在同一个 MySQL 命令行客户端中导入结构：
+
+```text
+SOURCE /tmp/flowdesk-schema.sql;
+```
+
+如果数据库已存在，先确认用途及内容，不直接继续导入。
+
+注册接口只创建普通用户。首次系统管理员账号需要由环境维护者单独准备，项目不内置默认管理员密码。
+
+### 后端配置
+
+配置文件：
+
+```text
+src/main/resources/application.properties
+```
+
+当前需要提供：
+
+| 环境变量 | 用途 |
+| --- | --- |
+| `FLOWDESK_DB_PASSWORD` | MySQL 密码 |
+| `JWT_SECRET` | JWT 签名密钥 |
+| `REDIS_PASSWORD` | Redis 密码 |
+
+同时核对数据库地址、用户名及 Redis 地址与本地环境一致。JWT 密钥须符合所用签名算法的长度要求。
+
+可以通过 IDE 运行配置或当前终端环境提供变量，不将实际凭证提交到仓库。
+
+启动：
+
+```bat
+mvnw.cmd spring-boot:run
+```
+
+默认后端地址：
+
+```text
+http://localhost:8080
+```
+
+API 文档：
 
 ```text
 http://localhost:8080/swagger-ui.html
 ```
 
-支持 Bearer JWT Authorization，可直接调试受保护接口。
+### 前端
 
-## 项目结构
-
-```text
-src/main/java/com/flowdesk
-
-├── common
-├── config
-├── context
-├── controller
-├── dto
-├── exception
-├── interceptor
-├── mapper
-├── model
-├── service
-├── util
-└── vo
+```bat
+cd frontend
+npm ci
+npm run dev
 ```
 
-## 当前版本
-
-### v1.0-backend
-
-Backend V1 已完成并冻结。
-
-已实现：
+访问地址以启动输出为准，本地通常为：
 
 ```text
-用户认证
-项目管理
-成员邀请
-项目级 RBAC
-任务生命周期
-任务申请
-任务提交与审核
-项目验收
-操作审计
-Swagger
-自动化测试
-统一异常处理
+http://localhost:5173
 ```
 
-Git Tag：
+前端默认使用 `/api`，本地代理配置见 `frontend/vite.config.ts`。部署时需另行配置请求地址或反向代理。
 
-```text
-v1.0-backend
+## 测试与实践记录
+
+项目包含业务单元测试、Web 接口测试、真实环境集成测试，以及前端组件和交互相关检查。
+
+最近一轮记录中：
+
+- 后端无外部环境测试：289 项通过。
+- 前端自动化测试：48 项通过。
+- 前端类型检查与构建通过。
+- 使用浏览器和正式接口，在项目 5 中完成了多角色主流程审阅。
+
+不同阶段的测试数量会重叠，不能相加为独立测试总数。
+
+真实环境集成测试使用 `test` profile，需要单独准备测试数据库和 Redis：
+
+| 环境变量 | 用途 |
+| --- | --- |
+| `FLOWDESK_TEST_DB_PASSWORD` | 测试数据库密码 |
+| `FLOWDESK_TEST_REDIS_HOST` | 专用测试 Redis 地址 |
+| `FLOWDESK_TEST_REDIS_PORT` | 测试 Redis 端口 |
+| `FLOWDESK_TEST_REDIS_DATABASE` | 测试逻辑库 |
+| `FLOWDESK_TEST_REDIS_CONFIRMED` | 写入测试确认，需显式设为 `true` |
+| `FLOWDESK_TEST_REDIS_USERNAME` | 可选认证用户名 |
+| `FLOWDESK_TEST_REDIS_PASSWORD` | 可选认证密码 |
+
+不要将真实环境测试指向业务数据。测试仅清理自身专用 Key，不使用 FLUSHDB 或 FLUSHALL。
+
+前端检查：
+
+```bat
+cd frontend
+node --test tests/*.test.cjs
+npm run build
 ```
 
-## Roadmap
+模拟测试不等于真实 InnoDB 事务或锁竞争验证。浏览器主流程审阅也不代表全部分支、并发和故障场景已覆盖。
 
-### Frontend
+项目已进行本地合成数据、缓存命中与未命中、索引、故障及旧值回填实验；这些不作为生产流量或生产吞吐能力的证明。
 
-使用轻量级 Web UI 展示完整业务流程：
+## 当前边界
 
-```text
-登录
-项目管理
-成员管理
-任务管理
-任务审核
-项目验收
-操作日志
-```
-
-### Cloud Native
-
-计划加入：
-
-```text
-Dockerfile
-Docker Compose
-MySQL 容器化
-Linux 部署
-GitHub Actions CI
-```
-
-目标是实现可重复构建、测试和部署。
-
-### AI Engineering
-
-AI 能力将在现有真实业务系统上进行扩展，而不是作为独立 Demo。
-
-计划包括：
-
-```text
-任务内容总结
-项目进展总结
-智能分类
-风险分析
-RAG
-带引用的项目问答
-Agent Tool Calling
-RBAC 控制的 AI 工具权限
-Agent 操作审计
-异步 AI 任务
-AI 结果评测与失败降级
-```
-
-## 项目目标
-
-FlowDesk 不以单纯堆砌技术栈为目标。
-
-项目主要关注：
-
-```text
-业务建模
-+
-状态机设计
-+
-权限边界
-+
-异常规范
-+
-数据一致性
-+
-自动化测试
-+
-工程交付
-+
-AI 应用集成
-```
-
-目标是通过一个持续演进的真实项目，实践从业务建模、后端开发、测试、部署到 AI 应用集成的完整软件工程流程。
+- 不提供验收提交时快照。
+- 不追溯关闭历史终态项目的遗留请求。
+- 通知和延迟补删没有持久化重试保障。
+- 尚未完成真实数据库竞争、全部故障回滚和所有前端分支验证。
+- 未实现微服务、MQ 或正式 AI 产品能力。
+- 全项目格式统一和可复用后端格式配置尚未完成。

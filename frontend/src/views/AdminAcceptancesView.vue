@@ -14,14 +14,24 @@ const route = useRoute()
 const focusedAcceptanceId = computed(() => Number(route.query.acceptanceId) || undefined)
 const filter = ref('PENDING')
 const loading = ref(false)
+const error = ref('')
+let loadRevision = 0
 const processingIds = ref(new Set<number>())
 
 async function load() {
+  const revision = ++loadRevision
   loading.value = true
+  error.value = ''
   try {
-    list.value = (await getAdminAcceptancesApi(filter.value)).data.data
+    const result = await getAdminAcceptancesApi(filter.value)
+    if (revision === loadRevision) list.value = result.data.data
+  } catch {
+    if (revision === loadRevision) {
+      list.value = []
+      error.value = '验收申请加载失败，请重试'
+    }
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 
@@ -41,12 +51,12 @@ onMounted(load)
 
 <template>
   <PageHeader eyebrow="SYSTEM ADMIN" title="项目验收审核" description="复核项目最终交付，形成明确、可审计的验收结论。">
-    <el-button :icon="Refresh" circle @click="load" />
+    <el-button :icon="Refresh" circle aria-label="刷新验收列表" @click="load" />
   </PageHeader>
   <section class="toolbar">
     <div>
       <h3>验收申请</h3>
-      <p>共 {{ list.length }} 条记录</p>
+      <p>{{ error ? '列表暂不可用' : '共 ' + list.length + ' 条记录' }}</p>
     </div>
     <el-segmented
       v-model="filter"
@@ -58,6 +68,7 @@ onMounted(load)
       ]"
     />
   </section>
+  <el-alert v-if="error" :title="error" type="error" :closable="false"><el-button link @click="load">重试</el-button></el-alert>
   <section v-loading="loading" class="acceptance-grid">
     <article
       v-for="item in list"
@@ -93,7 +104,7 @@ onMounted(load)
         >
       </footer>
     </article>
-    <el-empty v-if="!loading && !list.length" description="当前没有验收申请" />
+    <el-empty v-if="!loading && !error && !list.length" description="当前没有验收申请" />
   </section>
 </template>
 

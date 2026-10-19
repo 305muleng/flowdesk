@@ -6,14 +6,16 @@ import DashboardChart from '@/components/DashboardChart.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
-import { getMyProjectsApi, getProjectLogsApi, getProjectTasksApi } from '@/api/projects'
-import { getMyTasksApi } from '@/api/tasks'
+import { getMyProjectsApi, getProjectLogsApi, getProjectTaskSummaryApi } from '@/api/projects'
+import { getMyTasksApi, getMyTaskSummaryApi } from '@/api/tasks'
 import { formatDateTime } from '@/utils/format'
-import type { OperationLog, Project, Task } from '@/types/api'
+import type { OperationLog, Project, Task, MyTaskSummary } from '@/types/api'
 
 const auth = useAuthStore()
 const projects = ref<Project[]>([])
 const tasks = ref<Task[]>([])
+const myTaskSummary = ref<MyTaskSummary | null>(null)
+let loadRevision = 0
 const activities = ref<OperationLog[]>([])
 const loading = ref(true)
 const projectLoadFailed = ref(false)
@@ -25,17 +27,7 @@ const activeProjects = computed(() =>
   projects.value.filter((item) => ['PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE'].includes(item.status)),
 )
 const openTasks = computed(() => tasks.value.filter((item) => !['DONE', 'CANCELLED'].includes(item.status)))
-const doneTasks = computed(() => tasks.value.filter((item) => item.status === 'DONE'))
-const currentTaskCount = computed(() => tasks.value.filter((item) => item.status !== 'CANCELLED').length)
-const dueSoon = computed(
-  () =>
-    tasks.value.filter(
-      (item) =>
-        !['DONE', 'CANCELLED'].includes(item.status) &&
-        new Date(item.deadline).getTime() >= Date.now() &&
-        new Date(item.deadline).getTime() - Date.now() < 3 * 86400000,
-    ).length,
-)
+const currentTaskCount = computed(() => myTaskSummary.value?.nonCancelledTaskCount ?? null)
 
 const taskOption = computed<EChartsCoreOption>(() => ({
   tooltip: { trigger: 'item' },
@@ -49,14 +41,14 @@ const taskOption = computed<EChartsCoreOption>(() => ({
       label: { show: false },
       itemStyle: { borderColor: '#fff', borderWidth: 4, borderRadius: 7 },
       data: [
-        { value: tasks.value.filter((item) => item.status === 'TODO').length, name: '待开始', itemStyle: { color: '#aab4c5' } },
+        { value: myTaskSummary.value?.todoTaskCount ?? 0, name: '待开始', itemStyle: { color: '#aab4c5' } },
         {
-          value: tasks.value.filter((item) => item.status === 'IN_PROGRESS').length,
+          value: myTaskSummary.value?.inProgressTaskCount ?? 0,
           name: '进行中',
           itemStyle: { color: '#315bd8' },
         },
-        { value: tasks.value.filter((item) => item.status === 'REVIEW').length, name: '待审核', itemStyle: { color: '#f2a83b' } },
-        { value: doneTasks.value.length, name: '已完成', itemStyle: { color: '#31a477' } },
+        { value: myTaskSummary.value?.reviewTaskCount ?? 0, name: '待审核', itemStyle: { color: '#f2a83b' } },
+        { value: myTaskSummary.value?.doneTaskCount ?? 0, name: '已完成', itemStyle: { color: '#31a477' } },
       ],
     },
   ],
@@ -78,36 +70,39 @@ const projectOption = computed<EChartsCoreOption>(() => ({
       type: 'bar',
       barWidth: 12,
       data: recentProjects.value.map((item) => ({
-        value: projectProgress.value[item.id] ?? 0,
+        value: projectProgress.value[item.id] ?? null,
         itemStyle: { color: projectProgress.value[item.id] === null ? '#c4ccd9' : '#315bd8', borderRadius: 8 },
       })),
     },
   ],
 }))
 
-function completionRate(items: Task[]) {
-  const current = items.filter((item) => item.status !== 'CANCELLED')
-  return current.length ? Math.round((current.filter((item) => item.status === 'DONE').length / current.length) * 100) : 0
-}
-
 async function load() {
+  const revision = ++loadRevision
   loading.value = true
   try {
-    const [projectResult, taskResult] = await Promise.allSettled([getMyProjectsApi(), getMyTasksApi()])
+    const [projectResult, taskResult, summaryResult] = await Promise.allSettled([
+      getMyProjectsApi(),
+      getMyTasksApi(),
+      getMyTaskSummaryApi(),
+    ])
+    if (revision !== loadRevision) return
+    myTaskSummary.value = summaryResult.status === 'fulfilled' ? summaryResult.value.data.data : null
     projectLoadFailed.value = projectResult.status === 'rejected'
     taskLoadFailed.value = taskResult.status === 'rejected'
     projects.value = projectResult.status === 'fulfilled' ? projectResult.value.data.data : []
-    tasks.value = taskResult.status === 'fulfilled' ? taskResult.value.data.data : []
+    tasks.value = taskResult.status === 'fulfilled' ? taskResult.value.data.data.records : []
     activities.value = []
     projectProgress.value = {}
     if (projectResult.status === 'fulfilled') {
       const [progressResults, logResults] = await Promise.all([
-        Promise.allSettled(recentProjects.value.map((project) => getProjectTasksApi(project.id))),
+        Promise.allSettled(recentProjects.value.map((project) => getProjectTaskSummaryApi(project.id))),
         Promise.allSettled(projects.value.slice(0, 4).map((project) => getProjectLogsApi(project.id, 5))),
       ])
+      if (revision !== loadRevision) return
       recentProjects.value.forEach((project, index) => {
         const result = progressResults[index]
-        projectProgress.value[project.id] = result?.status === 'fulfilled' ? completionRate(result.value.data.data) : null
+        projectProgress.value[project.id] = result?.status === 'fulfilled' ? Number(result.value.data.data.completionRate) : null
       })
       activities.value = logResults
         .filter(
@@ -119,7 +114,7 @@ async function load() {
         .slice(0, 7)
     }
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 
@@ -155,15 +150,15 @@ onMounted(load)
       /></MetricCard>
       <MetricCard
         label="我的待办"
-        :value="taskLoadFailed ? '—' : openTasks.length"
-        :note="taskLoadFailed ? '任务数据加载失败' : `${dueSoon} 项三天内到期`"
+        :value="myTaskSummary?.unfinishedTaskCount ?? '—'"
+        :note="myTaskSummary ? `${myTaskSummary.dueSoonTaskCount} 项三天内到期` : '统计暂不可用'"
         tone="amber"
         ><List
       /></MetricCard>
       <MetricCard
         label="已完成任务"
-        :value="taskLoadFailed ? '—' : doneTasks.length"
-        :note="taskLoadFailed ? '任务数据加载失败' : '累计交付并通过审核'"
+        :value="myTaskSummary?.doneTaskCount ?? '—'"
+        :note="myTaskSummary ? '累计交付并通过审核' : '统计暂不可用'"
         tone="green"
         ><CircleCheck
       /></MetricCard>
@@ -182,9 +177,13 @@ onMounted(load)
             <h3>任务状态分布</h3>
             <p>当前分配给你的任务</p>
           </div>
-          <span>{{ taskLoadFailed ? '加载失败' : `${currentTaskCount} 项` }}</span>
+          <span>{{ myTaskSummary ? `${currentTaskCount} 项` : '统计暂不可用' }}</span>
         </div>
-        <DashboardChart v-if="!taskLoadFailed" :option="taskOption" />
+        <DashboardChart v-if="myTaskSummary" :option="taskOption" /><el-empty
+          v-else
+          description="任务统计暂不可用"
+          :image-size="72"
+        />
       </article>
       <article class="surface-card chart-panel">
         <div class="panel-head">
@@ -201,7 +200,7 @@ onMounted(load)
         <div class="panel-head">
           <div>
             <h3>优先处理</h3>
-            <p>按截止时间排列的未完成任务</p>
+            <p>最近 20 项任务中的未完成项，按截止时间排列</p>
           </div>
           <el-button link type="primary" @click="$router.push('/tasks')">查看全部</el-button>
         </div>
@@ -221,7 +220,7 @@ onMounted(load)
           </div>
           <StatusTag :value="task.status" />
         </button>
-        <el-empty v-if="!taskLoadFailed && !openTasks.length" description="当前没有待处理任务" :image-size="72" />
+        <el-empty v-if="!taskLoadFailed && !openTasks.length" description="最近任务中暂无待处理项" :image-size="72" />
       </article>
       <article class="surface-card list-panel">
         <div class="panel-head">

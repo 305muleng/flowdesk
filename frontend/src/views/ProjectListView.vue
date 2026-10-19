@@ -14,6 +14,8 @@ const router = useRouter()
 const auth = useAuthStore()
 const projects = ref<Project[]>([])
 const loading = ref(false)
+const error = ref('')
+let loadRevision = 0
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
 const saving = ref(false)
@@ -23,11 +25,19 @@ const rules: FormRules<CreateProjectPayload> = {
 }
 
 async function load() {
+  const revision = ++loadRevision
   loading.value = true
+  error.value = ''
   try {
-    projects.value = (await getMyProjectsApi()).data.data
+    const result = await getMyProjectsApi()
+    if (revision === loadRevision) projects.value = result.data.data
+  } catch {
+    if (revision === loadRevision) {
+      projects.value = []
+      error.value = '项目列表加载失败，请重试'
+    }
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 function openCreate() {
@@ -53,9 +63,9 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader title="全部项目" description="查看你参与的项目，并快速进入协作空间。">
+  <PageHeader title="我参与的项目" description="查看你参与的项目，并快速进入协作空间。">
     <template #actions
-      ><el-button :icon="Refresh" circle @click="load" /><el-button
+      ><el-button :icon="Refresh" circle aria-label="刷新项目列表" @click="load" /><el-button
         v-if="!auth.isSystemAdmin"
         type="primary"
         :icon="Plus"
@@ -64,8 +74,11 @@ onMounted(load)
       ></template
     >
   </PageHeader>
+  <el-alert v-if="error" :title="error" type="error" :closable="false">
+    <el-button link @click="load">重试</el-button>
+  </el-alert>
   <section v-loading="loading" class="project-grid">
-    <el-empty v-if="!loading && projects.length === 0" description="还没有参与任何项目"
+    <el-empty v-if="!loading && !error && projects.length === 0" description="还没有参与任何项目"
       ><el-button v-if="!auth.isSystemAdmin" type="primary" @click="openCreate">创建第一个项目</el-button></el-empty
     >
     <article v-for="project in projects" :key="project.id" class="project-card" @click="router.push('/projects/' + project.id)">

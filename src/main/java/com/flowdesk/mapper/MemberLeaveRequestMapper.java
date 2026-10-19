@@ -12,9 +12,22 @@ import java.time.LocalDateTime;
 
 @Mapper
 public interface MemberLeaveRequestMapper extends BaseMapper<MemberLeaveRequest> {
+    @Update("""
+        UPDATE member_leave_request
+        SET status = 'CLOSED', closed_at = #{closedAt}, close_reason = #{closeReason}
+        WHERE project_id = #{projectId} AND status = 'PENDING'
+          AND expires_at > #{closedAt}
+        """)
+    int closePendingForProject(
+        @Param("projectId") Long projectId,
+        @Param("closedAt") LocalDateTime closedAt,
+        @Param("closeReason") String closeReason
+    );
+
     @Select("""
         SELECT r.id, r.project_id AS projectId, r.applicant_id AS applicantId,
                u.real_name AS applicantName, r.reason, r.status,
+               r.closed_at AS closedAt, r.close_reason AS closeReason,
                r.created_at AS createdAt, r.expires_at AS expiresAt
         FROM member_leave_request r JOIN `user` u ON u.id = r.applicant_id
         WHERE r.project_id = #{projectId} AND r.status = 'PENDING' AND r.expires_at > #{now}
@@ -68,12 +81,14 @@ public interface MemberLeaveRequestMapper extends BaseMapper<MemberLeaveRequest>
         SELECT
             mlr.id AS id,
             mlr.project_id AS projectId,
+            p.status AS projectStatus,
 
             mlr.applicant_id AS applicantId,
             applicant.real_name AS applicantName,
 
             mlr.reason AS reason,
             mlr.status AS status,
+            mlr.closed_at AS closedAt, mlr.close_reason AS closeReason,
 
             mlr.reviewer_id AS reviewerId,
             reviewer.real_name AS reviewerName,
@@ -85,6 +100,7 @@ public interface MemberLeaveRequestMapper extends BaseMapper<MemberLeaveRequest>
             mlr.cancelled_at AS cancelledAt
 
         FROM member_leave_request mlr
+        JOIN project p ON p.id = mlr.project_id
 
         JOIN `user` applicant
             ON mlr.applicant_id = applicant.id

@@ -36,6 +36,7 @@ public class ProjectService {
     private final MemberLeaveRequestMapper memberLeaveRequestMapper;
     private final NotificationService notificationService;
     private final UserMapper userMapper;
+    private final ProjectRequestClosureService requestClosureService;
 
     public ProjectService(
         ProjectMapper projectMapper,
@@ -46,7 +47,8 @@ public class ProjectService {
         TaskRequestMapper taskRequestMapper,
         MemberLeaveRequestMapper memberLeaveRequestMapper,
         NotificationService notificationService,
-        UserMapper userMapper
+        UserMapper userMapper,
+        ProjectRequestClosureService requestClosureService
     ) {
         this.projectMapper = projectMapper;
         this.projectMemberMapper = projectMemberMapper;
@@ -57,6 +59,7 @@ public class ProjectService {
         this.memberLeaveRequestMapper = memberLeaveRequestMapper;
         this.notificationService = notificationService;
         this.userMapper = userMapper;
+        this.requestClosureService = requestClosureService;
     }
 
     @Transactional
@@ -255,6 +258,8 @@ public class ProjectService {
         if (updated != 1) {
             throw new BusinessException(409, "项目状态已发生变化，请刷新后重试");
         }
+
+        requestClosureService.closeForCancelledProject(projectId, now);
 
         // 6. 审计日志
         Map<String, Object> beforeData = new HashMap<>();

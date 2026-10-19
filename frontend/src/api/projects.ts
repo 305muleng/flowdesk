@@ -8,6 +8,8 @@ import type {
   ProjectAcceptance,
   ProjectMember,
   Task,
+  PageResult,
+  ProjectTaskSummary,
 } from '@/types/api'
 
 export const getMyProjectsApi = () => request.get<ApiResult<Project[]>>('/projects')
@@ -15,7 +17,18 @@ export const createProjectApi = (payload: CreateProjectPayload) => request.post<
 export const getProjectApi = (projectId: string | number) => request.get<ApiResult<Project>>(`/projects/${projectId}`)
 export const getProjectMembersApi = (projectId: string | number) =>
   request.get<ApiResult<ProjectMember[]>>(`/projects/${projectId}/members`)
-export const getProjectTasksApi = (projectId: string | number) => request.get<ApiResult<Task[]>>(`/projects/${projectId}/tasks`)
+export interface ProjectTaskQuery {
+  page?: number
+  size?: number
+  scope?: 'ALL' | 'MINE'
+  status?: string
+  assigneeId?: number
+  unfinishedOnly?: boolean
+}
+export const getProjectTasksApi = (projectId: string | number, params: ProjectTaskQuery = {}) =>
+  request.get<ApiResult<PageResult<Task>>>(`/projects/${projectId}/tasks`, { params })
+export const getProjectTaskSummaryApi = (projectId: string | number) =>
+  request.get<ApiResult<ProjectTaskSummary>>(`/projects/${projectId}/task-summary`)
 export const createTaskApi = (projectId: string | number, payload: CreateTaskPayload) =>
   request.post<ApiResult<number>>(`/projects/${projectId}/tasks`, payload)
 export const sendInvitationApi = (projectId: string | number, username: string) =>

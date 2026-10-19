@@ -1,11 +1,13 @@
 package com.flowdesk.controller;
 
 import com.flowdesk.common.Result;
+import com.flowdesk.common.PageResult;
 import com.flowdesk.dto.*;
 import com.flowdesk.service.TaskService;
 import com.flowdesk.vo.TaskCommentVO;
 import com.flowdesk.vo.TaskSubmissionVO;
 import com.flowdesk.vo.TaskVO;
+import com.flowdesk.vo.MyTaskSummaryVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,8 +27,19 @@ public class TaskController {
     }
 
     @GetMapping("/my")
-    public Result<List<TaskVO>> getMyTasks() {
-        return Result.success(taskService.getMyTasks());
+    public Result<PageResult<TaskVO>> getMyTasks(
+        @RequestParam(defaultValue = "1") long page,
+        @RequestParam(defaultValue = "20") long size,
+        @RequestParam(defaultValue = "ALL") String status,
+        @RequestParam(required = false) String keyword
+    ) {
+        return Result.success(taskService.getMyTasks(page, size, status, keyword));
+    }
+
+    @Operation(summary = "我的任务汇总", description = "统计当前登录用户有权访问的全部任务，不受分页或列表筛选影响")
+    @GetMapping("/my/summary")
+    public Result<MyTaskSummaryVO> getMyTaskSummary() {
+        return Result.success(taskService.getMyTaskSummary());
     }
 
     @Operation(summary = "开始任务", description = "任务负责人开始执行任务，使任务从 TODO 进入 IN_PROGRESS")
@@ -62,6 +75,13 @@ public class TaskController {
     public Result<Void> assignTask(@PathVariable Long taskId, @Valid @RequestBody AssignTaskDTO dto) {
         taskService.assignTask(taskId, dto);
         return Result.success("任务负责人分配成功", null);
+    }
+
+    @Operation(summary = "交接禁用成员任务", description = "项目负责人将禁用账号的进行中任务交接给有效成员，任务回到 TODO")
+    @PostMapping("/{taskId}/handover")
+    public Result<Void> handoverTask(@PathVariable Long taskId, @Valid @RequestBody HandoverTaskDTO dto) {
+        taskService.handoverDisabledAssignee(taskId, dto);
+        return Result.success("任务已交接，等待新任务负责人开始", null);
     }
 
     @Operation(summary = "查看任务详情", description = "项目成员查看指定任务的详细信息")

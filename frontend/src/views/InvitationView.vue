@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { acceptInvitation, getInvitations, rejectInvitation, type Invitation } from '@/api/invitations'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import RequestClosureNotice from '@/components/RequestClosureNotice.vue'
 import { formatDateTime } from '@/utils/format'
 
 const router = useRouter()
@@ -12,13 +13,23 @@ const route = useRoute()
 const focusedInvitationId = computed(() => Number(route.query.invitationId) || undefined)
 const list = ref<Invitation[]>([])
 const loading = ref(false)
+const error = ref('')
+let loadRevision = 0
 const processingIds = ref(new Set<number>())
 async function load() {
+  const revision = ++loadRevision
   loading.value = true
+  error.value = ''
   try {
-    list.value = (await getInvitations()).data.data
+    const result = await getInvitations()
+    if (revision === loadRevision) list.value = result.data.data
+  } catch {
+    if (revision === loadRevision) {
+      list.value = []
+      error.value = '项目邀请加载失败，请重试'
+    }
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 async function respond(item: Invitation, accepted: boolean) {
@@ -49,24 +60,37 @@ onMounted(load)
     <template #actions><el-button @click="load">刷新</el-button></template>
   </PageHeader>
   <section v-loading="loading" class="invite-list">
-    <el-empty v-if="!loading && !list.length" description="目前没有项目邀请" />
+    <el-alert v-if="error" :title="error" type="error" :closable="false"><el-button link @click="load">重试</el-button></el-alert>
+    <el-empty v-if="!loading && !error && !list.length" description="目前没有项目邀请" />
     <article v-for="item in list" :key="item.id" class="invite-card" :class="{ focused: item.id === focusedInvitationId }">
       <div class="project-icon">{{ item.projectName.slice(0, 1) }}</div>
       <div class="invite-main">
         <div>
           <h3>{{ item.projectName }}</h3>
-          <StatusTag :value="item.expired ? 'CANCELLED' : item.status" />
+          <StatusTag :value="item.status === 'PENDING' && item.expired ? 'EXPIRED' : item.status" />
         </div>
         <p>
           <strong>{{ item.inviterName }}</strong> 邀请你加入项目协作
         </p>
         <small>有效期至 {{ formatDateTime(item.expiresAt) }}</small>
+        <RequestClosureNotice :status="item.status" :closed-at="item.closedAt" :close-reason="item.closeReason" />
       </div>
-      <div v-if="item.status === 'PENDING' && !item.expired" class="actions">
+      <div
+        v-if="item.status === 'PENDING' && !item.expired && ['PREPARING', 'IN_PROGRESS'].includes(item.projectStatus)"
+        class="actions"
+      >
         <el-button :disabled="processingIds.has(item.id)" @click="respond(item, false)">拒绝</el-button
         ><el-button type="primary" :loading="processingIds.has(item.id)" @click="respond(item, true)">接受邀请</el-button>
       </div>
-      <span v-else class="handled">{{ item.expired ? '邀请已过期' : '已处理' }}</span>
+      <span v-else class="handled">{{
+        item.status === 'PENDING' && item.expired
+          ? '邀请已过期'
+          : item.status === 'CLOSED'
+            ? '已关闭'
+            : item.status === 'PENDING'
+              ? '当前项目状态不允许处理'
+              : '已处理'
+      }}</span>
     </article>
   </section>
 </template>

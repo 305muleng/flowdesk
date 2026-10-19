@@ -12,6 +12,7 @@ import {
   type ManagerTransfer,
 } from '@/api/membership'
 import { formatDateTime } from '@/utils/format'
+import RequestClosureNotice from '@/components/RequestClosureNotice.vue'
 const route = useRoute()
 const auth = useAuthStore()
 const leave = ref<LeaveRequest>()
@@ -21,7 +22,10 @@ const busy = ref(false)
 const isLeave = computed(() => route.params.kind === 'leave-requests')
 const projectId = computed(() => String(route.params.projectId))
 const recordId = computed(() => String(route.params.recordId))
-const pending = computed(() => (leave.value || transfer.value)?.status === 'PENDING')
+const record = computed(() => leave.value || transfer.value)
+const pending = computed(
+  () => record.value?.status === 'PENDING' && ['PREPARING', 'IN_PROGRESS'].includes(record.value.projectStatus),
+)
 const statusNames: Record<string, string> = {
   PENDING: '待处理',
   APPROVED: '已批准',
@@ -29,6 +33,7 @@ const statusNames: Record<string, string> = {
   REJECTED: '已拒绝',
   CANCELLED: '已撤回或取消',
   EXPIRED: '已过期',
+  CLOSED: '已关闭',
 }
 async function load() {
   busy.value = true
@@ -74,6 +79,13 @@ watch(() => route.fullPath, load, { immediate: true })
   <section v-loading="busy" class="surface-card" style="padding: 24px">
     <h1>{{ isLeave ? '退出申请详情' : '负责人转让详情' }}</h1>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
+    <RequestClosureNotice v-if="record" :status="record.status" :closed-at="record.closedAt" :close-reason="record.closeReason" />
+    <el-alert
+      v-if="record?.status === 'PENDING' && !pending"
+      title="当前项目状态暂停或禁止处理此请求；记录仍保留原状态。"
+      type="info"
+      :closable="false"
+    />
     <template v-if="leave">
       <p>申请人：{{ leave.applicantName }}</p>
       <p>退出原因：{{ leave.reason }}</p>

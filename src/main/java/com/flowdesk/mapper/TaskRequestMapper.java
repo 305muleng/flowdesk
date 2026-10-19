@@ -15,6 +15,17 @@ import java.util.List;
 @Mapper
 public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
     @Update("""
+        UPDATE task_request
+        SET status = 'CLOSED', closed_at = #{closedAt}, close_reason = #{closeReason}
+        WHERE project_id = #{projectId} AND status = 'PENDING'
+        """)
+    int closePendingForProject(
+        @Param("projectId") Long projectId,
+        @Param("closedAt") LocalDateTime closedAt,
+        @Param("closeReason") String closeReason
+    );
+
+    @Update("""
             UPDATE task_request
             SET status = #{newStatus}, reviewer_id = #{reviewerId},
                 review_note = #{reviewNote}, reviewed_at = #{reviewedAt}
@@ -45,7 +56,7 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
     @Select("""
         SELECT
             tr.id AS id,
-            tr.project_id AS projectId,
+            tr.project_id AS projectId, p.status AS projectStatus,
 
             tr.requester_id AS requesterId,
             requester.real_name AS requesterName,
@@ -56,6 +67,7 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
             tr.suggested_deadline AS suggestedDeadline,
 
             tr.status AS status,
+            tr.closed_at AS closedAt, tr.close_reason AS closeReason,
 
             tr.reviewer_id AS reviewerId,
             reviewer.real_name AS reviewerName,
@@ -67,6 +79,7 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
             tr.cancelled_at AS cancelledAt
 
         FROM task_request tr
+        JOIN project p ON p.id = tr.project_id
 
         JOIN `user` requester
             ON tr.requester_id = requester.id
@@ -85,16 +98,18 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
     List<TaskRequestVO> selectProjectTaskRequests(@Param("projectId") Long projectId, @Param("status") String status);
 
     @Select("""
-        SELECT tr.id, tr.project_id AS projectId,
+        SELECT tr.id, tr.project_id AS projectId, p.status AS projectStatus,
                tr.requester_id AS requesterId, requester.real_name AS requesterName,
                tr.title, tr.description, tr.goal,
                tr.suggested_deadline AS suggestedDeadline, tr.status,
+               tr.closed_at AS closedAt, tr.close_reason AS closeReason,
                tr.reviewer_id AS reviewerId, reviewer.real_name AS reviewerName,
                tr.review_note AS reviewNote, tr.task_id AS taskId,
                tr.created_at AS createdAt, tr.reviewed_at AS reviewedAt,
                tr.cancelled_at AS cancelledAt
         FROM task_request tr
         JOIN `user` requester ON tr.requester_id = requester.id
+        JOIN project p ON p.id = tr.project_id
         LEFT JOIN `user` reviewer ON tr.reviewer_id = reviewer.id
         WHERE tr.requester_id = #{userId}
           AND (#{status} = 'ALL' OR tr.status = #{status})

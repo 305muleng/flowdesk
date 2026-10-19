@@ -1,6 +1,7 @@
 package com.flowdesk.controller;
 
 import com.flowdesk.common.Result;
+import com.flowdesk.common.PageResult;
 import com.flowdesk.dto.*;
 import com.flowdesk.service.ProjectInvitationService;
 import com.flowdesk.service.ProjectService;
@@ -87,12 +88,16 @@ public class ProjectController {
 
     @Operation(summary = "查看项目任务", description = "查看项目中的任务列表，可通过 scope 和 status 进行筛选")
     @GetMapping("/{projectId}/tasks")
-    public Result<List<TaskVO>> getProjectTasks(
+    public Result<PageResult<TaskVO>> getProjectTasks(
         @PathVariable Long projectId,
         @RequestParam(defaultValue = "ALL") String scope,
-        @RequestParam(defaultValue = "ALL") String status
+        @RequestParam(defaultValue = "ALL") String status,
+        @RequestParam(defaultValue = "1") long page,
+        @RequestParam(defaultValue = "20") long size,
+        @RequestParam(required = false) Long assigneeId,
+        @RequestParam(defaultValue = "false") boolean unfinishedOnly
     ) {
-        List<TaskVO> tasks = taskService.getProjectTasks(projectId, scope, status);
+        var tasks = taskService.getProjectTasks(projectId, scope, status, page, size, assigneeId, unfinishedOnly);
         return Result.success(tasks);
     }
 

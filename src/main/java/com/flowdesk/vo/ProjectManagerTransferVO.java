@@ -7,6 +7,15 @@ public class ProjectManagerTransferVO {
     private Long id;
 
     private Long projectId;
+    private String projectStatus;
+
+    public String getProjectStatus() {
+        return projectStatus;
+    }
+
+    public void setProjectStatus(String projectStatus) {
+        this.projectStatus = projectStatus;
+    }
 
     private String projectName;
 
@@ -29,6 +38,25 @@ public class ProjectManagerTransferVO {
     private LocalDateTime respondedAt;
 
     private LocalDateTime cancelledAt;
+
+    private LocalDateTime closedAt;
+    private String closeReason;
+
+    public LocalDateTime getClosedAt() {
+        return closedAt;
+    }
+
+    public void setClosedAt(LocalDateTime closedAt) {
+        this.closedAt = closedAt;
+    }
+
+    public String getCloseReason() {
+        return closeReason;
+    }
+
+    public void setCloseReason(String closeReason) {
+        this.closeReason = closeReason;
+    }
 
     public Long getId() {
         return id;

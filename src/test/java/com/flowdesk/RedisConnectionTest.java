@@ -2,6 +2,9 @@ package com.flowdesk;
 
 import com.flowdesk.vo.ProjectTaskSummaryVO;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -14,7 +17,16 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@ActiveProfiles("test")
 class RedisConnectionTest {
+
+    @Value("${flowdesk.test.redis-confirmed:false}")
+    private boolean testRedisConfirmed;
+
+    @BeforeEach
+    void requireDedicatedTestRedis() {
+        assertTrue(testRedisConfirmed, "必须明确确认专用 Redis 测试环境后才能写入测试 Key");
+    }
 
     @Autowired
     private StringRedisTemplate redisTemplate;
@@ -26,36 +38,20 @@ class RedisConnectionTest {
     void writesAndReadsTaskSummary() {
         String key = "flowdesk:test:task-summary:" + UUID.randomUUID();
 
-        ProjectTaskSummaryVO original = new ProjectTaskSummaryVO(
-                1001L,
-                10L,
-                2L,
-                2L,
-                1L,
-                4L,
-                1L,
-                new BigDecimal("44.44")
-        );
+        ProjectTaskSummaryVO original = new ProjectTaskSummaryVO(1001L, 10L, 2L, 2L, 1L, 4L, 1L, new BigDecimal("44.44"));
 
         try {
             // Java 对象转换为 JSON 字符串
             String json = objectMapper.writeValueAsString(original);
 
-            redisTemplate.opsForValue().set(
-                    key,
-                    json,
-                    Duration.ofSeconds(60)
-            );
+            redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(60));
 
             // 从 Redis 读取字符串
             String cachedJson = redisTemplate.opsForValue().get(key);
             assertNotNull(cachedJson);
 
             // JSON 字符串还原为 Java 对象
-            ProjectTaskSummaryVO restored = objectMapper.readValue(
-                    cachedJson,
-                    ProjectTaskSummaryVO.class
-            );
+            ProjectTaskSummaryVO restored = objectMapper.readValue(cachedJson, ProjectTaskSummaryVO.class);
 
             assertEquals(original.getProjectId(), restored.getProjectId());
             assertEquals(original.getTotalTaskCount(), restored.getTotalTaskCount());
@@ -79,11 +75,7 @@ class RedisConnectionTest {
         String expectedValue = "hello-flowdesk";
 
         try {
-            redisTemplate.opsForValue().set(
-                    key,
-                    expectedValue,
-                    Duration.ofSeconds(60)
-            );
+            redisTemplate.opsForValue().set(key, expectedValue, Duration.ofSeconds(60));
 
             String actualValue = redisTemplate.opsForValue().get(key);
             Long remainingSeconds = redisTemplate.getExpire(key);

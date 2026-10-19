@@ -165,14 +165,17 @@ public class NotificationServiceTest {
         UserContext.set(new CurrentUser(7L, "USER"));
 
         doAnswer(invocation -> {
-            LambdaQueryWrapper<Notification> query = invocation.getArgument(0);
+            LambdaQueryWrapper<Notification> query = invocation.getArgument(1);
             String sql = query.getSqlSegment();
             assertTrue(query.getParamNameValuePairs().containsValue(7L));
             assertTrue(sql.contains("created_at") && sql.contains("id"));
-            return java.util.List.of();
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<Notification> page = invocation.getArgument(0);
+            page.setRecords(java.util.List.of());
+            page.setTotal(0);
+            return page;
         })
             .when(notificationMapper)
-            .selectList(any());
+            .selectPage(any(), any());
 
         doAnswer(invocation -> {
             LambdaQueryWrapper<Notification> query = invocation.getArgument(0);
@@ -192,11 +195,11 @@ public class NotificationServiceTest {
             .when(notificationMapper)
             .update(isNull(), any());
 
-        assertEquals(0, notificationService.getMyNotifications().size());
+        assertEquals(0, notificationService.getMyNotifications(1, 20, "ALL", "ALL").getRecords().size());
         assertEquals(2L, notificationService.getUnreadCount());
         notificationService.markAllAsRead();
 
-        verify(notificationMapper).selectList(any());
+        verify(notificationMapper).selectPage(any(), any());
         verify(notificationMapper).selectCount(any());
         verify(notificationMapper).update(isNull(), any());
     }
