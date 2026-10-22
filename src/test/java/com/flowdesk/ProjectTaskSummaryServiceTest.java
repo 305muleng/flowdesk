@@ -47,30 +47,21 @@ class ProjectTaskSummaryServiceTest {
     void summarizesAllStatusesAndExcludesCancelledFromRate() {
         givenExistingProject();
 
-        when(taskMapper.selectTaskStatusCounts(PROJECT_ID))
-                .thenReturn(List.of(
-                        row("TODO", 2),
-                        row("IN_PROGRESS", 2),
-                        row("REVIEW", 1),
-                        row("DONE", 4),
-                        row("CANCELLED", 1)
-                ));
+        when(taskMapper.selectTaskStatusCounts(PROJECT_ID)).thenReturn(
+            List.of(row("TODO", 2), row("IN_PROGRESS", 2), row("REVIEW", 1), row("DONE", 4), row("CANCELLED", 1))
+        );
 
-        ProjectTaskSummaryVO result =
-                service.getTaskSummary(PROJECT_ID);
+        ProjectTaskSummaryVO result = service.getTaskSummary(PROJECT_ID);
 
         assertAll(
-                () -> assertEquals(PROJECT_ID, result.getProjectId()),
-                () -> assertEquals(10L, result.getTotalTaskCount()),
-                () -> assertEquals(2L, result.getTodoTaskCount()),
-                () -> assertEquals(2L, result.getInProgressTaskCount()),
-                () -> assertEquals(1L, result.getReviewTaskCount()),
-                () -> assertEquals(4L, result.getDoneTaskCount()),
-                () -> assertEquals(1L, result.getCancelledTaskCount()),
-                () -> assertEquals(
-                        new BigDecimal("44.44"),
-                        result.getCompletionRate()
-                )
+            () -> assertEquals(PROJECT_ID, result.getProjectId()),
+            () -> assertEquals(10L, result.getTotalTaskCount()),
+            () -> assertEquals(2L, result.getTodoTaskCount()),
+            () -> assertEquals(2L, result.getInProgressTaskCount()),
+            () -> assertEquals(1L, result.getReviewTaskCount()),
+            () -> assertEquals(4L, result.getDoneTaskCount()),
+            () -> assertEquals(1L, result.getCancelledTaskCount()),
+            () -> assertEquals(new BigDecimal("44.44"), result.getCompletionRate())
         );
 
         verify(projectPermissionService).requireProjectMember(PROJECT_ID);
@@ -83,42 +74,29 @@ class ProjectTaskSummaryServiceTest {
     void roundsCompletionRateToTwoDecimalPlaces() {
         givenExistingProject();
 
-        when(taskMapper.selectTaskStatusCounts(PROJECT_ID))
-                .thenReturn(List.of(
-                        row("TODO", 1),
-                        row("DONE", 2)
-                ));
+        when(taskMapper.selectTaskStatusCounts(PROJECT_ID)).thenReturn(List.of(row("TODO", 1), row("DONE", 2)));
 
-        ProjectTaskSummaryVO result =
-                service.getTaskSummary(PROJECT_ID);
+        ProjectTaskSummaryVO result = service.getTaskSummary(PROJECT_ID);
 
-        assertEquals(
-                new BigDecimal("66.67"),
-                result.getCompletionRate()
-        );
+        assertEquals(new BigDecimal("66.67"), result.getCompletionRate());
     }
 
     @Test
     void returnsZerosWhenProjectHasNoTasks() {
         givenExistingProject();
 
-        when(taskMapper.selectTaskStatusCounts(PROJECT_ID))
-                .thenReturn(List.of());
+        when(taskMapper.selectTaskStatusCounts(PROJECT_ID)).thenReturn(List.of());
 
-        ProjectTaskSummaryVO result =
-                service.getTaskSummary(PROJECT_ID);
+        ProjectTaskSummaryVO result = service.getTaskSummary(PROJECT_ID);
 
         assertAll(
-                () -> assertEquals(0L, result.getTotalTaskCount()),
-                () -> assertEquals(0L, result.getTodoTaskCount()),
-                () -> assertEquals(0L, result.getInProgressTaskCount()),
-                () -> assertEquals(0L, result.getReviewTaskCount()),
-                () -> assertEquals(0L, result.getDoneTaskCount()),
-                () -> assertEquals(0L, result.getCancelledTaskCount()),
-                () -> assertEquals(
-                        new BigDecimal("0.00"),
-                        result.getCompletionRate()
-                )
+            () -> assertEquals(0L, result.getTotalTaskCount()),
+            () -> assertEquals(0L, result.getTodoTaskCount()),
+            () -> assertEquals(0L, result.getInProgressTaskCount()),
+            () -> assertEquals(0L, result.getReviewTaskCount()),
+            () -> assertEquals(0L, result.getDoneTaskCount()),
+            () -> assertEquals(0L, result.getCancelledTaskCount()),
+            () -> assertEquals(new BigDecimal("0.00"), result.getCompletionRate())
         );
         verify(taskSummaryCache).put(PROJECT_ID, result);
     }
@@ -127,52 +105,37 @@ class ProjectTaskSummaryServiceTest {
     void returnsZeroRateWhenAllTasksAreCancelled() {
         givenExistingProject();
 
-        when(taskMapper.selectTaskStatusCounts(PROJECT_ID))
-                .thenReturn(List.of(row("CANCELLED", 5)));
+        when(taskMapper.selectTaskStatusCounts(PROJECT_ID)).thenReturn(List.of(row("CANCELLED", 5)));
 
-        ProjectTaskSummaryVO result =
-                service.getTaskSummary(PROJECT_ID);
+        ProjectTaskSummaryVO result = service.getTaskSummary(PROJECT_ID);
 
         assertAll(
-                () -> assertEquals(5L, result.getTotalTaskCount()),
-                () -> assertEquals(5L, result.getCancelledTaskCount()),
-                () -> assertEquals(
-                        new BigDecimal("0.00"),
-                        result.getCompletionRate()
-                )
+            () -> assertEquals(5L, result.getTotalTaskCount()),
+            () -> assertEquals(5L, result.getCancelledTaskCount()),
+            () -> assertEquals(new BigDecimal("0.00"), result.getCompletionRate())
         );
     }
 
     @Test
     void rejectsInvalidProjectIdsBeforeQueryingDependencies() {
-        Long[] invalidIds = {null, 0L, -1L};
+        Long[] invalidIds = { null, 0L, -1L };
 
         for (Long id : invalidIds) {
-            BusinessException exception = assertThrows(
-                    BusinessException.class,
-                    () -> service.getTaskSummary(id)
-            );
+            BusinessException exception = assertThrows(BusinessException.class, () -> service.getTaskSummary(id));
 
             assertEquals(400, exception.getCode());
         }
 
-        verifyNoInteractions(
-                projectPermissionService,
-                projectMapper,
-                taskMapper
-        );
+        verifyNoInteractions(projectPermissionService, projectMapper, taskMapper);
     }
 
     @Test
     void stopsQueryingWhenPermissionIsDenied() {
         doThrow(new BusinessException(403, "你不是该项目的有效成员"))
-                .when(projectPermissionService)
-                .requireProjectMember(PROJECT_ID);
+            .when(projectPermissionService)
+            .requireProjectMember(PROJECT_ID);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> service.getTaskSummary(PROJECT_ID)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.getTaskSummary(PROJECT_ID));
 
         assertEquals(403, exception.getCode());
         verifyNoInteractions(projectMapper, taskMapper);
@@ -180,13 +143,9 @@ class ProjectTaskSummaryServiceTest {
 
     @Test
     void rejectsMissingProjectWithoutQueryingTaskStatistics() {
-        when(projectMapper.selectById(PROJECT_ID))
-                .thenReturn(null);
+        when(projectMapper.selectById(PROJECT_ID)).thenReturn(null);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> service.getTaskSummary(PROJECT_ID)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.getTaskSummary(PROJECT_ID));
 
         assertEquals(404, exception.getCode());
         verifyNoInteractions(taskMapper);
@@ -196,17 +155,11 @@ class ProjectTaskSummaryServiceTest {
     void rejectsDeletedProjectWithoutQueryingTaskStatistics() {
         Project project = new Project();
         project.setId(PROJECT_ID);
-        project.setDeletedAt(
-                LocalDateTime.of(2026, 1, 1, 0, 0)
-        );
+        project.setDeletedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
 
-        when(projectMapper.selectById(PROJECT_ID))
-                .thenReturn(project);
+        when(projectMapper.selectById(PROJECT_ID)).thenReturn(project);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> service.getTaskSummary(PROJECT_ID)
-        );
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.getTaskSummary(PROJECT_ID));
 
         assertEquals(404, exception.getCode());
         verifyNoInteractions(taskMapper);
@@ -217,18 +170,17 @@ class ProjectTaskSummaryServiceTest {
         givenExistingProject();
 
         ProjectTaskSummaryVO cachedSummary = new ProjectTaskSummaryVO(
-                PROJECT_ID,
-                10L,
-                2L,
-                2L,
-                1L,
-                4L,
-                1L,
-                new BigDecimal("44.44")
+            PROJECT_ID,
+            10L,
+            2L,
+            2L,
+            1L,
+            4L,
+            1L,
+            new BigDecimal("44.44")
         );
 
-        when(taskSummaryCache.get(PROJECT_ID))
-                .thenReturn(new TaskSummaryCacheReadResult(cachedSummary, false));
+        when(taskSummaryCache.get(PROJECT_ID)).thenReturn(new TaskSummaryCacheReadResult(cachedSummary, false));
 
         ProjectTaskSummaryVO actual = service.getTaskSummary(PROJECT_ID);
 
@@ -238,21 +190,16 @@ class ProjectTaskSummaryServiceTest {
         verify(projectMapper).selectById(PROJECT_ID);
         verify(taskSummaryCache).get(PROJECT_ID);
         verifyNoInteractions(taskMapper);
-        verify(taskSummaryCache, never()).put(
-                anyLong(),
-                any(ProjectTaskSummaryVO.class)
-        );
+        verify(taskSummaryCache, never()).put(anyLong(), any(ProjectTaskSummaryVO.class));
     }
 
     @Test
     void queriesDatabaseWithoutRefillingWhenRedisReadFails() {
         givenExistingProject();
 
-        when(taskSummaryCache.get(PROJECT_ID))
-                .thenReturn(new TaskSummaryCacheReadResult(null, true));
+        when(taskSummaryCache.get(PROJECT_ID)).thenReturn(new TaskSummaryCacheReadResult(null, true));
 
-        when(taskMapper.selectTaskStatusCounts(PROJECT_ID))
-                .thenReturn(List.of(row("TODO", 2)));
+        when(taskMapper.selectTaskStatusCounts(PROJECT_ID)).thenReturn(List.of(row("TODO", 2)));
 
         ProjectTaskSummaryVO result = service.getTaskSummary(PROJECT_ID);
 
@@ -260,21 +207,29 @@ class ProjectTaskSummaryServiceTest {
         assertEquals(2L, result.getTodoTaskCount());
 
         verify(taskMapper).selectTaskStatusCounts(PROJECT_ID);
-        verify(taskSummaryCache, never()).put(
-                anyLong(),
-                any(ProjectTaskSummaryVO.class)
-        );
+        verify(taskSummaryCache, never()).put(anyLong(), any(ProjectTaskSummaryVO.class));
     }
 
     private void givenExistingProject() {
         Project project = new Project();
         project.setId(PROJECT_ID);
 
-        when(projectMapper.selectById(PROJECT_ID))
-                .thenReturn(project);
+        when(projectMapper.selectById(PROJECT_ID)).thenReturn(project);
 
-        when(taskSummaryCache.get(PROJECT_ID))
-                .thenReturn(new TaskSummaryCacheReadResult(null, false));
+        when(taskSummaryCache.get(PROJECT_ID)).thenReturn(new TaskSummaryCacheReadResult(null, false));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullSource
+    @org.junit.jupiter.params.provider.ValueSource(strings = { "UNKNOWN", "todo" })
+    void invalidAggregateStatusStillFailsInsteadOfBeingIgnoredOrCached(String status) {
+        givenExistingProject();
+        when(taskMapper.selectTaskStatusCounts(PROJECT_ID)).thenReturn(List.of(row(status, 1)));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.getTaskSummary(PROJECT_ID));
+        assertEquals(500, error.getCode());
+        assertEquals("任务状态数据异常", error.getMessage());
+        verify(taskSummaryCache, never()).put(anyLong(), any());
     }
 
     private TaskStatusCountDTO row(String status, long count) {

@@ -1,5 +1,7 @@
 package com.flowdesk.mapper;
 
+import com.flowdesk.enums.MemberLeaveRequestStatus;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.flowdesk.model.MemberLeaveRequest;
 import com.flowdesk.vo.MemberLeaveRequestVO;
@@ -70,7 +72,7 @@ public interface MemberLeaveRequestMapper extends BaseMapper<MemberLeaveRequest>
     int reviewIfPending(
         @Param("requestId") Long requestId,
         @Param("projectId") Long projectId,
-        @Param("newStatus") String newStatus,
+        @Param("newStatus") MemberLeaveRequestStatus newStatus,
         @Param("reviewerId") Long reviewerId,
         @Param("reviewNote") String reviewNote,
         @Param("reviewedAt") LocalDateTime reviewedAt,

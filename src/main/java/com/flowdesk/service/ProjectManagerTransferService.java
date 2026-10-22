@@ -1,5 +1,11 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectManagerTransferStatus;
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
@@ -68,7 +74,7 @@ public class ProjectManagerTransferService {
             .selectList(
                 new LambdaQueryWrapper<ProjectManagerTransfer>()
                     .eq(ProjectManagerTransfer::getProjectId, projectId)
-                    .eq(ProjectManagerTransfer::getStatus, "PENDING")
+                    .eq(ProjectManagerTransfer::getStatus, ProjectManagerTransferStatus.PENDING)
                     .gt(ProjectManagerTransfer::getExpiresAt, LocalDateTime.now())
             )
             .stream()
@@ -92,7 +98,7 @@ public class ProjectManagerTransferService {
         }
 
         // 3. 只有 PREPARING / IN_PROGRESS 可以转让
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许转让项目负责人");
         }
 
@@ -131,7 +137,7 @@ public class ProjectManagerTransferService {
         }
 
         // 8. 目标账号必须正常
-        if (!"ACTIVE".equals(targetUser.getStatus())) {
+        if (!UserStatus.ACTIVE.equals(targetUser.getStatus())) {
             throw new BusinessException(409, "目标用户账号不可用");
         }
 
@@ -144,7 +150,7 @@ public class ProjectManagerTransferService {
         Long pendingCount = transferMapper.selectCount(
             new LambdaQueryWrapper<ProjectManagerTransfer>()
                 .eq(ProjectManagerTransfer::getProjectId, projectId)
-                .eq(ProjectManagerTransfer::getStatus, "PENDING")
+                .eq(ProjectManagerTransfer::getStatus, ProjectManagerTransferStatus.PENDING)
                 .gt(ProjectManagerTransfer::getExpiresAt, now)
         );
 
@@ -159,7 +165,7 @@ public class ProjectManagerTransferService {
                 new LambdaQueryWrapper<Task>()
                     .eq(Task::getProjectId, projectId)
                     .eq(Task::getAssigneeId, currentUser.getUserId())
-                    .in(Task::getStatus, Set.of("TODO", "IN_PROGRESS", "REVIEW"))
+                    .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
                     .isNull(Task::getDeletedAt)
             );
 
@@ -175,7 +181,7 @@ public class ProjectManagerTransferService {
         transfer.setFromUserId(currentUser.getUserId());
         transfer.setToUserId(targetUser.getId());
         transfer.setOldManagerAction(oldManagerAction);
-        transfer.setStatus("PENDING");
+        transfer.setStatus(ProjectManagerTransferStatus.PENDING);
         transfer.setCreatedAt(now);
         transfer.setExpiresAt(now.plusDays(expireDays));
 
@@ -190,7 +196,14 @@ public class ProjectManagerTransferService {
             "CREATE_MANAGER_TRANSFER",
             "发起项目负责人转让",
             null,
-            Map.of("status", "PENDING", "toUserId", targetUser.getId(), "oldManagerAction", oldManagerAction)
+            Map.of(
+                "status",
+                ProjectManagerTransferStatus.PENDING.getCode(),
+                "toUserId",
+                targetUser.getId(),
+                "oldManagerAction",
+                oldManagerAction
+            )
         );
 
         // 14. 给目标用户发通知
@@ -235,7 +248,7 @@ public class ProjectManagerTransferService {
         }
 
         // 3. 必须还是 PENDING
-        if (!"PENDING".equals(transfer.getStatus())) {
+        if (!ProjectManagerTransferStatus.PENDING.equals(transfer.getStatus())) {
             throw new BusinessException(409, "该负责人转让已经处理");
         }
 
@@ -252,7 +265,7 @@ public class ProjectManagerTransferService {
         }
 
         // 6. 项目状态仍然必须允许负责人变更
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许转让项目负责人");
         }
 
@@ -263,7 +276,7 @@ public class ProjectManagerTransferService {
             throw new BusinessException(401, "当前登录用户不存在");
         }
 
-        if (!"ACTIVE".equals(targetUser.getStatus())) {
+        if (!UserStatus.ACTIVE.equals(targetUser.getStatus())) {
             throw new BusinessException(403, "账号已被禁用");
         }
 
@@ -278,7 +291,7 @@ public class ProjectManagerTransferService {
                 new LambdaQueryWrapper<Task>()
                     .eq(Task::getProjectId, projectId)
                     .eq(Task::getAssigneeId, transfer.getFromUserId())
-                    .in(Task::getStatus, Set.of("TODO", "IN_PROGRESS", "REVIEW"))
+                    .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
                     .isNull(Task::getDeletedAt)
             );
 
@@ -296,7 +309,7 @@ public class ProjectManagerTransferService {
 
         if (
             targetMember != null &&
-            "INACTIVE".equals(targetMember.getStatus()) &&
+            ProjectMemberStatus.INACTIVE.equals(targetMember.getStatus()) &&
             targetMember.getLeftAt() != null &&
             transfer.getCreatedAt() != null &&
             targetMember.getLeftAt().isAfter(transfer.getCreatedAt())
@@ -320,18 +333,18 @@ public class ProjectManagerTransferService {
             newManager.setProjectId(projectId);
             newManager.setUserId(currentUser.getUserId());
             newManager.setRole("PROJECT_MANAGER");
-            newManager.setStatus("ACTIVE");
+            newManager.setStatus(ProjectMemberStatus.ACTIVE);
             newManager.setJoinedAt(now);
 
             projectMemberMapper.insert(newManager);
-        } else if ("INACTIVE".equals(targetMember.getStatus())) {
+        } else if (ProjectMemberStatus.INACTIVE.equals(targetMember.getStatus())) {
             // 历史成员重新加入并直接成为 PM
             int updated = projectMemberMapper.reactivateAsManager(targetMember.getId(), now);
 
             if (updated != 1) {
                 throw new BusinessException(409, "目标成员状态已发生变化，请刷新后重试");
             }
-        } else if ("ACTIVE".equals(targetMember.getStatus()) && "DEVELOPER".equals(targetMember.getRole())) {
+        } else if (ProjectMemberStatus.ACTIVE.equals(targetMember.getStatus()) && "DEVELOPER".equals(targetMember.getRole())) {
             // 当前 Developer 升级为 PM
             int updated = projectMemberMapper.promoteDeveloperToManager(projectId, currentUser.getUserId(), now);
 
@@ -413,7 +426,7 @@ public class ProjectManagerTransferService {
             throw new BusinessException(403, "你无权处理该负责人转让");
         }
 
-        if (!"PENDING".equals(transfer.getStatus())) {
+        if (!ProjectManagerTransferStatus.PENDING.equals(transfer.getStatus())) {
             throw new BusinessException(409, "该负责人转让已经处理");
         }
 
@@ -425,7 +438,10 @@ public class ProjectManagerTransferService {
         if (currentProject == null || currentProject.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
-        if (!"PREPARING".equals(currentProject.getStatus()) && !"IN_PROGRESS".equals(currentProject.getStatus())) {
+        if (
+            !ProjectStatus.PREPARING.equals(currentProject.getStatus()) &&
+            !ProjectStatus.IN_PROGRESS.equals(currentProject.getStatus())
+        ) {
             throw new BusinessException(409, "当前项目状态不允许处理该请求");
         }
         now = LocalDateTime.now();
@@ -443,8 +459,8 @@ public class ProjectManagerTransferService {
             transferId,
             "REJECT_MANAGER_TRANSFER",
             "拒绝项目负责人转让",
-            Map.of("status", "PENDING"),
-            Map.of("status", "REJECTED")
+            Map.of("status", ProjectManagerTransferStatus.PENDING.getCode()),
+            Map.of("status", ProjectManagerTransferStatus.REJECTED.getCode())
         );
 
         // 通知原负责人
@@ -486,7 +502,7 @@ public class ProjectManagerTransferService {
         // 而且现在仍必须是项目负责人
         projectPermissionService.requireProjectManager(projectId);
 
-        if (!"PENDING".equals(transfer.getStatus())) {
+        if (!ProjectManagerTransferStatus.PENDING.equals(transfer.getStatus())) {
             throw new BusinessException(409, "该负责人转让已经处理");
         }
 
@@ -498,7 +514,10 @@ public class ProjectManagerTransferService {
         if (currentProject == null || currentProject.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
-        if (!"PREPARING".equals(currentProject.getStatus()) && !"IN_PROGRESS".equals(currentProject.getStatus())) {
+        if (
+            !ProjectStatus.PREPARING.equals(currentProject.getStatus()) &&
+            !ProjectStatus.IN_PROGRESS.equals(currentProject.getStatus())
+        ) {
             throw new BusinessException(409, "当前项目状态不允许处理该请求");
         }
         now = LocalDateTime.now();
@@ -516,8 +535,8 @@ public class ProjectManagerTransferService {
             transferId,
             "CANCEL_MANAGER_TRANSFER",
             "撤回项目负责人转让",
-            Map.of("status", "PENDING"),
-            Map.of("status", "CANCELLED")
+            Map.of("status", ProjectManagerTransferStatus.PENDING.getCode()),
+            Map.of("status", ProjectManagerTransferStatus.CANCELLED.getCode())
         );
 
         // 通知原来的目标用户
@@ -565,7 +584,10 @@ public class ProjectManagerTransferService {
         }
 
         // 4. 懒过期
-        if ("PENDING".equals(vo.getStatus()) && !vo.getExpiresAt().isAfter(LocalDateTime.now())) {
+        if (
+            ProjectManagerTransferStatus.PENDING.getCode().equals(vo.getStatus()) &&
+            !vo.getExpiresAt().isAfter(LocalDateTime.now())
+        ) {
             vo.setStatus("EXPIRED");
         }
 

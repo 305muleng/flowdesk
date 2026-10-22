@@ -1,5 +1,11 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.ProjectManagerTransferStatus;
+import com.flowdesk.enums.MemberLeaveRequestStatus;
+import com.flowdesk.enums.TaskRequestStatus;
+import com.flowdesk.enums.ProjectInvitationStatus;
+
 import com.flowdesk.context.*;
 import com.flowdesk.dto.*;
 import com.flowdesk.exception.BusinessException;
@@ -93,7 +99,7 @@ class PendingRequestAvailabilityTest {
         i.setProjectId(4L);
         i.setInviteeId(2L);
         i.setInviterId(1L);
-        i.setStatus("PENDING");
+        i.setStatus(ProjectInvitationStatus.PENDING);
         i.setExpiresAt(LocalDateTime.now().plusDays(1));
         return i;
     }
@@ -101,7 +107,7 @@ class PendingRequestAvailabilityTest {
     Project project(String status) {
         Project p = new Project();
         p.setId(4L);
-        p.setStatus(status);
+        p.setStatus(ProjectStatus.fromCode(status));
         return p;
     }
 
@@ -112,32 +118,32 @@ class PendingRequestAvailabilityTest {
         ProjectInvitation i = invitation();
         when(invitations.selectById(10L)).thenReturn(i);
         assertEquals(409, assertThrows(BusinessException.class, () -> invitationService.rejectInvitation(10L)).getCode());
-        assertEquals("PENDING", i.getStatus());
+        assertEquals(ProjectInvitationStatus.PENDING, i.getStatus());
         MemberLeaveRequest leave = new MemberLeaveRequest();
         leave.setProjectId(4L);
         leave.setApplicantId(2L);
-        leave.setStatus("PENDING");
+        leave.setStatus(MemberLeaveRequestStatus.PENDING);
         leave.setExpiresAt(i.getExpiresAt());
         when(leaves.selectById(11L)).thenReturn(leave);
         assertEquals(409, assertThrows(BusinessException.class, () -> leaveService.cancelLeaveRequest(4L, 11L)).getCode());
-        assertEquals("PENDING", leave.getStatus());
+        assertEquals(MemberLeaveRequestStatus.PENDING, leave.getStatus());
         ProjectManagerTransfer transfer = new ProjectManagerTransfer();
         transfer.setProjectId(4L);
         transfer.setToUserId(2L);
         transfer.setFromUserId(2L);
-        transfer.setStatus("PENDING");
+        transfer.setStatus(ProjectManagerTransferStatus.PENDING);
         transfer.setExpiresAt(i.getExpiresAt());
         when(transfers.selectById(12L)).thenReturn(transfer);
         assertEquals(409, assertThrows(BusinessException.class, () -> transferService.rejectTransfer(4L, 12L)).getCode());
         assertEquals(409, assertThrows(BusinessException.class, () -> transferService.cancelTransfer(4L, 12L)).getCode());
-        verify(invitations, never()).transitionPending(anyLong(), anyString(), any());
+        verify(invitations, never()).transitionPending(anyLong(), any(ProjectInvitationStatus.class), any());
         verify(leaves, never()).cancelIfPending(anyLong(), anyLong(), anyLong(), any(), any());
         verify(transfers, never()).rejectIfPending(anyLong(), anyLong(), anyLong(), any(), any());
         verify(transfers, never()).cancelIfPending(anyLong(), anyLong(), anyLong(), any(), any());
         TaskRequest request = new TaskRequest();
         request.setProjectId(4L);
         request.setRequesterId(2L);
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
         when(requests.selectById(13L)).thenReturn(request);
         assertEquals(409, assertThrows(BusinessException.class, () -> requestService.cancelTaskRequest(4L, 13L)).getCode());
         verify(requests, never()).cancelIfPending(anyLong(), anyLong(), anyLong(), any());
@@ -150,11 +156,11 @@ class PendingRequestAvailabilityTest {
         when(invitations.selectById(10L)).thenReturn(i);
         when(projects.selectByIdForUpdate(4L)).thenReturn(project("PENDING_ACCEPTANCE"));
         assertThrows(BusinessException.class, () -> invitationService.rejectInvitation(10L));
-        assertEquals("PENDING", i.getStatus());
+        assertEquals(ProjectInvitationStatus.PENDING, i.getStatus());
         when(projects.selectByIdForUpdate(4L)).thenReturn(project("IN_PROGRESS"));
-        when(invitations.transitionPending(eq(10L), eq("REJECTED"), any())).thenReturn(1);
+        when(invitations.transitionPending(eq(10L), eq(ProjectInvitationStatus.REJECTED), any())).thenReturn(1);
         invitationService.rejectInvitation(10L);
-        assertEquals("REJECTED", i.getStatus());
+        assertEquals(ProjectInvitationStatus.REJECTED, i.getStatus());
     }
 
     @Test
@@ -164,8 +170,8 @@ class PendingRequestAvailabilityTest {
         when(invitations.selectById(10L)).thenReturn(i);
         var error = assertThrows(BusinessException.class, () -> invitationService.rejectInvitation(10L));
         assertTrue(error.getMessage().contains("过期"));
-        assertEquals("PENDING", i.getStatus());
-        verify(invitations, never()).transitionPending(anyLong(), anyString(), any());
+        assertEquals(ProjectInvitationStatus.PENDING, i.getStatus());
+        verify(invitations, never()).transitionPending(anyLong(), any(ProjectInvitationStatus.class), any());
         verifyNoInteractions(logs, notifications);
     }
 
@@ -173,7 +179,7 @@ class PendingRequestAvailabilityTest {
     void expiryDuringProjectLockWaitIsRecheckedByConditionalWrite() {
         when(invitations.selectById(10L)).thenReturn(invitation());
         when(projects.selectByIdForUpdate(4L)).thenReturn(project("IN_PROGRESS"));
-        when(invitations.transitionPending(eq(10L), eq("REJECTED"), any())).thenReturn(0);
+        when(invitations.transitionPending(eq(10L), eq(ProjectInvitationStatus.REJECTED), any())).thenReturn(0);
         assertEquals(409, assertThrows(BusinessException.class, () -> invitationService.rejectInvitation(10L)).getCode());
         verifyNoInteractions(logs, notifications);
     }

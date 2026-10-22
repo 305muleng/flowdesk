@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectStatus;
+
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -52,7 +54,7 @@ class ListPaginationServiceTest {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "pagination"), Notification.class);
         Project p = new Project();
         p.setId(7L);
-        p.setStatus("IN_PROGRESS");
+        p.setStatus(ProjectStatus.IN_PROGRESS);
         when(projects.selectById(7L)).thenReturn(p);
     }
 

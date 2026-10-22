@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
@@ -28,7 +30,7 @@ public class ProjectPermissionService {
             new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, projectId)
                 .eq(ProjectMember::getUserId, currentUser.getUserId())
-                .eq(ProjectMember::getStatus, "ACTIVE")
+                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
 
         if (member == null) {
@@ -51,16 +53,13 @@ public class ProjectPermissionService {
     public ProjectMember requireProjectManagerForUpdate(Long projectId) {
         CurrentUser currentUser = UserContext.get();
 
-        if (currentUser == null ||
-                "SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+        if (currentUser == null || "SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
             throw new BusinessException(403, "系统管理员不能参与普通项目");
         }
 
-        ProjectMember member =
-                projectMemberMapper.selectMemberForUpdate(
-                        projectId, currentUser.getUserId());
+        ProjectMember member = projectMemberMapper.selectMemberForUpdate(projectId, currentUser.getUserId());
 
-        if (member == null || !"ACTIVE".equals(member.getStatus())) {
+        if (member == null || !ProjectMemberStatus.ACTIVE.equals(member.getStatus())) {
             throw new BusinessException(403, "你不是该项目的有效成员");
         }
 

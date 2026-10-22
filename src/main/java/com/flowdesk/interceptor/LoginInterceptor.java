@@ -1,5 +1,7 @@
 package com.flowdesk.interceptor;
 
+import com.flowdesk.enums.UserStatus;
+
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.mapper.UserMapper;
@@ -59,7 +61,7 @@ public class LoginInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        if (!"ACTIVE".equals(user.getStatus())) {
+        if (!UserStatus.ACTIVE.equals(user.getStatus())) {
             ResponseUtil.writeErrorResponse(response, 403, "账号已被禁用");
 
             return false;

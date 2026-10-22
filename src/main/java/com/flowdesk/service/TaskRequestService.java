@@ -1,5 +1,11 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.TaskRequestStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.CurrentUser;
@@ -81,7 +87,7 @@ public class TaskRequestService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许提交任务申请");
         }
 
@@ -105,7 +111,7 @@ public class TaskRequestService {
         request.setGoal(dto.getGoal());
         request.setSuggestedDeadline(dto.getSuggestedDeadline());
 
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
 
         taskRequestMapper.insert(request);
 
@@ -117,14 +123,14 @@ public class TaskRequestService {
             "CREATE_TASK_REQUEST",
             "提交任务申请",
             null,
-            Map.of("status", request.getStatus(), "title", request.getTitle())
+            Map.of("status", request.getStatus() == null ? null : request.getStatus().getCode(), "title", request.getTitle())
         );
 
         List<ProjectMember> managers = projectMemberMapper.selectList(
             new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, projectId)
                 .eq(ProjectMember::getRole, "PROJECT_MANAGER")
-                .eq(ProjectMember::getStatus, "ACTIVE")
+                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
 
         for (ProjectMember manager : managers) {
@@ -206,7 +212,7 @@ public class TaskRequestService {
         }
 
         // 3. 只有准备中 / 进行中的项目才能审批任务申请
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许审批任务申请");
         }
 
@@ -220,7 +226,7 @@ public class TaskRequestService {
         }
 
         // 3. 只能处理 PENDING
-        if (!"PENDING".equals(request.getStatus())) {
+        if (!TaskRequestStatus.PENDING.equals(request.getStatus())) {
             throw new BusinessException(409, "该任务申请已经处理");
         }
 
@@ -231,7 +237,7 @@ public class TaskRequestService {
             new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, projectId)
                 .eq(ProjectMember::getUserId, request.getRequesterId())
-                .eq(ProjectMember::getStatus, "ACTIVE")
+                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
         if (
             requesterMembership == null ||
@@ -254,7 +260,7 @@ public class TaskRequestService {
             int updated = taskRequestMapper.reviewIfPending(
                 requestId,
                 projectId,
-                "REJECTED",
+                TaskRequestStatus.REJECTED,
                 currentUser.getUserId(),
                 dto.getReviewNote(),
                 now
@@ -263,7 +269,7 @@ public class TaskRequestService {
                 throw new BusinessException(409, "该任务申请已经处理，请刷新后重试");
             }
 
-            request.setStatus("REJECTED");
+            request.setStatus(TaskRequestStatus.REJECTED);
             request.setReviewerId(currentUser.getUserId());
             request.setReviewNote(dto.getReviewNote());
             request.setReviewedAt(now);
@@ -275,8 +281,8 @@ public class TaskRequestService {
                 request.getId(),
                 "REJECT_TASK_REQUEST",
                 "驳回任务申请",
-                Map.of("status", "PENDING"),
-                Map.of("status", "REJECTED")
+                Map.of("status", TaskRequestStatus.PENDING.getCode()),
+                Map.of("status", TaskRequestStatus.REJECTED.getCode())
             );
 
             CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
@@ -325,7 +331,7 @@ public class TaskRequestService {
                 new LambdaQueryWrapper<ProjectMember>()
                     .eq(ProjectMember::getProjectId, projectId)
                     .eq(ProjectMember::getUserId, dto.getAssigneeId())
-                    .eq(ProjectMember::getStatus, "ACTIVE")
+                    .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
             );
 
             if (assignee == null || !isActiveProjectUser(dto.getAssigneeId())) {
@@ -336,7 +342,7 @@ public class TaskRequestService {
         int reviewed = taskRequestMapper.reviewIfPending(
             requestId,
             projectId,
-            "APPROVED",
+            TaskRequestStatus.APPROVED,
             currentUser.getUserId(),
             dto.getReviewNote(),
             now
@@ -359,14 +365,14 @@ public class TaskRequestService {
         task.setDescription(request.getDescription());
         task.setGoal(request.getGoal());
 
-        task.setStatus("TODO");
+        task.setStatus(TaskStatus.TODO);
         task.setPriority(priority);
         task.setDeadline(dto.getDeadline());
 
         taskMapper.insert(task);
 
         // 9. 更新申请
-        request.setStatus("APPROVED");
+        request.setStatus(TaskRequestStatus.APPROVED);
         request.setReviewerId(currentUser.getUserId());
         request.setReviewNote(dto.getReviewNote());
 
@@ -378,7 +384,7 @@ public class TaskRequestService {
         taskRequestMapper.updateById(request);
 
         Map<String, Object> approvedData = new HashMap<>();
-        approvedData.put("status", "APPROVED");
+        approvedData.put("status", TaskRequestStatus.APPROVED.getCode());
         approvedData.put("taskId", task.getId());
         operationLogService.record(
             projectId,
@@ -387,7 +393,7 @@ public class TaskRequestService {
             request.getId(),
             "APPROVE_TASK_REQUEST",
             "批准任务申请并创建正式任务",
-            Map.of("status", "PENDING"),
+            Map.of("status", TaskRequestStatus.PENDING.getCode()),
             approvedData
         );
 
@@ -434,7 +440,7 @@ public class TaskRequestService {
 
     private boolean isActiveProjectUser(Long userId) {
         User user = userMapper.selectById(userId);
-        return user != null && "ACTIVE".equals(user.getStatus()) && "USER".equals(user.getSystemRole());
+        return user != null && UserStatus.ACTIVE.equals(user.getStatus()) && "USER".equals(user.getSystemRole());
     }
 
     @Transactional
@@ -456,7 +462,7 @@ public class TaskRequestService {
         }
 
         // 3. 只有 PENDING 可以撤回
-        if (!"PENDING".equals(request.getStatus())) {
+        if (!TaskRequestStatus.PENDING.equals(request.getStatus())) {
             throw new BusinessException(409, "只有待审批的任务申请可以撤回");
         }
 
@@ -464,7 +470,7 @@ public class TaskRequestService {
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许处理该请求");
         }
 
@@ -474,7 +480,7 @@ public class TaskRequestService {
         if (updated != 1) {
             throw new BusinessException(409, "该任务申请已经处理，请刷新后重试");
         }
-        request.setStatus("CANCELLED");
+        request.setStatus(TaskRequestStatus.CANCELLED);
         request.setCancelledAt(cancelledAt);
 
         operationLogService.record(
@@ -484,8 +490,8 @@ public class TaskRequestService {
             request.getId(),
             "CANCEL_TASK_REQUEST",
             "撤回任务申请",
-            Map.of("status", "PENDING"),
-            Map.of("status", "CANCELLED")
+            Map.of("status", TaskRequestStatus.PENDING.getCode()),
+            Map.of("status", TaskRequestStatus.CANCELLED.getCode())
         );
     }
 }

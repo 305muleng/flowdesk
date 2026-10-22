@@ -1,5 +1,10 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
@@ -72,7 +77,7 @@ public class ProjectService {
             throw new BusinessException(401, "当前用户不存在");
         }
 
-        if (!"ACTIVE".equals(creator.getStatus())) {
+        if (!UserStatus.ACTIVE.equals(creator.getStatus())) {
             throw new BusinessException(403, "账号已被禁用");
         }
 
@@ -87,7 +92,7 @@ public class ProjectService {
         project.setDescription(dto.getDescription());
         project.setGoal(dto.getGoal());
         project.setExpectedEndTime(dto.getExpectedEndTime());
-        project.setStatus("PREPARING");
+        project.setStatus(ProjectStatus.PREPARING);
 
         projectMapper.insert(project);
 
@@ -96,7 +101,7 @@ public class ProjectService {
         projectMember.setProjectId(project.getId());
         projectMember.setUserId(currentUser.getUserId());
         projectMember.setRole("PROJECT_MANAGER");
-        projectMember.setStatus("ACTIVE");
+        projectMember.setStatus(ProjectMemberStatus.ACTIVE);
 
         projectMemberMapper.insert(projectMember);
 
@@ -104,7 +109,7 @@ public class ProjectService {
 
         afterData.put("name", project.getName());
 
-        afterData.put("status", project.getStatus());
+        afterData.put("status", project.getStatus() == null ? null : project.getStatus().getCode());
 
         afterData.put("creatorId", currentUser.getUserId());
 
@@ -145,7 +150,7 @@ public class ProjectService {
         vo.setName(project.getName());
         vo.setDescription(project.getDescription());
         vo.setGoal(project.getGoal());
-        vo.setStatus(project.getStatus());
+        vo.setStatus(project.getStatus() == null ? null : project.getStatus().getCode());
         vo.setStartTime(project.getStartTime());
         vo.setExpectedEndTime(project.getExpectedEndTime());
         vo.setActualEndTime(project.getActualEndTime());
@@ -178,7 +183,7 @@ public class ProjectService {
         }
 
         // 3. 只有准备中的项目可以启动
-        if (!"PREPARING".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus())) {
             throw new BusinessException(409, "只有准备中的项目可以启动");
         }
 
@@ -187,10 +192,10 @@ public class ProjectService {
         LocalDateTime now = LocalDateTime.now();
 
         // 4. 保存修改前状态
-        String oldStatus = project.getStatus();
+        String oldStatus = project.getStatus() == null ? null : project.getStatus().getCode();
 
         // 5. 修改项目
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         project.setStartTime(now);
         project.setUpdatedAt(now);
 
@@ -207,7 +212,7 @@ public class ProjectService {
         // 7. 准备修改后的数据
         Map<String, Object> afterData = new HashMap<>();
 
-        afterData.put("status", project.getStatus());
+        afterData.put("status", project.getStatus() == null ? null : project.getStatus().getCode());
 
         afterData.put("startTime", project.getStartTime());
 
@@ -236,8 +241,11 @@ public class ProjectService {
             throw new BusinessException(404, "项目不存在");
         }
 
+        // 锁定项目后，重新检查并锁定当前负责人的成员关系
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+
         // 3. 只有准备中 / 进行中的项目可以取消
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许取消");
         }
 
@@ -245,10 +253,10 @@ public class ProjectService {
         LocalDateTime now = LocalDateTime.now();
 
         // 4. 保存旧状态
-        String oldStatus = project.getStatus();
+        String oldStatus = project.getStatus() == null ? null : project.getStatus().getCode();
 
         // 5. 修改项目状态
-        project.setStatus("CANCELLED");
+        project.setStatus(ProjectStatus.CANCELLED);
         project.setCancelReason(dto.getReason().trim());
         project.setCancelledAt(now);
         project.setActualEndTime(null);
@@ -268,7 +276,7 @@ public class ProjectService {
 
         Map<String, Object> afterData = new HashMap<>();
 
-        afterData.put("status", project.getStatus());
+        afterData.put("status", project.getStatus() == null ? null : project.getStatus().getCode());
 
         afterData.put("cancelReason", project.getCancelReason());
 
@@ -296,16 +304,16 @@ public class ProjectService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"COMPLETED".equals(project.getStatus())) {
+        if (!ProjectStatus.COMPLETED.equals(project.getStatus())) {
             throw new BusinessException(409, "只有已完成的项目可以归档");
         }
 
         CurrentUser currentUser = UserContext.get();
         LocalDateTime now = LocalDateTime.now();
 
-        String oldStatus = project.getStatus();
+        String oldStatus = project.getStatus() == null ? null : project.getStatus().getCode();
 
-        project.setStatus("ARCHIVED");
+        project.setStatus(ProjectStatus.ARCHIVED);
         project.setUpdatedAt(now);
 
         int updated = projectMapper.archiveIfCompleted(projectId, now);
@@ -317,7 +325,7 @@ public class ProjectService {
         beforeData.put("status", oldStatus);
 
         Map<String, Object> afterData = new HashMap<>();
-        afterData.put("status", project.getStatus());
+        afterData.put("status", project.getStatus() == null ? null : project.getStatus().getCode());
 
         operationLogService.record(
             project.getId(),
@@ -347,7 +355,7 @@ public class ProjectService {
         }
 
         // 3. 只有准备中 / 进行中可以变更成员
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许移除成员");
         }
 
@@ -356,7 +364,7 @@ public class ProjectService {
             new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, projectId)
                 .eq(ProjectMember::getUserId, userId)
-                .eq(ProjectMember::getStatus, "ACTIVE")
+                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
 
         if (targetMember == null) {
@@ -373,7 +381,7 @@ public class ProjectService {
             new LambdaQueryWrapper<Task>()
                 .eq(Task::getProjectId, projectId)
                 .eq(Task::getAssigneeId, userId)
-                .in(Task::getStatus, Set.of("TODO", "IN_PROGRESS", "REVIEW"))
+                .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
                 .isNull(Task::getDeletedAt)
         );
 
@@ -409,8 +417,8 @@ public class ProjectService {
             targetMember.getId(),
             "REMOVE_PROJECT_MEMBER",
             reason == null ? "移除项目成员" : "移除项目成员，原因：" + reason,
-            Map.of("status", "ACTIVE", "role", "DEVELOPER"),
-            Map.of("status", "INACTIVE", "role", "DEVELOPER")
+            Map.of("status", ProjectMemberStatus.ACTIVE.getCode(), "role", "DEVELOPER"),
+            Map.of("status", ProjectMemberStatus.INACTIVE.getCode(), "role", "DEVELOPER")
         );
 
         // 12. 通知被移除的成员

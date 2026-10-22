@@ -3,6 +3,7 @@ package com.flowdesk.service;
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.cache.TaskSummaryCacheReadResult;
 import com.flowdesk.dto.TaskStatusCountDTO;
+import com.flowdesk.enums.TaskStatus;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.ProjectMapper;
 import com.flowdesk.mapper.TaskMapper;
@@ -23,10 +24,11 @@ public class ProjectTaskSummaryService {
     private final ProjectTaskSummaryCache taskSummaryCache;
 
     public ProjectTaskSummaryService(
-            ProjectPermissionService projectPermissionService,
-            ProjectMapper projectMapper,
-            TaskMapper taskMapper,
-            ProjectTaskSummaryCache taskSummaryCache) {
+        ProjectPermissionService projectPermissionService,
+        ProjectMapper projectMapper,
+        TaskMapper taskMapper,
+        ProjectTaskSummaryCache taskSummaryCache
+    ) {
         this.projectPermissionService = projectPermissionService;
         this.projectMapper = projectMapper;
         this.taskMapper = taskMapper;
@@ -63,18 +65,24 @@ public class ProjectTaskSummaryService {
         long cancelledTaskCount = 0L;
 
         for (TaskStatusCountDTO row : rows) {
-            String status = row.getStatus();
+            // 聚合投影保留数据库字符串，在进入内部统计分支时严格转换。
+            TaskStatus status;
+            try {
+                status = TaskStatus.fromCode(row.getStatus());
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException(500, "任务状态数据异常");
+            }
             long taskCount = row.getTaskCount();
 
-            if ("TODO".equals(status)) {
+            if (TaskStatus.TODO.equals(status)) {
                 todoTaskCount += taskCount;
-            } else if ("IN_PROGRESS".equals(status)) {
+            } else if (TaskStatus.IN_PROGRESS.equals(status)) {
                 inProgressTaskCount += taskCount;
-            } else if ("REVIEW".equals(status)) {
+            } else if (TaskStatus.REVIEW.equals(status)) {
                 reviewTaskCount += taskCount;
-            } else if ("DONE".equals(status)) {
+            } else if (TaskStatus.DONE.equals(status)) {
                 doneTaskCount += taskCount;
-            } else if ("CANCELLED".equals(status)) {
+            } else if (TaskStatus.CANCELLED.equals(status)) {
                 cancelledTaskCount += taskCount;
             } else {
                 throw new BusinessException(500, "任务状态数据异常");
@@ -83,28 +91,24 @@ public class ProjectTaskSummaryService {
             totalTaskCount += taskCount;
         }
 
-        long effectiveTaskCount =
-                totalTaskCount - cancelledTaskCount;
+        long effectiveTaskCount = totalTaskCount - cancelledTaskCount;
 
-        BigDecimal completionRate = effectiveTaskCount == 0
+        BigDecimal completionRate =
+            effectiveTaskCount == 0
                 ? BigDecimal.ZERO.setScale(2)
                 : BigDecimal.valueOf(doneTaskCount)
-                .multiply(BigDecimal.valueOf(100))
-                .divide(
-                        BigDecimal.valueOf(effectiveTaskCount),
-                        2,
-                        RoundingMode.HALF_UP
-                );
+                      .multiply(BigDecimal.valueOf(100))
+                      .divide(BigDecimal.valueOf(effectiveTaskCount), 2, RoundingMode.HALF_UP);
 
         ProjectTaskSummaryVO summary = new ProjectTaskSummaryVO(
-                projectId,
-                totalTaskCount,
-                todoTaskCount,
-                inProgressTaskCount,
-                reviewTaskCount,
-                doneTaskCount,
-                cancelledTaskCount,
-                completionRate
+            projectId,
+            totalTaskCount,
+            todoTaskCount,
+            inProgressTaskCount,
+            reviewTaskCount,
+            doneTaskCount,
+            cancelledTaskCount,
+            completionRate
         );
 
         if (!cacheResult.isRedisReadFailed()) {

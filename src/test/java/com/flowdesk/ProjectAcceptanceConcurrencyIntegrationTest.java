@@ -1,5 +1,9 @@
-
 package com.flowdesk;
+
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.ProjectStatus;
 
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
@@ -10,6 +14,7 @@ import com.flowdesk.model.*;
 import com.flowdesk.service.ProjectAcceptanceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -27,20 +32,32 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("test")
 class ProjectAcceptanceConcurrencyIntegrationTest {
 
-    @Autowired JdbcTemplate jdbc;
-    @Autowired UserMapper userMapper;
-    @Autowired ProjectMapper projectMapper;
-    @Autowired ProjectMemberMapper memberMapper;
-    @Autowired TaskMapper taskMapper;
-    @Autowired ProjectAcceptanceService acceptanceService;
-    @Autowired PlatformTransactionManager transactionManager;
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @Autowired
+    UserMapper userMapper;
+
+    @Autowired
+    ProjectMapper projectMapper;
+
+    @Qualifier("projectMemberMapper")
+    @Autowired
+    ProjectMemberMapper memberMapper;
+
+    @Autowired
+    TaskMapper taskMapper;
+
+    @Autowired
+    ProjectAcceptanceService acceptanceService;
+
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     @Test
     void newTaskMustBlockProjectAcceptance() throws Exception {
-
         // 安全保护：绝不能在正式数据库运行
-        assertEquals("flowdesk_test",
-                jdbc.queryForObject("SELECT DATABASE()", String.class));
+        assertEquals("flowdesk_test", jdbc.queryForObject("SELECT DATABASE()", String.class));
 
         Long userId = null;
         Long projectId = null;
@@ -59,7 +76,7 @@ class ProjectAcceptanceConcurrencyIntegrationTest {
             user.setPasswordHash("integration-test-only");
             user.setRealName("并发测试用户");
             user.setSystemRole("USER");
-            user.setStatus("ACTIVE");
+            user.setStatus(UserStatus.ACTIVE);
             user.setCreatedAt(now);
             user.setUpdatedAt(now);
             userMapper.insert(user);
@@ -71,7 +88,7 @@ class ProjectAcceptanceConcurrencyIntegrationTest {
             project.setName("并发验收测试");
             project.setDescription("自动化测试项目");
             project.setGoal("验证并发一致性");
-            project.setStatus("IN_PROGRESS");
+            project.setStatus(ProjectStatus.IN_PROGRESS);
             project.setStartTime(now);
             project.setExpectedEndTime(now.plusDays(30));
             project.setCreatedAt(now);
@@ -83,7 +100,7 @@ class ProjectAcceptanceConcurrencyIntegrationTest {
             member.setProjectId(projectId);
             member.setUserId(userId);
             member.setRole("PROJECT_MANAGER");
-            member.setStatus("ACTIVE");
+            member.setStatus(ProjectMemberStatus.ACTIVE);
             member.setJoinedAt(now);
             member.setUpdatedAt(now);
             memberMapper.insert(member);
@@ -93,10 +110,8 @@ class ProjectAcceptanceConcurrencyIntegrationTest {
 
             // 线程 B：锁项目，插入任务，但暂时不提交
             Future<?> writer = pool.submit(() -> {
-                TransactionTemplate tx =
-                        new TransactionTemplate(transactionManager);
-                tx.setIsolationLevel(
-                        TransactionDefinition.ISOLATION_REPEATABLE_READ);
+                TransactionTemplate tx = new TransactionTemplate(transactionManager);
+                tx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
 
                 tx.execute(status -> {
                     projectMapper.selectByIdForUpdate(pid);
@@ -107,7 +122,7 @@ class ProjectAcceptanceConcurrencyIntegrationTest {
                     task.setTitle("并发新增任务");
                     task.setDescription("测试任务");
                     task.setGoal("验证验收检查");
-                    task.setStatus("TODO");
+                    task.setStatus(TaskStatus.TODO);
                     task.setPriority("MEDIUM");
                     task.setDeadline(LocalDateTime.now().plusDays(2));
                     task.setCreatedAt(LocalDateTime.now());
@@ -137,63 +152,54 @@ class ProjectAcceptanceConcurrencyIntegrationTest {
                 acceptanceStarted.countDown();
 
                 try {
-                    SubmitProjectAcceptanceDTO dto =
-                            new SubmitProjectAcceptanceDTO();
+                    SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
                     dto.setSubmissionNote("并发验收测试");
                     dto.setRepositoryUrl("https://github.com/test/project");
 
                     acceptanceService.submitAcceptance(pid, dto);
                     return 200;
-                } catch (BusinessException e) {
-                    return e.getCode();
                 } finally {
                     UserContext.remove();
                 }
             });
 
+            assertTrue(acceptanceStarted.await(5, TimeUnit.SECONDS), "验收线程未能及时启动");
 
-            assertTrue(
-                    acceptanceStarted.await(5, TimeUnit.SECONDS),
-                    "验收线程未能及时启动"
-            );
-
-// 写事务尚未提交，验收操作不应该提前完成
+            // 写事务尚未提交，验收操作不应该提前完成
             try {
                 assertThrows(
-                        TimeoutException.class,
-                        () -> acceptance.get(1, TimeUnit.SECONDS),
-                        "写事务持有项目锁时，验收操作不应该提前完成"
+                    TimeoutException.class,
+                    () -> acceptance.get(1, TimeUnit.SECONDS),
+                    "写事务持有项目锁时，验收操作不应该提前完成"
                 );
             } finally {
                 // 无论断言结果如何，都允许写事务释放锁
                 releaseWriter.countDown();
             }
 
-// 确认写事务正常提交
+            // 确认写事务正常提交
             writer.get(10, TimeUnit.SECONDS);
 
-// 验收应当发现新增任务，返回 409
-            assertEquals(
-                    409,
-                    acceptance.get(10, TimeUnit.SECONDS)
+            ExecutionException error = assertThrows(
+                    ExecutionException.class,
+                    () -> acceptance.get(10, TimeUnit.SECONDS)
             );
 
+            Throwable cause = error.getCause();
 
-            assertEquals("IN_PROGRESS",
-                    jdbc.queryForObject(
-                            "SELECT status FROM project WHERE id = ?",
-                            String.class, pid));
+            BusinessException businessException =
+                    assertInstanceOf(BusinessException.class, cause);
 
-            assertEquals(1L,
-                    jdbc.queryForObject(
-                            "SELECT COUNT(*) FROM task WHERE project_id = ?",
-                            Long.class, pid));
+            assertEquals(409, businessException.getCode());
 
-            assertEquals(0L,
-                    jdbc.queryForObject(
-                            "SELECT COUNT(*) FROM project_acceptance WHERE project_id = ?",
-                            Long.class, pid));
+            assertEquals("IN_PROGRESS", jdbc.queryForObject("SELECT status FROM project WHERE id = ?", String.class, pid));
 
+            assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM task WHERE project_id = ?", Long.class, pid));
+
+            assertEquals(
+                0L,
+                jdbc.queryForObject("SELECT COUNT(*) FROM project_acceptance WHERE project_id = ?", Long.class, pid)
+            );
         } finally {
             releaseWriter.countDown();
             pool.shutdownNow();

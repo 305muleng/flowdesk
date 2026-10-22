@@ -1,5 +1,11 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectAcceptanceStatus;
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.TaskRequestStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
@@ -68,7 +74,7 @@ public class ProjectAcceptanceService {
         projectPermissionService.requireProjectManagerForUpdate(projectId);
 
         // 2. 项目必须正在进行
-        if (!"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "只有进行中的项目可以提交验收");
         }
 
@@ -77,7 +83,7 @@ public class ProjectAcceptanceService {
             new LambdaQueryWrapper<Task>()
                 .eq(Task::getProjectId, projectId)
                 .isNull(Task::getDeletedAt)
-                .in(Task::getStatus, List.of("TODO", "IN_PROGRESS", "REVIEW"))
+                .in(Task::getStatus, List.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
         );
 
         if (unfinishedTaskCount > 0) {
@@ -86,7 +92,9 @@ public class ProjectAcceptanceService {
 
         // 4. 不能还有待处理的任务申请
         Long pendingTaskRequestCount = taskRequestMapper.selectCount(
-            new LambdaQueryWrapper<TaskRequest>().eq(TaskRequest::getProjectId, projectId).eq(TaskRequest::getStatus, "PENDING")
+            new LambdaQueryWrapper<TaskRequest>()
+                .eq(TaskRequest::getProjectId, projectId)
+                .eq(TaskRequest::getStatus, TaskRequestStatus.PENDING)
         );
 
         if (pendingTaskRequestCount > 0) {
@@ -109,7 +117,7 @@ public class ProjectAcceptanceService {
         LocalDateTime now = LocalDateTime.now();
 
         // 保存项目修改前状态
-        String oldProjectStatus = project.getStatus();
+        String oldProjectStatus = project.getStatus() == null ? null : project.getStatus().getCode();
 
         // 4. 计算这是第几次验收
         Integer maxAcceptanceNo = projectAcceptanceMapper.selectMaxAcceptanceNo(projectId);
@@ -125,7 +133,7 @@ public class ProjectAcceptanceService {
 
         acceptance.setSubmissionNote(dto.getSubmissionNote().trim());
 
-        acceptance.setReviewStatus("PENDING");
+        acceptance.setReviewStatus(ProjectAcceptanceStatus.PENDING);
         acceptance.setSubmittedAt(now);
 
         int transitioned = projectMapper.submitAcceptanceIfInProgress(projectId, repositoryUrl, deployUrl, documentUrl, now);
@@ -136,7 +144,7 @@ public class ProjectAcceptanceService {
         projectAcceptanceMapper.insert(acceptance);
 
         // 6. 项目进入待验收状态（数据库已通过条件更新完成）
-        project.setStatus("PENDING_ACCEPTANCE");
+        project.setStatus(ProjectStatus.PENDING_ACCEPTANCE);
         project.setUpdatedAt(now);
 
         // 7. 记录项目验收提交日志
@@ -146,13 +154,16 @@ public class ProjectAcceptanceService {
 
         Map<String, Object> afterData = new HashMap<>();
 
-        afterData.put("status", project.getStatus());
+        afterData.put("status", project.getStatus() == null ? null : project.getStatus().getCode());
 
         afterData.put("acceptanceId", acceptance.getId());
 
         afterData.put("acceptanceNo", acceptance.getAcceptanceNo());
 
-        afterData.put("acceptanceReviewStatus", acceptance.getReviewStatus());
+        afterData.put(
+            "acceptanceReviewStatus",
+            acceptance.getReviewStatus() == null ? null : acceptance.getReviewStatus().getCode()
+        );
 
         operationLogService.record(
             projectId,
@@ -166,7 +177,7 @@ public class ProjectAcceptanceService {
         );
 
         List<User> admins = userMapper.selectList(
-            new LambdaQueryWrapper<User>().eq(User::getSystemRole, "SYSTEM_ADMIN").eq(User::getStatus, "ACTIVE")
+            new LambdaQueryWrapper<User>().eq(User::getSystemRole, "SYSTEM_ADMIN").eq(User::getStatus, UserStatus.ACTIVE)
         );
 
         for (User admin : admins) {
@@ -228,7 +239,7 @@ public class ProjectAcceptanceService {
         }
 
         // 这一轮验收必须还没处理
-        if (!"PENDING".equals(acceptance.getReviewStatus())) {
+        if (!ProjectAcceptanceStatus.PENDING.equals(acceptance.getReviewStatus())) {
             throw new BusinessException(409, "该项目验收已经处理");
         }
 
@@ -239,7 +250,7 @@ public class ProjectAcceptanceService {
         }
 
         // 整个项目必须处于待验收状态
-        if (!"PENDING_ACCEPTANCE".equals(project.getStatus())) {
+        if (!ProjectStatus.PENDING_ACCEPTANCE.equals(project.getStatus())) {
             throw new BusinessException(409, "项目当前不处于待验收状态");
         }
 
@@ -263,9 +274,9 @@ public class ProjectAcceptanceService {
         LocalDateTime now = LocalDateTime.now();
 
         // 先保存修改前的数据
-        String oldProjectStatus = project.getStatus();
+        String oldProjectStatus = project.getStatus() == null ? null : project.getStatus().getCode();
 
-        String oldAcceptanceReviewStatus = acceptance.getReviewStatus();
+        String oldAcceptanceReviewStatus = acceptance.getReviewStatus() == null ? null : acceptance.getReviewStatus().getCode();
 
         // 保存审核信息
         acceptance.setReviewerId(currentUser.getUserId());
@@ -276,14 +287,14 @@ public class ProjectAcceptanceService {
 
         // 根据审核结果修改状态
         if ("APPROVE".equals(action)) {
-            acceptance.setReviewStatus("APPROVED");
+            acceptance.setReviewStatus(ProjectAcceptanceStatus.APPROVED);
 
-            project.setStatus("COMPLETED");
+            project.setStatus(ProjectStatus.COMPLETED);
             project.setActualEndTime(now);
         } else {
-            acceptance.setReviewStatus("REJECTED");
+            acceptance.setReviewStatus(ProjectAcceptanceStatus.REJECTED);
 
-            project.setStatus("IN_PROGRESS");
+            project.setStatus(ProjectStatus.IN_PROGRESS);
             project.setActualEndTime(null);
         }
 
@@ -325,9 +336,12 @@ public class ProjectAcceptanceService {
         // 准备修改后的数据
         Map<String, Object> afterData = new HashMap<>();
 
-        afterData.put("status", project.getStatus());
+        afterData.put("status", project.getStatus() == null ? null : project.getStatus().getCode());
 
-        afterData.put("acceptanceReviewStatus", acceptance.getReviewStatus());
+        afterData.put(
+            "acceptanceReviewStatus",
+            acceptance.getReviewStatus() == null ? null : acceptance.getReviewStatus().getCode()
+        );
 
         afterData.put("acceptanceId", acceptance.getId());
 
@@ -418,7 +432,7 @@ public class ProjectAcceptanceService {
         List<Task> cancelledTaskEntities = new ArrayList<>();
 
         for (Task task : tasks) {
-            if ("DONE".equals(task.getStatus())) {
+            if (TaskStatus.DONE.equals(task.getStatus())) {
                 completedTaskCount++;
 
                 if (task.getAssigneeId() != null) {
@@ -430,7 +444,7 @@ public class ProjectAcceptanceService {
 
                     completedTasksByUser.computeIfAbsent(task.getAssigneeId(), key -> new ArrayList<>()).add(taskVO);
                 }
-            } else if ("CANCELLED".equals(task.getStatus())) {
+            } else if (TaskStatus.CANCELLED.equals(task.getStatus())) {
                 cancelledTaskCount++;
                 cancelledTaskEntities.add(task);
             }
@@ -444,7 +458,7 @@ public class ProjectAcceptanceService {
         detail.setCancelledTaskCount(cancelledTaskCount);
 
         int rateDenominator = completedTaskCount + cancelledTaskCount;
-        double completionRate = rateDenominator == 0 ? 0.0 : Math.round(completedTaskCount * 10000.0 / rateDenominator) / 100.0;
+        double completionRate = rateDenominator == 0 ? 0.0 : Math.round((completedTaskCount * 10000.0) / rateDenominator) / 100.0;
 
         detail.setCompletionRate(completionRate);
 

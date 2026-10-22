@@ -1,5 +1,13 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectManagerTransferStatus;
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.TaskRequestStatus;
+import com.flowdesk.enums.TaskSubmissionStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.ProjectStatus;
+
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.*;
 import com.flowdesk.dto.*;
@@ -139,7 +147,7 @@ class MemberLifecycleRegressionTest {
     Project project() {
         Project p = new Project();
         p.setId(4L);
-        p.setStatus("IN_PROGRESS");
+        p.setStatus(ProjectStatus.IN_PROGRESS);
         p.setName("FlowDesk");
         return p;
     }
@@ -147,7 +155,7 @@ class MemberLifecycleRegressionTest {
     User user() {
         User u = new User();
         u.setId(2L);
-        u.setStatus("ACTIVE");
+        u.setStatus(UserStatus.ACTIVE);
         u.setSystemRole("USER");
         return u;
     }
@@ -158,7 +166,7 @@ class MemberLifecycleRegressionTest {
         m.setUserId(2L);
         m.setProjectId(4L);
         m.setRole("DEVELOPER");
-        m.setStatus("ACTIVE");
+        m.setStatus(ProjectMemberStatus.ACTIVE);
         return m;
     }
 
@@ -173,7 +181,7 @@ class MemberLifecycleRegressionTest {
         Task t = new Task();
         t.setId(10L);
         t.setProjectId(4L);
-        t.setStatus(status);
+        t.setStatus(TaskStatus.fromCode(status));
         t.setTitle("Task");
         return t;
     }
@@ -225,7 +233,7 @@ class MemberLifecycleRegressionTest {
         when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
         when(members.selectMemberForUpdate(4L, 2L)).thenReturn(developer());
         User u = user();
-        u.setStatus("DISABLED");
+        u.setStatus(UserStatus.DISABLED);
         when(users.selectByIdForUpdate(2L)).thenReturn(u);
         assertEquals(409, assertThrows(BusinessException.class, () -> taskService.assignTask(10L, dto)).getCode());
         InOrder order = inOrder(projects, members, users);
@@ -263,7 +271,7 @@ class MemberLifecycleRegressionTest {
         when(projects.selectByIdForUpdate(4L)).thenReturn(project());
         when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
         ProjectMember inactive = developer();
-        inactive.setStatus("INACTIVE");
+        inactive.setStatus(ProjectMemberStatus.INACTIVE);
         when(members.selectMemberForUpdate(4L, 2L)).thenReturn(inactive);
         assertEquals(409, assertThrows(BusinessException.class, () -> taskService.assignTask(10L, dto)).getCode());
         InOrder order = inOrder(projects, members);
@@ -311,7 +319,7 @@ class MemberLifecycleRegressionTest {
         r.setId(12L);
         r.setProjectId(4L);
         r.setRequesterId(requester);
-        r.setStatus("PENDING");
+        r.setStatus(TaskRequestStatus.PENDING);
         when(requests.selectById(12L)).thenReturn(r);
     }
 
@@ -321,7 +329,7 @@ class MemberLifecycleRegressionTest {
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("APPROVE");
         assertEquals(403, assertThrows(BusinessException.class, () -> requestService.reviewTaskRequest(4L, 12L, dto)).getCode());
-        verify(requests, never()).reviewIfPending(anyLong(), anyLong(), anyString(), anyLong(), any(), any());
+        verify(requests, never()).reviewIfPending(anyLong(), anyLong(), any(TaskRequestStatus.class), anyLong(), any(), any());
         verify(tasks, never()).insert(any(Task.class));
     }
 
@@ -344,7 +352,7 @@ class MemberLifecycleRegressionTest {
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("REJECT");
         assertEquals(409, assertThrows(BusinessException.class, () -> requestService.reviewTaskRequest(4L, 12L, dto)).getCode());
-        verify(requests, never()).reviewIfPending(anyLong(), anyLong(), anyString(), anyLong(), any(), any());
+        verify(requests, never()).reviewIfPending(anyLong(), anyLong(), any(TaskRequestStatus.class), anyLong(), any(), any());
     }
 
     @Test
@@ -355,7 +363,7 @@ class MemberLifecycleRegressionTest {
         t.setProjectId(4L);
         t.setFromUserId(1L);
         t.setToUserId(2L);
-        t.setStatus("PENDING");
+        t.setStatus(ProjectManagerTransferStatus.PENDING);
         t.setOldManagerAction("STAY");
         t.setExpiresAt(LocalDateTime.now().plusDays(1));
         when(transfers.selectById(20L)).thenReturn(t);
@@ -380,18 +388,20 @@ class MemberLifecycleRegressionTest {
         TaskSubmission submission = new TaskSubmission();
         submission.setId(30L);
         submission.setSubmitterId(2L);
-        submission.setReviewStatus("PENDING");
+        submission.setReviewStatus(TaskSubmissionStatus.PENDING);
         when(submissions.selectPendingSubmission(10L)).thenReturn(submission);
         User u = user();
-        u.setStatus("DISABLED");
+        u.setStatus(UserStatus.DISABLED);
         when(users.selectById(2L)).thenReturn(u);
         when(tasks.rejectToTodoAndUnassign(eq(10L), eq(2L), any())).thenReturn(1);
-        when(submissions.reviewPendingSubmission(eq(30L), eq(10L), eq("REJECTED"), eq(1L), any(), any())).thenReturn(1);
+        when(
+            submissions.reviewPendingSubmission(eq(30L), eq(10L), eq(TaskSubmissionStatus.REJECTED), eq(1L), any(), any())
+        ).thenReturn(1);
         ReviewTaskDTO dto = new ReviewTaskDTO();
         dto.setAction("REJECT");
         dto.setReviewNote("需要修改");
         taskService.reviewTask(10L, dto);
-        assertEquals("TODO", task.getStatus());
+        assertEquals(TaskStatus.TODO, task.getStatus());
         assertNull(task.getAssigneeId());
         verify(projects).selectByIdForUpdate(4L);
         verify(tasks).rejectToTodoAndUnassign(eq(10L), eq(2L), any());
@@ -507,7 +517,13 @@ class MemberLifecycleRegressionTest {
             dto.setResultUrl(value);
             assertEquals(400, assertThrows(BusinessException.class, () -> taskService.submitTask(10L, dto)).getCode());
         }
-        verify(tasks, never()).transitionAssigneeTaskIfCurrent(anyLong(), anyLong(), anyString(), anyString(), any());
+        verify(tasks, never()).transitionAssigneeTaskIfCurrent(
+            anyLong(),
+            anyLong(),
+            any(TaskStatus.class),
+            any(TaskStatus.class),
+            any()
+        );
         verify(submissions, never()).insert(any(TaskSubmission.class));
     }
 
@@ -517,14 +533,16 @@ class MemberLifecycleRegressionTest {
         task.setAssigneeId(1L);
         when(tasks.selectById(10L)).thenReturn(task);
         when(projects.selectByIdForUpdate(4L)).thenReturn(project());
-        when(tasks.transitionAssigneeTaskIfCurrent(eq(10L), eq(1L), eq("IN_PROGRESS"), eq("REVIEW"), any())).thenReturn(1);
+        when(
+            tasks.transitionAssigneeTaskIfCurrent(eq(10L), eq(1L), eq(TaskStatus.IN_PROGRESS), eq(TaskStatus.REVIEW), any())
+        ).thenReturn(1);
         when(submissions.selectMaxSubmissionNo(10L)).thenReturn(0);
         SubmitTaskDTO dto = new SubmitTaskDTO();
         dto.setCompletionNote("完成");
         dto.setTestNote("测试通过");
         dto.setResultUrl("https://example.com/result");
         taskService.submitTask(10L, dto);
-        task.setStatus("IN_PROGRESS");
+        task.setStatus(TaskStatus.IN_PROGRESS);
         dto.setResultUrl("http://example.com/result");
         taskService.submitTask(10L, dto);
         verify(submissions, times(2)).insert(any(TaskSubmission.class));

@@ -1,5 +1,7 @@
 package com.flowdesk.mapper;
 
+import com.flowdesk.enums.ProjectStatus;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.flowdesk.model.Project;
 import com.flowdesk.vo.ProjectVO;
@@ -67,7 +69,7 @@ public interface ProjectMapper extends BaseMapper<Project> {
             """)
     int reviewAcceptanceIfPending(
         @Param("projectId") Long projectId,
-        @Param("newStatus") String newStatus,
+        @Param("newStatus") ProjectStatus newStatus,
         @Param("actualEndTime") LocalDateTime actualEndTime,
         @Param("reviewedAt") LocalDateTime reviewedAt
     );

@@ -1,5 +1,10 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectInvitationStatus;
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
@@ -66,7 +71,7 @@ public class ProjectInvitationService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许发送邀请");
         }
 
@@ -86,7 +91,7 @@ public class ProjectInvitationService {
         }
 
         // 3. 被邀请账号必须正常
-        if (!"ACTIVE".equals(invitee.getStatus())) {
+        if (!UserStatus.ACTIVE.equals(invitee.getStatus())) {
             throw new BusinessException(409, "被邀请用户账号不可用");
         }
 
@@ -102,7 +107,7 @@ public class ProjectInvitationService {
                 .eq(ProjectMember::getUserId, invitee.getId())
         );
 
-        if (existingMember != null && "ACTIVE".equals(existingMember.getStatus())) {
+        if (existingMember != null && ProjectMemberStatus.ACTIVE.equals(existingMember.getStatus())) {
             throw new BusinessException(409, "该用户已经是项目成员");
         }
 
@@ -113,7 +118,7 @@ public class ProjectInvitationService {
             new LambdaQueryWrapper<ProjectInvitation>()
                 .eq(ProjectInvitation::getProjectId, projectId)
                 .eq(ProjectInvitation::getInviteeId, invitee.getId())
-                .eq(ProjectInvitation::getStatus, "PENDING")
+                .eq(ProjectInvitation::getStatus, ProjectInvitationStatus.PENDING)
                 .gt(ProjectInvitation::getExpiresAt, now)
         );
 
@@ -127,7 +132,7 @@ public class ProjectInvitationService {
         invitation.setProjectId(projectId);
         invitation.setInviterId(currentUser.getUserId());
         invitation.setInviteeId(invitee.getId());
-        invitation.setStatus("PENDING");
+        invitation.setStatus(ProjectInvitationStatus.PENDING);
         invitation.setExpiresAt(now.plusDays(expireDays));
 
         projectInvitationMapper.insert(invitation);
@@ -140,7 +145,7 @@ public class ProjectInvitationService {
             "SEND_PROJECT_INVITATION",
             "发送项目邀请",
             null,
-            Map.of("status", "PENDING", "inviteeId", invitee.getId())
+            Map.of("status", ProjectInvitationStatus.PENDING.getCode(), "inviteeId", invitee.getId())
         );
 
         CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
@@ -178,7 +183,7 @@ public class ProjectInvitationService {
         }
 
         // 3. 必须还是待处理状态
-        if (!"PENDING".equals(invitation.getStatus())) {
+        if (!ProjectInvitationStatus.PENDING.equals(invitation.getStatus())) {
             throw new BusinessException(409, "该邀请已经处理");
         }
 
@@ -195,7 +200,7 @@ public class ProjectInvitationService {
             throw new BusinessException(401, "登录用户不存在");
         }
 
-        if (!"ACTIVE".equals(invitee.getStatus())) {
+        if (!UserStatus.ACTIVE.equals(invitee.getStatus())) {
             throw new BusinessException(403, "账号已被禁用");
         }
 
@@ -209,7 +214,7 @@ public class ProjectInvitationService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许接受邀请");
         }
 
@@ -219,7 +224,7 @@ public class ProjectInvitationService {
                 .eq(ProjectMember::getUserId, currentUser.getUserId())
         );
 
-        if (currentMember != null && "ACTIVE".equals(currentMember.getStatus())) {
+        if (currentMember != null && ProjectMemberStatus.ACTIVE.equals(currentMember.getStatus())) {
             throw new BusinessException(409, "你已经是该项目成员，该邀请已失效");
         }
 
@@ -233,13 +238,13 @@ public class ProjectInvitationService {
         }
 
         now = LocalDateTime.now();
-        int accepted = projectInvitationMapper.transitionPending(invitationId, "ACCEPTED", now);
+        int accepted = projectInvitationMapper.transitionPending(invitationId, ProjectInvitationStatus.ACCEPTED, now);
 
         if (accepted != 1) {
             throw new BusinessException(409, "该邀请已经处理");
         }
 
-        invitation.setStatus("ACCEPTED");
+        invitation.setStatus(ProjectInvitationStatus.ACCEPTED);
         invitation.setRespondedAt(now);
 
         // 5. 查询是否曾经是这个项目的成员
@@ -256,7 +261,7 @@ public class ProjectInvitationService {
             member.setProjectId(invitation.getProjectId());
             member.setUserId(currentUser.getUserId());
             member.setRole("DEVELOPER");
-            member.setStatus("ACTIVE");
+            member.setStatus(ProjectMemberStatus.ACTIVE);
             member.setJoinedAt(now);
 
             projectMemberMapper.insert(member);
@@ -275,8 +280,8 @@ public class ProjectInvitationService {
             invitation.getId(),
             "ACCEPT_PROJECT_INVITATION",
             "接受项目邀请",
-            Map.of("status", "PENDING"),
-            Map.of("status", "ACCEPTED")
+            Map.of("status", ProjectInvitationStatus.PENDING.getCode()),
+            Map.of("status", ProjectInvitationStatus.ACCEPTED.getCode())
         );
 
         CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
@@ -320,7 +325,9 @@ public class ProjectInvitationService {
         );
 
         for (InvitationVO invitation : invitations) {
-            boolean expired = "PENDING".equals(invitation.getStatus()) && !invitation.getExpiresAt().isAfter(now);
+            boolean expired =
+                ProjectInvitationStatus.PENDING.getCode().equals(invitation.getStatus()) &&
+                !invitation.getExpiresAt().isAfter(now);
 
             invitation.setExpired(expired);
         }
@@ -345,7 +352,7 @@ public class ProjectInvitationService {
         }
 
         // 3. 必须还是待处理状态
-        if (!"PENDING".equals(invitation.getStatus())) {
+        if (!ProjectInvitationStatus.PENDING.equals(invitation.getStatus())) {
             throw new BusinessException(409, "该邀请已经处理");
         }
 
@@ -360,18 +367,21 @@ public class ProjectInvitationService {
         if (currentProject == null || currentProject.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
-        if (!"PREPARING".equals(currentProject.getStatus()) && !"IN_PROGRESS".equals(currentProject.getStatus())) {
+        if (
+            !ProjectStatus.PREPARING.equals(currentProject.getStatus()) &&
+            !ProjectStatus.IN_PROGRESS.equals(currentProject.getStatus())
+        ) {
             throw new BusinessException(409, "当前项目状态不允许处理该请求");
         }
         now = LocalDateTime.now();
 
-        int rejected = projectInvitationMapper.transitionPending(invitationId, "REJECTED", now);
+        int rejected = projectInvitationMapper.transitionPending(invitationId, ProjectInvitationStatus.REJECTED, now);
 
         if (rejected != 1) {
             throw new BusinessException(409, "该邀请已经处理");
         }
 
-        invitation.setStatus("REJECTED");
+        invitation.setStatus(ProjectInvitationStatus.REJECTED);
         invitation.setRespondedAt(now);
 
         operationLogService.record(
@@ -381,8 +391,8 @@ public class ProjectInvitationService {
             invitation.getId(),
             "REJECT_PROJECT_INVITATION",
             "拒绝项目邀请",
-            Map.of("status", "PENDING"),
-            Map.of("status", "REJECTED")
+            Map.of("status", ProjectInvitationStatus.PENDING.getCode()),
+            Map.of("status", ProjectInvitationStatus.REJECTED.getCode())
         );
 
         CreateNotificationDTO notificationDTO = new CreateNotificationDTO();

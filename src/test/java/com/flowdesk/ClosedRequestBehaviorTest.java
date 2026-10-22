@@ -1,5 +1,12 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.ProjectManagerTransferStatus;
+import com.flowdesk.enums.MemberLeaveRequestStatus;
+import com.flowdesk.enums.TaskRequestStatus;
+import com.flowdesk.enums.ProjectInvitationStatus;
+import com.flowdesk.enums.ProjectStatus;
+
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.*;
 import com.flowdesk.dto.*;
@@ -95,11 +102,11 @@ class ClosedRequestBehaviorTest {
         ProjectInvitation invitation = new ProjectInvitation();
         invitation.setProjectId(4L);
         invitation.setInviteeId(2L);
-        invitation.setStatus("CLOSED");
+        invitation.setStatus(ProjectInvitationStatus.CLOSED);
         when(invitations.selectById(10L)).thenReturn(invitation);
         conflict(() -> invitationService.acceptInvitation(10L));
         conflict(() -> invitationService.rejectInvitation(10L));
-        verify(invitations, never()).transitionPending(anyLong(), anyString(), any());
+        verify(invitations, never()).transitionPending(anyLong(), any(ProjectInvitationStatus.class), any());
         verifyNoInteractions(members, tasks, logs, notifications);
     }
 
@@ -107,18 +114,26 @@ class ClosedRequestBehaviorTest {
     void closedLeaveRequestRejectsReviewAndWithdrawal() {
         Project p = new Project();
         p.setId(4L);
-        p.setStatus("IN_PROGRESS");
+        p.setStatus(ProjectStatus.IN_PROGRESS);
         when(projects.selectByIdForUpdate(4L)).thenReturn(p);
         MemberLeaveRequest request = new MemberLeaveRequest();
         request.setProjectId(4L);
         request.setApplicantId(2L);
-        request.setStatus("CLOSED");
+        request.setStatus(MemberLeaveRequestStatus.CLOSED);
         when(leaves.selectById(11L)).thenReturn(request);
         ReviewMemberLeaveRequestDTO dto = new ReviewMemberLeaveRequestDTO();
         dto.setAction("APPROVE");
         conflict(() -> leaveService.reviewLeaveRequest(4L, 11L, dto));
         conflict(() -> leaveService.cancelLeaveRequest(4L, 11L));
-        verify(leaves, never()).reviewIfPending(anyLong(), anyLong(), anyString(), anyLong(), any(), any(), any());
+        verify(leaves, never()).reviewIfPending(
+            anyLong(),
+            anyLong(),
+            any(MemberLeaveRequestStatus.class),
+            anyLong(),
+            any(),
+            any(),
+            any()
+        );
         verify(leaves, never()).cancelIfPending(anyLong(), anyLong(), anyLong(), any(), any());
         verifyNoInteractions(members, tasks, logs, notifications);
     }
@@ -129,7 +144,7 @@ class ClosedRequestBehaviorTest {
         t.setProjectId(4L);
         t.setFromUserId(2L);
         t.setToUserId(2L);
-        t.setStatus("CLOSED");
+        t.setStatus(ProjectManagerTransferStatus.CLOSED);
         when(transfers.selectById(12L)).thenReturn(t);
         conflict(() -> transferService.acceptTransfer(4L, 12L));
         conflict(() -> transferService.rejectTransfer(4L, 12L));
@@ -144,18 +159,18 @@ class ClosedRequestBehaviorTest {
     void closedTaskRequestRejectsReviewAndWithdrawalWithoutCreatingTask() {
         Project p = new Project();
         p.setId(4L);
-        p.setStatus("IN_PROGRESS");
+        p.setStatus(ProjectStatus.IN_PROGRESS);
         when(projects.selectByIdForUpdate(4L)).thenReturn(p);
         TaskRequest r = new TaskRequest();
         r.setProjectId(4L);
         r.setRequesterId(2L);
-        r.setStatus("CLOSED");
+        r.setStatus(TaskRequestStatus.CLOSED);
         when(requests.selectById(13L)).thenReturn(r);
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("APPROVE");
         conflict(() -> taskRequestService.reviewTaskRequest(4L, 13L, dto));
         conflict(() -> taskRequestService.cancelTaskRequest(4L, 13L));
-        verify(requests, never()).reviewIfPending(anyLong(), anyLong(), anyString(), anyLong(), any(), any());
+        verify(requests, never()).reviewIfPending(anyLong(), anyLong(), any(TaskRequestStatus.class), anyLong(), any(), any());
         verify(requests, never()).cancelIfPending(anyLong(), anyLong(), anyLong(), any());
         verifyNoInteractions(tasks, logs, notifications);
     }
@@ -165,7 +180,7 @@ class ClosedRequestBehaviorTest {
         LocalDateTime past = LocalDateTime.now().minusDays(1);
         MemberLeaveRequestVO leave = new MemberLeaveRequestVO();
         leave.setApplicantId(2L);
-        leave.setStatus("CLOSED");
+        leave.setStatus(MemberLeaveRequestStatus.CLOSED.getCode());
         leave.setExpiresAt(past);
         leave.setClosedAt(past.minusDays(1));
         leave.setCloseReason("PROJECT_COMPLETED");
@@ -175,7 +190,7 @@ class ClosedRequestBehaviorTest {
         ProjectManagerTransferVO transfer = new ProjectManagerTransferVO();
         transfer.setFromUserId(1L);
         transfer.setToUserId(2L);
-        transfer.setStatus("CLOSED");
+        transfer.setStatus(ProjectManagerTransferStatus.CLOSED.getCode());
         transfer.setExpiresAt(past);
         when(transfers.selectDetail(4L, 12L)).thenReturn(transfer);
         assertEquals("CLOSED", transferService.getTransferDetail(4L, 12L).getStatus());
@@ -210,12 +225,12 @@ class ClosedRequestBehaviorTest {
     void closedHistoryDoesNotGrantUnrelatedUserProjectAccess() {
         MemberLeaveRequestVO leave = new MemberLeaveRequestVO();
         leave.setApplicantId(99L);
-        leave.setStatus("CLOSED");
+        leave.setStatus(MemberLeaveRequestStatus.CLOSED.getCode());
         when(leaves.selectDetail(4L, 11L)).thenReturn(leave);
         ProjectManagerTransferVO transfer = new ProjectManagerTransferVO();
         transfer.setFromUserId(98L);
         transfer.setToUserId(99L);
-        transfer.setStatus("CLOSED");
+        transfer.setStatus(ProjectManagerTransferStatus.CLOSED.getCode());
         when(transfers.selectDetail(4L, 12L)).thenReturn(transfer);
         doThrow(new BusinessException(403, "非本项目负责人")).when(permissions).requireProjectManager(4L);
         assertEquals(403, assertThrows(BusinessException.class, () -> leaveService.getLeaveRequestDetail(4L, 11L)).getCode());
@@ -227,37 +242,37 @@ class ClosedRequestBehaviorTest {
     void terminalProjectReadAfterLockRejectsEvenStalePendingRequests(String status) {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus(status);
+        project.setStatus(ProjectStatus.fromCode(status));
         when(projects.selectByIdForUpdate(4L)).thenReturn(project);
         LocalDateTime expires = LocalDateTime.now().plusDays(1);
         ProjectInvitation invitation = new ProjectInvitation();
         invitation.setProjectId(4L);
         invitation.setInviteeId(2L);
-        invitation.setStatus("PENDING");
+        invitation.setStatus(ProjectInvitationStatus.PENDING);
         invitation.setExpiresAt(expires);
         when(invitations.selectById(10L)).thenReturn(invitation);
         User user = new User();
         user.setId(2L);
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         user.setSystemRole("USER");
         when(users.selectById(2L)).thenReturn(user);
         MemberLeaveRequest leave = new MemberLeaveRequest();
         leave.setProjectId(4L);
         leave.setApplicantId(2L);
-        leave.setStatus("PENDING");
+        leave.setStatus(MemberLeaveRequestStatus.PENDING);
         leave.setExpiresAt(expires);
         when(leaves.selectById(11L)).thenReturn(leave);
         ProjectManagerTransfer transfer = new ProjectManagerTransfer();
         transfer.setProjectId(4L);
         transfer.setToUserId(2L);
         transfer.setFromUserId(2L);
-        transfer.setStatus("PENDING");
+        transfer.setStatus(ProjectManagerTransferStatus.PENDING);
         transfer.setExpiresAt(expires);
         when(transfers.selectById(12L)).thenReturn(transfer);
         TaskRequest request = new TaskRequest();
         request.setProjectId(4L);
         request.setRequesterId(2L);
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
         when(requests.selectById(13L)).thenReturn(request);
         ReviewMemberLeaveRequestDTO leaveReview = new ReviewMemberLeaveRequestDTO();
         leaveReview.setAction("APPROVE");
@@ -274,13 +289,21 @@ class ClosedRequestBehaviorTest {
         conflict(() -> taskRequestService.reviewTaskRequest(4L, 13L, taskReview));
         conflict(() -> taskRequestService.cancelTaskRequest(4L, 13L));
         verify(projects, times(9)).selectByIdForUpdate(4L);
-        verify(invitations, never()).transitionPending(anyLong(), anyString(), any());
-        verify(leaves, never()).reviewIfPending(anyLong(), anyLong(), anyString(), anyLong(), any(), any(), any());
+        verify(invitations, never()).transitionPending(anyLong(), any(ProjectInvitationStatus.class), any());
+        verify(leaves, never()).reviewIfPending(
+            anyLong(),
+            anyLong(),
+            any(MemberLeaveRequestStatus.class),
+            anyLong(),
+            any(),
+            any(),
+            any()
+        );
         verify(leaves, never()).cancelIfPending(anyLong(), anyLong(), anyLong(), any(), any());
         verify(transfers, never()).acceptIfPending(anyLong(), anyLong(), anyLong(), any(), any());
         verify(transfers, never()).rejectIfPending(anyLong(), anyLong(), anyLong(), any(), any());
         verify(transfers, never()).cancelIfPending(anyLong(), anyLong(), anyLong(), any(), any());
-        verify(requests, never()).reviewIfPending(anyLong(), anyLong(), anyString(), anyLong(), any(), any());
+        verify(requests, never()).reviewIfPending(anyLong(), anyLong(), any(TaskRequestStatus.class), anyLong(), any(), any());
         verify(requests, never()).cancelIfPending(anyLong(), anyLong(), anyLong(), any());
         verifyNoInteractions(members, tasks, logs, notifications);
     }

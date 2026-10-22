@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.TaskRequestStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -21,7 +23,7 @@ public class TaskRequest {
 
     private LocalDateTime suggestedDeadline;
 
-    private String status;
+    private TaskRequestStatus status;
 
     private Long reviewerId;
     private String reviewNote;
@@ -107,11 +109,11 @@ public class TaskRequest {
         this.suggestedDeadline = suggestedDeadline;
     }
 
-    public String getStatus() {
+    public TaskRequestStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(TaskRequestStatus status) {
         this.status = status;
     }
 

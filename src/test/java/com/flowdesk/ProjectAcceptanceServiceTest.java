@@ -1,5 +1,10 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.ProjectAcceptanceStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.ProjectStatus;
+
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.flowdesk.context.CurrentUser;
@@ -102,14 +107,21 @@ public class ProjectAcceptanceServiceTest {
             )
             .thenReturn(1);
         lenient()
-            .when(projectMapper.reviewAcceptanceIfPending(anyLong(), anyString(), nullable(java.time.LocalDateTime.class), any()))
+            .when(
+                projectMapper.reviewAcceptanceIfPending(
+                    anyLong(),
+                    any(ProjectStatus.class),
+                    nullable(java.time.LocalDateTime.class),
+                    any()
+                )
+            )
             .thenReturn(1);
         lenient()
             .when(
                 projectAcceptanceMapper.reviewIfPending(
                     anyLong(),
                     anyLong(),
-                    anyString(),
+                    any(ProjectAcceptanceStatus.class),
                     anyLong(),
                     nullable(String.class),
                     any()
@@ -131,7 +143,7 @@ public class ProjectAcceptanceServiceTest {
     void submitAcceptanceMustNotReadPermissionBeforeProjectLock() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskMapper.selectCount(any())).thenReturn(1L);
@@ -150,7 +162,7 @@ public class ProjectAcceptanceServiceTest {
     void unfinishedTaskBlocksAcceptance() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
@@ -175,7 +187,7 @@ public class ProjectAcceptanceServiceTest {
     void pendingTaskRequestBlocksAcceptance() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
@@ -202,7 +214,7 @@ public class ProjectAcceptanceServiceTest {
     void validProjectCanSubmitAcceptance() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
@@ -228,7 +240,7 @@ public class ProjectAcceptanceServiceTest {
         projectAcceptanceService.submitAcceptance(4L, dto);
 
         // 项目应该进入待验收状态
-        assertEquals("PENDING_ACCEPTANCE", project.getStatus());
+        assertEquals(ProjectStatus.PENDING_ACCEPTANCE, project.getStatus());
         verifyNoInteractions(requestClosureService);
 
         // 应该插入一条验收记录
@@ -252,7 +264,7 @@ public class ProjectAcceptanceServiceTest {
         Project project = new Project();
         project.setId(4L);
         project.setName("FlowDesk");
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
 
@@ -286,7 +298,7 @@ public class ProjectAcceptanceServiceTest {
         User admin = new User();
         admin.setId(9L);
         admin.setSystemRole("SYSTEM_ADMIN");
-        admin.setStatus("ACTIVE");
+        admin.setStatus(UserStatus.ACTIVE);
 
         when(userMapper.selectList(any())).thenReturn(List.of(admin));
 
@@ -319,12 +331,12 @@ public class ProjectAcceptanceServiceTest {
         acceptance.setProjectId(4L);
         acceptance.setSubmitterId(1L);
         acceptance.setAcceptanceNo(1);
-        acceptance.setReviewStatus("PENDING");
+        acceptance.setReviewStatus(ProjectAcceptanceStatus.PENDING);
 
         Project project = new Project();
         project.setId(4L);
         project.setName("FlowDesk");
-        project.setStatus("PENDING_ACCEPTANCE");
+        project.setStatus(ProjectStatus.PENDING_ACCEPTANCE);
 
         ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
 
@@ -341,9 +353,9 @@ public class ProjectAcceptanceServiceTest {
         projectAcceptanceService.reviewAcceptance(50L, dto);
 
         // 原来的业务状态也顺便验证
-        assertEquals("APPROVED", acceptance.getReviewStatus());
+        assertEquals(ProjectAcceptanceStatus.APPROVED, acceptance.getReviewStatus());
 
-        assertEquals("COMPLETED", project.getStatus());
+        assertEquals(ProjectStatus.COMPLETED, project.getStatus());
         verify(requestClosureService).closeForCompletedProject(eq(4L), same(project.getActualEndTime()));
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
@@ -373,12 +385,12 @@ public class ProjectAcceptanceServiceTest {
         acceptance.setProjectId(4L);
         acceptance.setSubmitterId(1L);
         acceptance.setAcceptanceNo(1);
-        acceptance.setReviewStatus("PENDING");
+        acceptance.setReviewStatus(ProjectAcceptanceStatus.PENDING);
 
         Project project = new Project();
         project.setId(4L);
         project.setName("FlowDesk");
-        project.setStatus("PENDING_ACCEPTANCE");
+        project.setStatus(ProjectStatus.PENDING_ACCEPTANCE);
 
         ReviewProjectAcceptanceDTO dto = new ReviewProjectAcceptanceDTO();
 
@@ -393,9 +405,9 @@ public class ProjectAcceptanceServiceTest {
 
         projectAcceptanceService.reviewAcceptance(50L, dto);
 
-        assertEquals("REJECTED", acceptance.getReviewStatus());
+        assertEquals(ProjectAcceptanceStatus.REJECTED, acceptance.getReviewStatus());
 
-        assertEquals("IN_PROGRESS", project.getStatus());
+        assertEquals(ProjectStatus.IN_PROGRESS, project.getStatus());
         verifyNoInteractions(requestClosureService);
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
@@ -432,7 +444,7 @@ public class ProjectAcceptanceServiceTest {
         // 1. 模拟项目存在，并且状态为进行中
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
@@ -471,7 +483,7 @@ public class ProjectAcceptanceServiceTest {
     void deletedProjectCannotSubmitAcceptance() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         project.setDeletedAt(java.time.LocalDateTime.now());
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
@@ -490,7 +502,7 @@ public class ProjectAcceptanceServiceTest {
     void concurrentDoubleSubmitCreatesOnlyOnePendingAcceptance() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
         dto.setRepositoryUrl("https://github.com/test/project");
@@ -528,7 +540,7 @@ public class ProjectAcceptanceServiceTest {
         UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
         when(projectAcceptanceMapper.selectById(50L)).thenReturn(acceptance);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(projectMapper.reviewAcceptanceIfPending(eq(4L), eq("IN_PROGRESS"), isNull(), any())).thenReturn(0);
+        when(projectMapper.reviewAcceptanceIfPending(eq(4L), eq(ProjectStatus.IN_PROGRESS), isNull(), any())).thenReturn(0);
 
         BusinessException exception = assertThrows(BusinessException.class, () ->
             projectAcceptanceService.reviewAcceptance(50L, dto)
@@ -538,7 +550,7 @@ public class ProjectAcceptanceServiceTest {
         verify(projectAcceptanceMapper, never()).reviewIfPending(
             anyLong(),
             anyLong(),
-            anyString(),
+            any(ProjectAcceptanceStatus.class),
             anyLong(),
             nullable(String.class),
             any()
@@ -562,14 +574,14 @@ public class ProjectAcceptanceServiceTest {
         );
 
         assertEquals(400, exception.getCode());
-        verify(projectMapper, never()).reviewAcceptanceIfPending(anyLong(), anyString(), any(), any());
+        verify(projectMapper, never()).reviewAcceptanceIfPending(anyLong(), any(ProjectStatus.class), any(), any());
     }
 
     @Test
     void secondAcceptanceGetsNewHistoryNumber() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("第二轮验收");
         dto.setRepositoryUrl("https://github.com/test/project");
@@ -584,7 +596,7 @@ public class ProjectAcceptanceServiceTest {
         ArgumentCaptor<ProjectAcceptance> captor = ArgumentCaptor.forClass(ProjectAcceptance.class);
         verify(projectAcceptanceMapper).insert(captor.capture());
         assertEquals(2, captor.getValue().getAcceptanceNo());
-        assertEquals("PENDING", captor.getValue().getReviewStatus());
+        assertEquals(ProjectAcceptanceStatus.PENDING, captor.getValue().getReviewStatus());
     }
 
     @Test
@@ -698,13 +710,13 @@ public class ProjectAcceptanceServiceTest {
         detail.setProjectId(4L);
         Task done = new Task();
         done.setId(1L);
-        done.setStatus("DONE");
+        done.setStatus(TaskStatus.DONE);
         Task cancelled = new Task();
         cancelled.setId(2L);
-        cancelled.setStatus("CANCELLED");
+        cancelled.setStatus(TaskStatus.CANCELLED);
         Task todo = new Task();
         todo.setId(3L);
-        todo.setStatus("TODO");
+        todo.setStatus(TaskStatus.TODO);
         UserContext.set(new CurrentUser(9L, "SYSTEM_ADMIN"));
         when(projectAcceptanceMapper.selectAcceptanceDetail(50L)).thenReturn(detail);
         when(taskMapper.selectList(any())).thenReturn(List.of(done, cancelled, todo));
@@ -733,7 +745,7 @@ public class ProjectAcceptanceServiceTest {
     private void prepareSubmission() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskMapper.selectCount(any())).thenReturn(0L);
@@ -746,7 +758,7 @@ public class ProjectAcceptanceServiceTest {
         acceptance.setProjectId(4L);
         acceptance.setSubmitterId(1L);
         acceptance.setAcceptanceNo(1);
-        acceptance.setReviewStatus("PENDING");
+        acceptance.setReviewStatus(ProjectAcceptanceStatus.PENDING);
         return acceptance;
     }
 
@@ -754,7 +766,7 @@ public class ProjectAcceptanceServiceTest {
         Project project = new Project();
         project.setId(4L);
         project.setName("FlowDesk");
-        project.setStatus("PENDING_ACCEPTANCE");
+        project.setStatus(ProjectStatus.PENDING_ACCEPTANCE);
         return project;
     }
 }

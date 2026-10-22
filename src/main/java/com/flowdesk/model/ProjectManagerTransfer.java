@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.ProjectManagerTransferStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -20,7 +22,7 @@ public class ProjectManagerTransfer {
 
     private String oldManagerAction;
 
-    private String status;
+    private ProjectManagerTransferStatus status;
 
     private LocalDateTime createdAt;
 
@@ -89,11 +91,11 @@ public class ProjectManagerTransfer {
         this.oldManagerAction = oldManagerAction;
     }
 
-    public String getStatus() {
+    public ProjectManagerTransferStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(ProjectManagerTransferStatus status) {
         this.status = status;
     }
 

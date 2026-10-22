@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.UserStatus;
+
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.exception.BusinessException;
@@ -57,7 +59,7 @@ public class AdminUserServiceTest {
     void disableUserChangesStatusToDisabled() {
         User user = new User();
         user.setId(2L);
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         user.setUpdatedAt(LocalDateTime.of(2020, 1, 1, 0, 0));
         LocalDateTime before = LocalDateTime.now();
 
@@ -68,7 +70,7 @@ public class AdminUserServiceTest {
 
         adminUserService.disableUser(2L);
 
-        assertEquals("DISABLED", user.getStatus());
+        assertEquals(UserStatus.DISABLED, user.getStatus());
         assertTrue(!user.getUpdatedAt().isBefore(before) && !user.getUpdatedAt().isAfter(LocalDateTime.now()));
 
         verify(userMapper).updateById(user);
@@ -83,7 +85,7 @@ public class AdminUserServiceTest {
     void enableUserChangesStatusToActive() {
         User user = new User();
         user.setId(2L);
-        user.setStatus("DISABLED");
+        user.setStatus(UserStatus.DISABLED);
         user.setUpdatedAt(LocalDateTime.of(2020, 1, 1, 0, 0));
         LocalDateTime before = LocalDateTime.now();
 
@@ -93,7 +95,7 @@ public class AdminUserServiceTest {
 
         adminUserService.enableUser(2L);
 
-        assertEquals("ACTIVE", user.getStatus());
+        assertEquals(UserStatus.ACTIVE, user.getStatus());
         assertTrue(!user.getUpdatedAt().isBefore(before) && !user.getUpdatedAt().isAfter(LocalDateTime.now()));
 
         verify(userMapper).updateById(user);
@@ -106,7 +108,7 @@ public class AdminUserServiceTest {
     void adminCannotDisableSelf() {
         User admin = new User();
         admin.setId(1L);
-        admin.setStatus("ACTIVE");
+        admin.setStatus(UserStatus.ACTIVE);
         admin.setSystemRole("SYSTEM_ADMIN");
 
         UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
@@ -122,7 +124,7 @@ public class AdminUserServiceTest {
     void repeatedDisableIsIdempotent() {
         User user = new User();
         user.setId(2L);
-        user.setStatus("DISABLED");
+        user.setStatus(UserStatus.DISABLED);
         LocalDateTime previousUpdate = LocalDateTime.of(2020, 1, 1, 0, 0);
         user.setUpdatedAt(previousUpdate);
         UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
@@ -139,7 +141,7 @@ public class AdminUserServiceTest {
     void repeatedEnableIsIdempotent() {
         User user = new User();
         user.setId(2L);
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         LocalDateTime previousUpdate = LocalDateTime.of(2020, 1, 1, 0, 0);
         user.setUpdatedAt(previousUpdate);
         when(userMapper.selectById(2L)).thenReturn(user);

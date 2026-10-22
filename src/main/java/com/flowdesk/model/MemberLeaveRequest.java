@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.MemberLeaveRequestStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -18,7 +20,7 @@ public class MemberLeaveRequest {
 
     private String reason;
 
-    private String status;
+    private MemberLeaveRequestStatus status;
 
     private Long reviewerId;
 
@@ -83,11 +85,11 @@ public class MemberLeaveRequest {
         this.reason = reason;
     }
 
-    public String getStatus() {
+    public MemberLeaveRequestStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(MemberLeaveRequestStatus status) {
         this.status = status;
     }
 

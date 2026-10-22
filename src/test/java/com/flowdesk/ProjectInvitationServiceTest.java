@@ -1,5 +1,10 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.ProjectInvitationStatus;
+import com.flowdesk.enums.ProjectStatus;
+
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.flowdesk.context.CurrentUser;
@@ -98,7 +103,9 @@ public class ProjectInvitationServiceTest {
         );
 
         lenient()
-            .when(projectInvitationMapper.transitionPending(anyLong(), anyString(), any(LocalDateTime.class)))
+            .when(
+                projectInvitationMapper.transitionPending(anyLong(), any(ProjectInvitationStatus.class), any(LocalDateTime.class))
+            )
             .thenReturn(1);
     }
 
@@ -111,13 +118,13 @@ public class ProjectInvitationServiceTest {
     void systemAdminCannotBeInvited() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         User admin = new User();
         admin.setId(2L);
         admin.setUsername("admin");
         admin.setSystemRole("SYSTEM_ADMIN");
-        admin.setStatus("ACTIVE");
+        admin.setStatus(UserStatus.ACTIVE);
 
         SendInvitationDTO dto = new SendInvitationDTO();
         dto.setUsername("admin");
@@ -146,13 +153,13 @@ public class ProjectInvitationServiceTest {
         invitation.setProjectId(4L);
         invitation.setInviterId(1L);
         invitation.setInviteeId(2L);
-        invitation.setStatus("PENDING");
+        invitation.setStatus(ProjectInvitationStatus.PENDING);
         invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
 
         User admin = new User();
         admin.setId(2L);
         admin.setSystemRole("SYSTEM_ADMIN");
-        admin.setStatus("ACTIVE");
+        admin.setStatus(UserStatus.ACTIVE);
 
         // 即使登录态仍保留旧角色，也必须以数据库当前角色为准。
         UserContext.set(new CurrentUser(2L, "USER"));
@@ -164,7 +171,7 @@ public class ProjectInvitationServiceTest {
 
         assertEquals(403, exception.getCode());
         assertEquals("系统管理员不能加入项目", exception.getMessage());
-        assertEquals("PENDING", invitation.getStatus());
+        assertEquals(ProjectInvitationStatus.PENDING, invitation.getStatus());
 
         verify(projectMemberMapper, never()).insert(any(ProjectMember.class));
         verify(projectMemberMapper, never()).updateById(any(ProjectMember.class));
@@ -181,12 +188,12 @@ public class ProjectInvitationServiceTest {
         Project project = new Project();
         project.setId(4L);
         project.setName("FlowDesk");
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         User jack = new User();
         jack.setId(2L);
         jack.setUsername("jack");
-        jack.setStatus("ACTIVE");
+        jack.setStatus(UserStatus.ACTIVE);
 
         SendInvitationDTO dto = new SendInvitationDTO();
 
@@ -270,7 +277,7 @@ public class ProjectInvitationServiceTest {
         // Jack
         invitation.setInviteeId(2L);
 
-        invitation.setStatus("PENDING");
+        invitation.setStatus(ProjectInvitationStatus.PENDING);
 
         invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
 
@@ -278,7 +285,7 @@ public class ProjectInvitationServiceTest {
 
         project.setId(4L);
         project.setName("FlowDesk");
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         // 当前登录用户：Jack
         UserContext.set(new CurrentUser(2L, "USER"));
@@ -290,7 +297,7 @@ public class ProjectInvitationServiceTest {
         User jack = new User();
         jack.setId(2L);
         jack.setSystemRole("USER");
-        jack.setStatus("ACTIVE");
+        jack.setStatus(UserStatus.ACTIVE);
         when(userMapper.selectById(2L)).thenReturn(jack);
 
         // Jack 之前不是项目成员
@@ -299,7 +306,7 @@ public class ProjectInvitationServiceTest {
         projectInvitationService.acceptInvitation(50L);
 
         // 邀请状态变为 ACCEPTED
-        assertEquals("ACCEPTED", invitation.getStatus());
+        assertEquals(ProjectInvitationStatus.ACCEPTED, invitation.getStatus());
 
         // Jack 应该被加入项目
         verify(projectMemberMapper).insert(any(ProjectMember.class));
@@ -334,7 +341,7 @@ public class ProjectInvitationServiceTest {
     void rejectingInvitationNotifiesInviter() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         ProjectInvitation invitation = new ProjectInvitation();
 
@@ -347,7 +354,7 @@ public class ProjectInvitationServiceTest {
         // Jack
         invitation.setInviteeId(2L);
 
-        invitation.setStatus("PENDING");
+        invitation.setStatus(ProjectInvitationStatus.PENDING);
 
         invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
 
@@ -359,7 +366,7 @@ public class ProjectInvitationServiceTest {
         projectInvitationService.rejectInvitation(50L);
 
         // 邀请变为 REJECTED
-        assertEquals("REJECTED", invitation.getStatus());
+        assertEquals(ProjectInvitationStatus.REJECTED, invitation.getStatus());
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
@@ -406,7 +413,7 @@ public class ProjectInvitationServiceTest {
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
         when(userMapper.selectOne(any())).thenReturn(activeUser(2L, "USER"));
         ProjectMember member = new ProjectMember();
-        member.setStatus("ACTIVE");
+        member.setStatus(ProjectMemberStatus.ACTIVE);
         when(projectMemberMapper.selectOne(any())).thenReturn(member);
 
         BusinessException exception = assertThrows(BusinessException.class, () ->
@@ -460,10 +467,10 @@ public class ProjectInvitationServiceTest {
         UserContext.set(new CurrentUser(2L, "USER"));
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
 
-        invitation.setStatus("ACCEPTED");
+        invitation.setStatus(ProjectInvitationStatus.ACCEPTED);
         assertEquals(409, assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L)).getCode());
 
-        invitation.setStatus("REJECTED");
+        invitation.setStatus(ProjectInvitationStatus.REJECTED);
         assertEquals(409, assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L)).getCode());
     }
 
@@ -474,7 +481,9 @@ public class ProjectInvitationServiceTest {
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
         when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
-        when(projectInvitationMapper.transitionPending(anyLong(), anyString(), any(LocalDateTime.class))).thenReturn(0);
+        when(
+            projectInvitationMapper.transitionPending(anyLong(), any(ProjectInvitationStatus.class), any(LocalDateTime.class))
+        ).thenReturn(0);
 
         BusinessException exception = assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L));
 
@@ -491,7 +500,7 @@ public class ProjectInvitationServiceTest {
         ProjectMember member = new ProjectMember();
         member.setId(70L);
         member.setRole("PROJECT_MANAGER");
-        member.setStatus("INACTIVE");
+        member.setStatus(ProjectMemberStatus.INACTIVE);
         UserContext.set(new CurrentUser(2L, "USER"));
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
         when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
@@ -510,7 +519,7 @@ public class ProjectInvitationServiceTest {
         invitation.setProjectId(4L);
         invitation.setInviterId(1L);
         invitation.setInviteeId(2L);
-        invitation.setStatus("PENDING");
+        invitation.setStatus(ProjectInvitationStatus.PENDING);
         invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
         return invitation;
     }
@@ -519,7 +528,7 @@ public class ProjectInvitationServiceTest {
         Project project = new Project();
         project.setId(4L);
         project.setName("FlowDesk");
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         return project;
     }
 
@@ -527,7 +536,7 @@ public class ProjectInvitationServiceTest {
         User user = new User();
         user.setId(id);
         user.setUsername("user" + id);
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         user.setSystemRole(role);
         return user;
     }

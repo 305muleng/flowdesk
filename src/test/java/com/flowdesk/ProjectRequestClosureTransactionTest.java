@@ -1,5 +1,8 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.ProjectAcceptanceStatus;
+
 import com.flowdesk.context.*;
 import com.flowdesk.dto.*;
 import com.flowdesk.mapper.*;
@@ -165,18 +168,20 @@ class ProjectRequestClosureTransactionTest {
         UserContext.set(new CurrentUser(completed ? 9L : 1L, completed ? "SYSTEM_ADMIN" : "USER"));
         Project p = new Project();
         p.setId(4L);
-        p.setStatus(completed ? "PENDING_ACCEPTANCE" : "IN_PROGRESS");
+        p.setStatus(completed ? ProjectStatus.PENDING_ACCEPTANCE : ProjectStatus.IN_PROGRESS);
         when(projects.selectByIdForUpdate(4L)).thenReturn(p);
         when(projects.cancelIfActive(eq(4L), anyString(), any())).thenReturn(1);
-        when(projects.reviewAcceptanceIfPending(eq(4L), anyString(), any(), any())).thenReturn(1);
+        when(projects.reviewAcceptanceIfPending(eq(4L), any(ProjectStatus.class), any(), any())).thenReturn(1);
         ProjectAcceptance a = new ProjectAcceptance();
         a.setId(50L);
         a.setProjectId(4L);
         a.setSubmitterId(1L);
         a.setAcceptanceNo(1);
-        a.setReviewStatus("PENDING");
+        a.setReviewStatus(ProjectAcceptanceStatus.PENDING);
         when(acceptances.selectById(50L)).thenReturn(a);
-        when(acceptances.reviewIfPending(eq(50L), eq(4L), anyString(), anyLong(), any(), any())).thenReturn(1);
+        when(
+            acceptances.reviewIfPending(eq(50L), eq(4L), any(ProjectAcceptanceStatus.class), anyLong(), any(), any())
+        ).thenReturn(1);
         return p;
     }
 
@@ -222,8 +227,10 @@ class ProjectRequestClosureTransactionTest {
         var order = inOrder(projects, acceptances, invitations);
         order.verify(projects).selectByIdForUpdate(4L);
         if (completed) {
-            order.verify(projects).reviewAcceptanceIfPending(eq(4L), eq("COMPLETED"), same(time), same(time));
-            order.verify(acceptances).reviewIfPending(eq(50L), eq(4L), eq("APPROVED"), eq(9L), isNull(), same(time));
+            order.verify(projects).reviewAcceptanceIfPending(eq(4L), eq(ProjectStatus.COMPLETED), same(time), same(time));
+            order
+                .verify(acceptances)
+                .reviewIfPending(eq(50L), eq(4L), eq(ProjectAcceptanceStatus.APPROVED), eq(9L), isNull(), same(time));
         } else order.verify(projects).cancelIfActive(eq(4L), anyString(), same(time));
         order.verify(invitations).closePendingForProject(4L, time, reason);
         assertEquals(1, tx.commits);

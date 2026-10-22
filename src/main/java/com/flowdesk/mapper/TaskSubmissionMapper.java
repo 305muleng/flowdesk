@@ -1,5 +1,7 @@
 package com.flowdesk.mapper;
 
+import com.flowdesk.enums.TaskSubmissionStatus;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.flowdesk.model.TaskSubmission;
 import com.flowdesk.vo.TaskSubmissionVO;
@@ -40,7 +42,7 @@ public interface TaskSubmissionMapper extends BaseMapper<TaskSubmission> {
     int reviewPendingSubmission(
         @Param("submissionId") Long submissionId,
         @Param("taskId") Long taskId,
-        @Param("reviewStatus") String reviewStatus,
+        @Param("reviewStatus") TaskSubmissionStatus reviewStatus,
         @Param("reviewerId") Long reviewerId,
         @Param("reviewNote") String reviewNote,
         @Param("reviewedAt") LocalDateTime reviewedAt

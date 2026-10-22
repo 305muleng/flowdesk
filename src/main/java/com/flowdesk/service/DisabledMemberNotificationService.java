@@ -1,5 +1,9 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.TaskStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.event.UserDisabledEvent;
@@ -24,7 +28,11 @@ import java.util.Set;
 public class DisabledMemberNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(DisabledMemberNotificationService.class);
-    private static final Set<String> ACTIONABLE_STATUSES = Set.of("PREPARING", "IN_PROGRESS", "PENDING_ACCEPTANCE");
+    private static final Set<ProjectStatus> ACTIONABLE_STATUSES = Set.of(
+        ProjectStatus.PREPARING,
+        ProjectStatus.IN_PROGRESS,
+        ProjectStatus.PENDING_ACCEPTANCE
+    );
 
     private final ProjectMemberMapper members;
     private final ProjectMapper projects;
@@ -72,7 +80,7 @@ public class DisabledMemberNotificationService {
             return;
         }
         var membership = members.selectMemberForUpdate(projectId, event.userId());
-        if (membership == null || !"ACTIVE".equals(membership.getStatus())) {
+        if (membership == null || !ProjectMemberStatus.ACTIVE.equals(membership.getStatus())) {
             return;
         }
         ProjectMemberVO manager = members.selectActiveProjectManager(projectId);
@@ -83,7 +91,7 @@ public class DisabledMemberNotificationService {
             new LambdaQueryWrapper<Task>()
                 .eq(Task::getProjectId, projectId)
                 .eq(Task::getAssigneeId, event.userId())
-                .in(Task::getStatus, "TODO", "IN_PROGRESS", "REVIEW")
+                .in(Task::getStatus, TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW)
                 .isNull(Task::getDeletedAt)
         );
 
@@ -100,7 +108,7 @@ public class DisabledMemberNotificationService {
                 event.userName() +
                 "”账号已禁用。" +
                 (count == 0 ? "无待交接任务。" : "尚有 " + count + " 项未完成任务，请查看成员任务。") +
-                ("PENDING_ACCEPTANCE".equals(project.getStatus()) ? "项目待验收期间继续冻结，不能修改任务。" : "")
+                (ProjectStatus.PENDING_ACCEPTANCE.equals(project.getStatus()) ? "项目待验收期间继续冻结，不能修改任务。" : "")
         );
         dto.setTargetType("PROJECT");
         dto.setTargetId(projectId);

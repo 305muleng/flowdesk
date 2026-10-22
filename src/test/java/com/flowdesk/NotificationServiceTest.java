@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -67,7 +69,7 @@ public class NotificationServiceTest {
             .thenAnswer(invocation -> {
                 User user = new User();
                 user.setId(invocation.getArgument(0));
-                user.setStatus("ACTIVE");
+                user.setStatus(UserStatus.ACTIVE);
                 user.setSystemRole("USER");
                 return user;
             });
@@ -109,7 +111,7 @@ public class NotificationServiceTest {
     void disabledRecipientDoesNotAccumulateNewNotifications() {
         User disabled = new User();
         disabled.setId(2L);
-        disabled.setStatus("DISABLED");
+        disabled.setStatus(UserStatus.DISABLED);
         when(userMapper.selectById(2L)).thenReturn(disabled);
 
         CreateNotificationDTO dto = new CreateNotificationDTO();

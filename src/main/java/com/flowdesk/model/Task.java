@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.TaskStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -20,7 +22,7 @@ public class Task {
     private String description;
     private String goal;
 
-    private String status;
+    private TaskStatus status;
     private String priority;
 
     private LocalDateTime deadline;
@@ -89,11 +91,11 @@ public class Task {
         this.goal = goal;
     }
 
-    public String getStatus() {
+    public TaskStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(TaskStatus status) {
         this.status = status;
     }
 

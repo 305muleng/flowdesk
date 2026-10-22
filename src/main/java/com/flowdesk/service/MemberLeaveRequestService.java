@@ -1,5 +1,10 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.MemberLeaveRequestStatus;
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.TaskStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
@@ -80,7 +85,7 @@ public class MemberLeaveRequestService {
         }
 
         // 4. 只有 PREPARING / IN_PROGRESS 可以申请退出
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许申请退出");
         }
 
@@ -93,7 +98,7 @@ public class MemberLeaveRequestService {
             new LambdaQueryWrapper<Task>()
                 .eq(Task::getProjectId, projectId)
                 .eq(Task::getAssigneeId, userId)
-                .in(Task::getStatus, Set.of("TODO", "IN_PROGRESS", "REVIEW"))
+                .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
                 .isNull(Task::getDeletedAt)
         );
 
@@ -106,7 +111,7 @@ public class MemberLeaveRequestService {
             new LambdaQueryWrapper<MemberLeaveRequest>()
                 .eq(MemberLeaveRequest::getProjectId, projectId)
                 .eq(MemberLeaveRequest::getApplicantId, userId)
-                .eq(MemberLeaveRequest::getStatus, "PENDING")
+                .eq(MemberLeaveRequest::getStatus, MemberLeaveRequestStatus.PENDING)
                 .gt(MemberLeaveRequest::getExpiresAt, now)
         );
 
@@ -120,7 +125,7 @@ public class MemberLeaveRequestService {
         request.setProjectId(projectId);
         request.setApplicantId(userId);
         request.setReason(dto.getReason().trim());
-        request.setStatus("PENDING");
+        request.setStatus(MemberLeaveRequestStatus.PENDING);
         request.setExpiresAt(now.plusDays(expireDays));
 
         memberLeaveRequestMapper.insert(request);
@@ -134,7 +139,7 @@ public class MemberLeaveRequestService {
             "CREATE_MEMBER_LEAVE_REQUEST",
             "提交退出项目申请",
             null,
-            Map.of("status", "PENDING", "applicantId", userId)
+            Map.of("status", MemberLeaveRequestStatus.PENDING.getCode(), "applicantId", userId)
         );
 
         // 9. 给当前有效项目负责人发送通知
@@ -185,7 +190,7 @@ public class MemberLeaveRequestService {
         }
 
         // 4. 只有 PENDING 可以撤回
-        if (!"PENDING".equals(request.getStatus())) {
+        if (!MemberLeaveRequestStatus.PENDING.equals(request.getStatus())) {
             throw new BusinessException(409, "只有待审批的退出申请可以撤回");
         }
 
@@ -200,7 +205,10 @@ public class MemberLeaveRequestService {
         if (currentProject == null || currentProject.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
-        if (!"PREPARING".equals(currentProject.getStatus()) && !"IN_PROGRESS".equals(currentProject.getStatus())) {
+        if (
+            !ProjectStatus.PREPARING.equals(currentProject.getStatus()) &&
+            !ProjectStatus.IN_PROGRESS.equals(currentProject.getStatus())
+        ) {
             throw new BusinessException(409, "当前项目状态不允许处理该请求");
         }
         now = LocalDateTime.now();
@@ -213,7 +221,7 @@ public class MemberLeaveRequestService {
         }
 
         // 7. 更新当前 Java 对象
-        request.setStatus("CANCELLED");
+        request.setStatus(MemberLeaveRequestStatus.CANCELLED);
         request.setCancelledAt(now);
 
         // 8. 写操作日志
@@ -224,8 +232,8 @@ public class MemberLeaveRequestService {
             request.getId(),
             "CANCEL_MEMBER_LEAVE_REQUEST",
             "撤回退出项目申请",
-            Map.of("status", "PENDING"),
-            Map.of("status", "CANCELLED")
+            Map.of("status", MemberLeaveRequestStatus.PENDING.getCode()),
+            Map.of("status", MemberLeaveRequestStatus.CANCELLED.getCode())
         );
     }
 
@@ -249,7 +257,9 @@ public class MemberLeaveRequestService {
         }
 
         // 懒过期
-        if ("PENDING".equals(vo.getStatus()) && !vo.getExpiresAt().isAfter(LocalDateTime.now())) {
+        if (
+            MemberLeaveRequestStatus.PENDING.getCode().equals(vo.getStatus()) && !vo.getExpiresAt().isAfter(LocalDateTime.now())
+        ) {
             vo.setStatus("EXPIRED");
         }
 
@@ -272,7 +282,7 @@ public class MemberLeaveRequestService {
         }
 
         // 3. 当前项目必须允许成员变化
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许审批退出申请");
         }
 
@@ -284,7 +294,7 @@ public class MemberLeaveRequestService {
         }
 
         // 5. 必须还是 PENDING
-        if (!"PENDING".equals(request.getStatus())) {
+        if (!MemberLeaveRequestStatus.PENDING.equals(request.getStatus())) {
             throw new BusinessException(409, "该退出申请已经处理");
         }
 
@@ -312,7 +322,7 @@ public class MemberLeaveRequestService {
             int updated = memberLeaveRequestMapper.reviewIfPending(
                 requestId,
                 projectId,
-                "REJECTED",
+                MemberLeaveRequestStatus.REJECTED,
                 currentUser.getUserId(),
                 dto.getReviewNote().trim(),
                 now,
@@ -330,8 +340,8 @@ public class MemberLeaveRequestService {
                 requestId,
                 "REJECT_MEMBER_LEAVE_REQUEST",
                 "拒绝成员退出项目申请",
-                Map.of("status", "PENDING"),
-                Map.of("status", "REJECTED")
+                Map.of("status", MemberLeaveRequestStatus.PENDING.getCode()),
+                Map.of("status", MemberLeaveRequestStatus.REJECTED.getCode())
             );
 
             CreateNotificationDTO notification = new CreateNotificationDTO();
@@ -367,7 +377,7 @@ public class MemberLeaveRequestService {
                 .eq(ProjectMember::getProjectId, projectId)
                 .eq(ProjectMember::getUserId, request.getApplicantId())
                 .eq(ProjectMember::getRole, "DEVELOPER")
-                .eq(ProjectMember::getStatus, "ACTIVE")
+                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
 
         if (applicantMember == null) {
@@ -379,7 +389,7 @@ public class MemberLeaveRequestService {
             new LambdaQueryWrapper<Task>()
                 .eq(Task::getProjectId, projectId)
                 .eq(Task::getAssigneeId, request.getApplicantId())
-                .in(Task::getStatus, Set.of("TODO", "IN_PROGRESS", "REVIEW"))
+                .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
                 .isNull(Task::getDeletedAt)
         );
 
@@ -392,7 +402,7 @@ public class MemberLeaveRequestService {
         int reviewed = memberLeaveRequestMapper.reviewIfPending(
             requestId,
             projectId,
-            "APPROVED",
+            MemberLeaveRequestStatus.APPROVED,
             currentUser.getUserId(),
             dto.getReviewNote(),
             now,
@@ -421,8 +431,8 @@ public class MemberLeaveRequestService {
             requestId,
             "APPROVE_MEMBER_LEAVE_REQUEST",
             "批准成员退出项目申请",
-            Map.of("status", "PENDING"),
-            Map.of("status", "APPROVED", "memberStatus", "INACTIVE")
+            Map.of("status", MemberLeaveRequestStatus.PENDING.getCode()),
+            Map.of("status", MemberLeaveRequestStatus.APPROVED.getCode(), "memberStatus", ProjectMemberStatus.INACTIVE.getCode())
         );
 
         // 13. 通知退出成员

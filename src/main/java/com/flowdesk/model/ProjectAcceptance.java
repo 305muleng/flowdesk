@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.ProjectAcceptanceStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -18,7 +20,7 @@ public class ProjectAcceptance {
 
     private String submissionNote;
 
-    private String reviewStatus;
+    private ProjectAcceptanceStatus reviewStatus;
 
     private Long reviewerId;
     private String reviewNote;
@@ -66,11 +68,11 @@ public class ProjectAcceptance {
         this.submissionNote = submissionNote;
     }
 
-    public String getReviewStatus() {
+    public ProjectAcceptanceStatus getReviewStatus() {
         return reviewStatus;
     }
 
-    public void setReviewStatus(String reviewStatus) {
+    public void setReviewStatus(ProjectAcceptanceStatus reviewStatus) {
         this.reviewStatus = reviewStatus;
     }
 

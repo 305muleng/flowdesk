@@ -1,5 +1,10 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.TaskStatus;
+
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.*;
 import com.flowdesk.dto.*;
@@ -68,7 +73,7 @@ class TaskHandoverTest {
         t.setId(10L);
         t.setProjectId(4L);
         t.setTitle("测试任务");
-        t.setStatus(status);
+        t.setStatus(TaskStatus.fromCode(status));
         t.setAssigneeId(assignee);
         return t;
     }
@@ -76,20 +81,20 @@ class TaskHandoverTest {
     Project project(String status) {
         Project p = new Project();
         p.setId(4L);
-        p.setStatus(status);
+        p.setStatus(ProjectStatus.fromCode(status));
         return p;
     }
 
     User user(String status, String role) {
         User u = new User();
-        u.setStatus(status);
+        u.setStatus(UserStatus.fromCode(status));
         u.setSystemRole(role);
         return u;
     }
 
     ProjectMember member(String status, String role) {
         ProjectMember m = new ProjectMember();
-        m.setStatus(status);
+        m.setStatus(ProjectMemberStatus.fromCode(status));
         m.setRole(role);
         return m;
     }

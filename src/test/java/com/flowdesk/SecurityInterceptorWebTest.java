@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.UserStatus;
+
 import com.flowdesk.controller.AdminProjectAcceptanceController;
 import com.flowdesk.controller.TaskController;
 import com.flowdesk.context.UserContext;
@@ -80,7 +82,7 @@ public class SecurityInterceptorWebTest {
 
         User user = new User();
         user.setId(2L);
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         user.setSystemRole("USER");
 
         when(userMapper.selectById(2L)).thenReturn(user);
@@ -100,7 +102,7 @@ public class SecurityInterceptorWebTest {
 
         User admin = new User();
         admin.setId(1L);
-        admin.setStatus("ACTIVE");
+        admin.setStatus(UserStatus.ACTIVE);
         admin.setSystemRole("SYSTEM_ADMIN");
 
         when(userMapper.selectById(1L)).thenReturn(admin);
@@ -122,7 +124,7 @@ public class SecurityInterceptorWebTest {
 
         User admin = new User();
         admin.setId(1L);
-        admin.setStatus("ACTIVE");
+        admin.setStatus(UserStatus.ACTIVE);
         admin.setSystemRole("SYSTEM_ADMIN");
 
         when(userMapper.selectById(1L)).thenReturn(admin);
@@ -142,7 +144,7 @@ public class SecurityInterceptorWebTest {
 
         User user = new User();
         user.setId(2L);
-        user.setStatus("DISABLED");
+        user.setStatus(UserStatus.DISABLED);
         user.setSystemRole("USER");
 
         when(userMapper.selectById(2L)).thenReturn(user);
@@ -181,7 +183,7 @@ public class SecurityInterceptorWebTest {
         when(claims.getSubject()).thenReturn("2");
         User user = new User();
         user.setId(2L);
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         user.setSystemRole("USER");
         when(userMapper.selectById(2L)).thenReturn(user);
 

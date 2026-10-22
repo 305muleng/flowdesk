@@ -1,5 +1,9 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.flowdesk.context.CurrentUser;
@@ -100,7 +104,7 @@ class DisabledMemberNotificationTest {
         User user = new User();
         user.setId(2L);
         user.setRealName("测试成员");
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         when(users.selectByIdForUpdate(2L)).thenReturn(user);
     }
 
@@ -114,14 +118,14 @@ class DisabledMemberNotificationTest {
         Project p = new Project();
         p.setId(id);
         p.setName("测试项目" + id);
-        p.setStatus(status);
+        p.setStatus(ProjectStatus.fromCode(status));
         return p;
     }
 
     void projectReady(long id, String status) {
         when(projects.selectByIdForUpdate(id)).thenReturn(project(id, status));
         ProjectMember membership = new ProjectMember();
-        membership.setStatus("ACTIVE");
+        membership.setStatus(ProjectMemberStatus.ACTIVE);
         when(members.selectMemberForUpdate(id, 2L)).thenReturn(membership);
         ProjectMemberVO manager = new ProjectMemberVO();
         manager.setUserId(id + 100);
@@ -165,7 +169,7 @@ class DisabledMemberNotificationTest {
         projectReady(5, "IN_PROGRESS");
         doThrow(new IllegalStateException("test notification failure")).doNothing().when(notifications).createNotification(any());
         assertDoesNotThrow(() -> admin.disableUser(2L));
-        assertEquals("DISABLED", users.selectByIdForUpdate(2L).getStatus());
+        assertEquals(UserStatus.DISABLED, users.selectByIdForUpdate(2L).getStatus());
         verify(notifications, times(2)).createNotification(any());
         assertEquals(3, transactions.commits);
         assertEquals(1, transactions.rollbacks);

@@ -1,5 +1,11 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.ProjectStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.TaskSubmissionStatus;
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.common.ListPagination;
@@ -72,7 +78,7 @@ public class TaskService {
         // 加锁后，重新确认当前用户仍是有效项目负责人
         projectPermissionService.requireProjectManagerForUpdate(projectId);
 
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许创建任务");
         }
 
@@ -102,7 +108,11 @@ public class TaskService {
         if (dto.getAssigneeId() != null) {
             ProjectMember assignee = projectMemberMapper.selectMemberForUpdate(projectId, dto.getAssigneeId());
 
-            if (assignee == null || !"ACTIVE".equals(assignee.getStatus()) || !isActiveProjectUser(dto.getAssigneeId())) {
+            if (
+                assignee == null ||
+                !ProjectMemberStatus.ACTIVE.equals(assignee.getStatus()) ||
+                !isActiveProjectUser(dto.getAssigneeId())
+            ) {
                 throw new BusinessException(409, "任务负责人不是该项目的有效开发成员");
             }
         }
@@ -118,7 +128,7 @@ public class TaskService {
         task.setDescription(dto.getDescription());
         task.setGoal(dto.getGoal());
 
-        task.setStatus("TODO");
+        task.setStatus(TaskStatus.TODO);
         task.setPriority(priority);
         task.setDeadline(dto.getDeadline());
 
@@ -128,7 +138,7 @@ public class TaskService {
 
         afterData.put("title", task.getTitle());
         afterData.put("assigneeId", task.getAssigneeId());
-        afterData.put("status", task.getStatus());
+        afterData.put("status", task.getStatus() == null ? null : task.getStatus().getCode());
         afterData.put("priority", task.getPriority());
         afterData.put("deadline", task.getDeadline());
 
@@ -247,7 +257,7 @@ public class TaskService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "项目未处于进行中，不能开始任务");
         }
 
@@ -262,26 +272,32 @@ public class TaskService {
         }
 
         // 6. 必须从 TODO 状态开始
-        if (!"TODO".equals(task.getStatus())) {
+        if (!TaskStatus.TODO.equals(task.getStatus())) {
             throw new BusinessException(409, "只有待处理任务可以开始");
         }
 
-        String oldStatus = task.getStatus();
+        String oldStatus = task.getStatus() == null ? null : task.getStatus().getCode();
 
         // 7. 修改任务状态
         LocalDateTime now = LocalDateTime.now();
-        int updated = taskMapper.transitionAssigneeTaskIfCurrent(taskId, currentUser.getUserId(), "TODO", "IN_PROGRESS", now);
+        int updated = taskMapper.transitionAssigneeTaskIfCurrent(
+            taskId,
+            currentUser.getUserId(),
+            TaskStatus.TODO,
+            TaskStatus.IN_PROGRESS,
+            now
+        );
         if (updated != 1) {
             throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
         }
-        task.setStatus("IN_PROGRESS");
+        task.setStatus(TaskStatus.IN_PROGRESS);
         task.setUpdatedAt(now);
 
         Map<String, Object> beforeData = new HashMap<>();
         beforeData.put("status", oldStatus);
 
         Map<String, Object> afterData = new HashMap<>();
-        afterData.put("status", task.getStatus());
+        afterData.put("status", task.getStatus() == null ? null : task.getStatus().getCode());
 
         operationLogService.record(
             task.getProjectId(),
@@ -322,12 +338,12 @@ public class TaskService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "项目未处于进行中，不能提交任务");
         }
 
         // 5. 只有进行中的任务才能提交审核
-        if (!"IN_PROGRESS".equals(task.getStatus())) {
+        if (!TaskStatus.IN_PROGRESS.equals(task.getStatus())) {
             throw new BusinessException(409, "只有进行中的任务可以提交审核");
         }
 
@@ -343,15 +359,15 @@ public class TaskService {
             }
         }
         // 保存任务修改前的状态
-        String oldStatus = task.getStatus();
+        String oldStatus = task.getStatus() == null ? null : task.getStatus().getCode();
 
         LocalDateTime now = LocalDateTime.now();
 
         int transitioned = taskMapper.transitionAssigneeTaskIfCurrent(
             taskId,
             currentUser.getUserId(),
-            "IN_PROGRESS",
-            "REVIEW",
+            TaskStatus.IN_PROGRESS,
+            TaskStatus.REVIEW,
             now
         );
         if (transitioned != 1) {
@@ -374,13 +390,13 @@ public class TaskService {
         submission.setResultUrl(dto.getResultUrl() == null ? null : dto.getResultUrl().trim());
         submission.setTestNote(dto.getTestNote().trim());
 
-        submission.setReviewStatus("PENDING");
+        submission.setReviewStatus(TaskSubmissionStatus.PENDING);
         submission.setSubmittedAt(now);
 
         taskSubmissionMapper.insert(submission);
 
         // 8. 任务进入待审核状态
-        task.setStatus("REVIEW");
+        task.setStatus(TaskStatus.REVIEW);
         task.setUpdatedAt(now);
 
         // 9. 记录提交任务的操作日志
@@ -388,7 +404,7 @@ public class TaskService {
         beforeData.put("status", oldStatus);
 
         Map<String, Object> afterData = new HashMap<>();
-        afterData.put("status", task.getStatus());
+        afterData.put("status", task.getStatus() == null ? null : task.getStatus().getCode());
         afterData.put("submissionId", submission.getId());
         afterData.put("submissionNo", submission.getSubmissionNo());
 
@@ -407,7 +423,7 @@ public class TaskService {
             new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, task.getProjectId())
                 .eq(ProjectMember::getRole, "PROJECT_MANAGER")
-                .eq(ProjectMember::getStatus, "ACTIVE")
+                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
 
         for (ProjectMember manager : managers) {
@@ -459,12 +475,17 @@ public class TaskService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"IN_PROGRESS".equals(project.getStatus())) {
+        // 获取项目锁后，重新读取并锁定当前成员关系，确认负责人权限仍然有效。
+        projectPermissionService.requireProjectManagerForUpdate(
+                task.getProjectId()
+        );
+
+        if (!ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "项目未处于进行中，不能审核任务");
         }
 
         // 4. 任务必须正在等待审核
-        if (!"REVIEW".equals(task.getStatus())) {
+        if (!TaskStatus.REVIEW.equals(task.getStatus())) {
             throw new BusinessException(409, "当前任务不处于待审核状态");
         }
 
@@ -490,9 +511,9 @@ public class TaskService {
         LocalDateTime now = LocalDateTime.now();
 
         // 7. 先保存修改前的状态
-        String oldTaskStatus = task.getStatus();
+        String oldTaskStatus = task.getStatus() == null ? null : task.getStatus().getCode();
 
-        String oldSubmissionReviewStatus = submission.getReviewStatus();
+        String oldSubmissionReviewStatus = submission.getReviewStatus() == null ? null : submission.getReviewStatus().getCode();
 
         // 一定要先保存原负责人
         Long oldAssigneeId = task.getAssigneeId();
@@ -510,23 +531,23 @@ public class TaskService {
         // 9. 根据审核结果修改状态
         if ("APPROVE".equals(action)) {
             // 审核通过
-            submission.setReviewStatus("APPROVED");
+            submission.setReviewStatus(TaskSubmissionStatus.APPROVED);
 
-            task.setStatus("DONE");
+            task.setStatus(TaskStatus.DONE);
             task.setCompletedAt(now);
         } else {
             // 审核驳回
-            submission.setReviewStatus("REJECTED");
+            submission.setReviewStatus(TaskSubmissionStatus.REJECTED);
 
             if (assigneeStillEffective) {
                 // 原负责人仍然正常
                 // 让他继续修改任务
-                task.setStatus("IN_PROGRESS");
+                task.setStatus(TaskStatus.IN_PROGRESS);
                 task.setCompletedAt(null);
             } else {
                 // 原负责人已经失效，例如被管理员禁用
                 // 任务重新回到 TODO，等待 PM 重新分配
-                task.setStatus("TODO");
+                task.setStatus(TaskStatus.TODO);
                 task.setAssigneeId(null);
                 task.setCompletedAt(null);
             }
@@ -546,7 +567,13 @@ public class TaskService {
             // 正常情况：
             // APPROVE: REVIEW -> DONE
             // REJECT且负责人正常: REVIEW -> IN_PROGRESS
-            taskUpdated = taskMapper.transitionStatusIfCurrent(taskId, "REVIEW", task.getStatus(), task.getCompletedAt(), now);
+            taskUpdated = taskMapper.transitionStatusIfCurrent(
+                taskId,
+                TaskStatus.REVIEW,
+                task.getStatus(),
+                task.getCompletedAt(),
+                now
+            );
         }
 
         if (taskUpdated != 1) {
@@ -574,9 +601,12 @@ public class TaskService {
         // 12. 准备修改后的数据
         Map<String, Object> afterData = new HashMap<>();
 
-        afterData.put("status", task.getStatus());
+        afterData.put("status", task.getStatus() == null ? null : task.getStatus().getCode());
 
-        afterData.put("submissionReviewStatus", submission.getReviewStatus());
+        afterData.put(
+            "submissionReviewStatus",
+            submission.getReviewStatus() == null ? null : submission.getReviewStatus().getCode()
+        );
 
         afterData.put("submissionId", submission.getId());
 
@@ -661,7 +691,7 @@ public class TaskService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许分配任务负责人");
         }
 
@@ -670,14 +700,14 @@ public class TaskService {
         if (
             !"USER".equals(operator.getSystemRole()) ||
             operatorMember == null ||
-            !"ACTIVE".equals(operatorMember.getStatus()) ||
+            !ProjectMemberStatus.ACTIVE.equals(operatorMember.getStatus()) ||
             !"PROJECT_MANAGER".equals(operatorMember.getRole())
         ) {
             throw new BusinessException(403, "你不是该项目的有效负责人");
         }
 
         // 3. 只有 TODO 状态允许分配 / 重新分配
-        if (!"TODO".equals(task.getStatus())) {
+        if (!TaskStatus.TODO.equals(task.getStatus())) {
             throw new BusinessException(409, "只有待处理任务可以分配负责人");
         }
 
@@ -685,11 +715,15 @@ public class TaskService {
         // 新负责人必须是该项目 ACTIVE 成员。
         ProjectMember member = projectMemberMapper.selectMemberForUpdate(task.getProjectId(), dto.getAssigneeId());
 
-        if (member == null || !"ACTIVE".equals(member.getStatus())) {
+        if (member == null || !ProjectMemberStatus.ACTIVE.equals(member.getStatus())) {
             throw new BusinessException(409, "任务负责人不是该项目的有效成员");
         }
         User assigneeUser = userMapper.selectByIdForUpdate(dto.getAssigneeId());
-        if (assigneeUser == null || !"ACTIVE".equals(assigneeUser.getStatus()) || !"USER".equals(assigneeUser.getSystemRole())) {
+        if (
+            assigneeUser == null ||
+            !UserStatus.ACTIVE.equals(assigneeUser.getStatus()) ||
+            !"USER".equals(assigneeUser.getSystemRole())
+        ) {
             throw new BusinessException(409, "任务负责人不是该项目的有效成员");
         }
 
@@ -779,7 +813,7 @@ public class TaskService {
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
-        if (!Set.of("PREPARING", "IN_PROGRESS").contains(project.getStatus())) {
+        if (!Set.of(ProjectStatus.PREPARING, ProjectStatus.IN_PROGRESS).contains(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许交接任务");
         }
         projectPermissionService.requireProjectManagerForUpdate(projectId);
@@ -788,7 +822,7 @@ public class TaskService {
         if (
             task == null ||
             !projectId.equals(task.getProjectId()) ||
-            !"IN_PROGRESS".equals(task.getStatus()) ||
+            !TaskStatus.IN_PROGRESS.equals(task.getStatus()) ||
             !Objects.equals(dto.expectedAssigneeId(), task.getAssigneeId())
         ) {
             throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
@@ -799,7 +833,7 @@ public class TaskService {
         ProjectMember target = projectMemberMapper.selectMemberForUpdate(projectId, dto.assigneeId());
         if (
             target == null ||
-            !"ACTIVE".equals(target.getStatus()) ||
+            !ProjectMemberStatus.ACTIVE.equals(target.getStatus()) ||
             (!"PROJECT_MANAGER".equals(target.getRole()) && !"DEVELOPER".equals(target.getRole()))
         ) {
             throw new BusinessException(409, "新任务负责人不是该项目的有效成员");
@@ -811,10 +845,14 @@ public class TaskService {
         }
         User original = accounts.get(dto.expectedAssigneeId());
         User replacement = accounts.get(dto.assigneeId());
-        if (original == null || !"DISABLED".equals(original.getStatus())) {
+        if (original == null || !UserStatus.DISABLED.equals(original.getStatus())) {
             throw new BusinessException(409, "只能交接禁用账号承担的进行中任务");
         }
-        if (replacement == null || !"ACTIVE".equals(replacement.getStatus()) || !"USER".equals(replacement.getSystemRole())) {
+        if (
+            replacement == null ||
+            !UserStatus.ACTIVE.equals(replacement.getStatus()) ||
+            !"USER".equals(replacement.getSystemRole())
+        ) {
             throw new BusinessException(409, "新任务负责人不是该项目的有效成员");
         }
         LocalDateTime now = LocalDateTime.now();
@@ -831,8 +869,17 @@ public class TaskService {
             taskId,
             "HANDOVER_TASK",
             "交接禁用成员的任务",
-            Map.of("assigneeId", dto.expectedAssigneeId(), "status", "IN_PROGRESS"),
-            Map.of("assigneeId", dto.assigneeId(), "status", "TODO", "reason", dto.reason().trim(), "handedOverAt", now)
+            Map.of("assigneeId", dto.expectedAssigneeId(), "status", TaskStatus.IN_PROGRESS.getCode()),
+            Map.of(
+                "assigneeId",
+                dto.assigneeId(),
+                "status",
+                TaskStatus.TODO.getCode(),
+                "reason",
+                dto.reason().trim(),
+                "handedOverAt",
+                now
+            )
         );
 
         CreateNotificationDTO notification = new CreateNotificationDTO();
@@ -850,7 +897,7 @@ public class TaskService {
 
     private boolean isActiveProjectUser(Long userId) {
         User user = userMapper.selectById(userId);
-        return user != null && "ACTIVE".equals(user.getStatus()) && "USER".equals(user.getSystemRole());
+        return user != null && UserStatus.ACTIVE.equals(user.getStatus()) && "USER".equals(user.getSystemRole());
     }
 
     private Project requireExistingProject(Long projectId) {
@@ -901,7 +948,7 @@ public class TaskService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许新增评论");
         }
 
@@ -965,13 +1012,18 @@ public class TaskService {
             throw new BusinessException(404, "项目不存在");
         }
 
+        // 获取项目锁后，重新读取并锁定当前成员关系，确认负责人权限仍然有效。
+        projectPermissionService.requireProjectManagerForUpdate(
+                task.getProjectId()
+        );
+
         // PREPARING 和 IN_PROGRESS 阶段允许处理任务
-        if (!"PREPARING".equals(project.getStatus()) && !"IN_PROGRESS".equals(project.getStatus())) {
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许取消任务");
         }
 
         // 4. 只允许 TODO / IN_PROGRESS 取消
-        if (!"TODO".equals(task.getStatus()) && !"IN_PROGRESS".equals(task.getStatus())) {
+        if (!TaskStatus.TODO.equals(task.getStatus()) && !TaskStatus.IN_PROGRESS.equals(task.getStatus())) {
             throw new BusinessException(409, "只有待处理或进行中的任务可以取消");
         }
 
@@ -980,7 +1032,7 @@ public class TaskService {
         LocalDateTime now = LocalDateTime.now();
 
         // 5. 保存修改前状态
-        String oldStatus = task.getStatus();
+        String oldStatus = task.getStatus() == null ? null : task.getStatus().getCode();
 
         int updated = taskMapper.cancelIfActive(taskId, dto.getReason().trim(), now);
         if (updated != 1) {
@@ -988,7 +1040,7 @@ public class TaskService {
         }
 
         // 6. 同步内存对象，供日志使用
-        task.setStatus("CANCELLED");
+        task.setStatus(TaskStatus.CANCELLED);
 
         task.setCancelReason(dto.getReason().trim());
 
@@ -1003,7 +1055,7 @@ public class TaskService {
 
         Map<String, Object> afterData = new HashMap<>();
 
-        afterData.put("status", task.getStatus());
+        afterData.put("status", task.getStatus() == null ? null : task.getStatus().getCode());
 
         afterData.put("cancelReason", task.getCancelReason());
 

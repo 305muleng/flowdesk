@@ -1,5 +1,9 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.ProjectStatus;
+
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CancelProjectDTO;
@@ -82,7 +86,7 @@ public class ProjectServiceTest {
             .thenAnswer(invocation -> {
                 com.flowdesk.model.User user = new com.flowdesk.model.User();
                 user.setId(invocation.getArgument(0));
-                user.setStatus("ACTIVE");
+                user.setStatus(UserStatus.ACTIVE);
                 user.setSystemRole(UserContext.get().getSystemRole());
                 return user;
             });
@@ -137,7 +141,7 @@ public class ProjectServiceTest {
         assertEquals(4L, member.getProjectId());
         assertEquals(2L, member.getUserId());
         assertEquals("PROJECT_MANAGER", member.getRole());
-        assertEquals("ACTIVE", member.getStatus());
+        assertEquals(ProjectMemberStatus.ACTIVE, member.getStatus());
         verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
@@ -176,7 +180,7 @@ public class ProjectServiceTest {
     void preparingProjectCanBeStarted() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("PREPARING");
+        project.setStatus(ProjectStatus.PREPARING);
 
         UserContext.set(new CurrentUser(1L, "USER"));
 
@@ -184,7 +188,7 @@ public class ProjectServiceTest {
 
         projectService.startProject(4L);
 
-        assertEquals("IN_PROGRESS", project.getStatus());
+        assertEquals(ProjectStatus.IN_PROGRESS, project.getStatus());
 
         assertNotNull(project.getStartTime());
 
@@ -197,7 +201,7 @@ public class ProjectServiceTest {
     void completedProjectCanBeArchived() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("COMPLETED");
+        project.setStatus(ProjectStatus.COMPLETED);
 
         UserContext.set(new CurrentUser(1L, "USER"));
 
@@ -205,7 +209,7 @@ public class ProjectServiceTest {
 
         projectService.archiveProject(4L);
 
-        assertEquals("ARCHIVED", project.getStatus());
+        assertEquals(ProjectStatus.ARCHIVED, project.getStatus());
 
         verify(projectMapper).archiveIfCompleted(eq(4L), any());
         verifyNoInteractions(requestClosureService);
@@ -218,7 +222,7 @@ public class ProjectServiceTest {
     void activeProjectCanBeCancelled(String initialStatus) {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus(initialStatus);
+        project.setStatus(ProjectStatus.fromCode(initialStatus));
 
         UserContext.set(new CurrentUser(1L, "USER"));
 
@@ -229,12 +233,18 @@ public class ProjectServiceTest {
 
         projectService.cancelProject(4L, dto);
 
-        assertEquals("CANCELLED", project.getStatus());
+        assertEquals(ProjectStatus.CANCELLED, project.getStatus());
 
         assertEquals("测试取消项目", project.getCancelReason());
 
         assertNotNull(project.getCancelledAt());
         verify(requestClosureService).closeForCancelledProject(eq(4L), same(project.getCancelledAt()));
+
+        ArgumentCaptor<Object> before = ArgumentCaptor.forClass(Object.class);
+        ArgumentCaptor<Object> after = ArgumentCaptor.forClass(Object.class);
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), before.capture(), after.capture());
+        assertEquals(initialStatus, ((java.util.Map<?, ?>) before.getValue()).get("status"));
+        assertEquals("CANCELLED", ((java.util.Map<?, ?>) after.getValue()).get("status"));
 
         InOrder order = inOrder(projectMapper);
         order.verify(projectMapper).selectByIdForUpdate(4L);
@@ -247,7 +257,7 @@ public class ProjectServiceTest {
     void cancelledProjectCannotBeCancelledAgain() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("CANCELLED");
+        project.setStatus(ProjectStatus.CANCELLED);
         CancelProjectDTO dto = new CancelProjectDTO();
         dto.setReason("重复取消");
         UserContext.set(new CurrentUser(1L, "USER"));
@@ -265,7 +275,7 @@ public class ProjectServiceTest {
     void nonCompletedProjectCannotBeArchived() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectById(4L)).thenReturn(project);
 
@@ -278,7 +288,7 @@ public class ProjectServiceTest {
     void concurrentProjectTransitionDoesNotWriteMisleadingLog() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("COMPLETED");
+        project.setStatus(ProjectStatus.COMPLETED);
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectById(4L)).thenReturn(project);
         when(projectMapper.archiveIfCompleted(eq(4L), any())).thenReturn(0);
@@ -287,5 +297,70 @@ public class ProjectServiceTest {
 
         assertEquals(409, exception.getCode());
         verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void cancelProjectMustRecheckManagerAfterLock() {
+        UserContext.set(new CurrentUser(1L, "USER"));
+
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus(ProjectStatus.IN_PROGRESS);
+
+        CancelProjectDTO dto = new CancelProjectDTO();
+        dto.setReason("取消项目");
+
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
+
+        // 模拟：前面的负责人检查通过，但锁后发现已不是负责人
+        doThrow(new BusinessException(403, "你不是该项目负责人"))
+            .when(projectPermissionService)
+            .requireProjectManagerForUpdate(4L);
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> projectService.cancelProject(4L, dto));
+
+        assertEquals(403, exception.getCode());
+        assertEquals(ProjectStatus.IN_PROGRESS, project.getStatus());
+
+        InOrder order = inOrder(projectMapper, projectPermissionService);
+        order.verify(projectPermissionService).requireProjectManager(4L);
+        order.verify(projectMapper).selectByIdForUpdate(4L);
+        order.verify(projectPermissionService).requireProjectManagerForUpdate(4L);
+
+        verify(projectMapper, never()).cancelIfActive(anyLong(), any(), any());
+
+        verifyNoInteractions(requestClosureService, operationLogService);
+    }
+
+    @Test
+    void nonManagerCannotProbeProjectExistence() {
+        UserContext.set(new CurrentUser(1L, "USER"));
+
+        CancelProjectDTO dto = new CancelProjectDTO();
+        dto.setReason("取消项目");
+
+        // 安排：第一次权限检查就拒绝
+        doThrow(new BusinessException(403, "你不是该项目负责人")).when(projectPermissionService).requireProjectManager(4L);
+
+        // 执行取消，预期收到403
+        BusinessException exception = assertThrows(BusinessException.class, () -> projectService.cancelProject(4L, dto));
+
+        assertEquals(403, exception.getCode());
+
+        // 被拒绝后，不应查询项目或继续处理业务
+        verifyNoInteractions(projectMapper, requestClosureService, operationLogService);
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.NullSource
+    @ValueSource(strings = { "PREPARING", "IN_PROGRESS", "PENDING_ACCEPTANCE", "COMPLETED", "ARCHIVED", "CANCELLED" })
+    void projectDetailConvertsEntityStatusToCompatibleStringOrNull(String code) {
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus(ProjectStatus.fromCode(code));
+        when(projectMapper.selectById(4L)).thenReturn(project);
+
+        assertEquals(code, projectService.getProjectDetail(4L).getStatus());
+        verify(projectPermissionService).requireProjectMember(4L);
     }
 }

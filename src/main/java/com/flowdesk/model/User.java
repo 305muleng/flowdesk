@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -20,7 +22,7 @@ public class User {
 
     private String systemRole;
 
-    private String status;
+    private UserStatus status;
 
     private LocalDateTime createdAt;
 
@@ -66,11 +68,11 @@ public class User {
         this.systemRole = systemRole;
     }
 
-    public String getStatus() {
+    public UserStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(UserStatus status) {
         this.status = status;
     }
 

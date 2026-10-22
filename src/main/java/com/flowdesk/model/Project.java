@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.ProjectStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -16,7 +18,7 @@ public class Project {
     private String name;
     private String description;
     private String goal;
-    private String status;
+    private ProjectStatus status;
     private String repositoryUrl;
     private String deployUrl;
     private String documentUrl;
@@ -96,11 +98,11 @@ public class Project {
         this.goal = goal;
     }
 
-    public String getStatus() {
+    public ProjectStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(ProjectStatus status) {
         this.status = status;
     }
 

@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -18,7 +20,7 @@ public class ProjectMember {
 
     private String role;
 
-    private String status;
+    private ProjectMemberStatus status;
 
     private LocalDateTime joinedAt;
 
@@ -58,11 +60,11 @@ public class ProjectMember {
         this.role = role;
     }
 
-    public String getStatus() {
+    public ProjectMemberStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(ProjectMemberStatus status) {
         this.status = status;
     }
 

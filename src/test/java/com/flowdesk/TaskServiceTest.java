@@ -1,5 +1,11 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.TaskSubmissionStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.ProjectStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.CurrentUser;
@@ -82,7 +88,7 @@ public class TaskServiceTest {
                 ProjectMember manager = new ProjectMember();
                 manager.setProjectId(4L);
                 manager.setUserId(1L);
-                manager.setStatus("ACTIVE");
+                manager.setStatus(ProjectMemberStatus.ACTIVE);
                 manager.setRole("PROJECT_MANAGER");
                 return manager;
             });
@@ -91,7 +97,7 @@ public class TaskServiceTest {
             .thenAnswer(invocation -> {
                 User user = new User();
                 user.setId(invocation.getArgument(0));
-                user.setStatus("ACTIVE");
+                user.setStatus(UserStatus.ACTIVE);
                 user.setSystemRole("USER");
                 return user;
             });
@@ -100,15 +106,23 @@ public class TaskServiceTest {
             .thenAnswer(invocation -> {
                 User user = new User();
                 user.setId(invocation.getArgument(0));
-                user.setStatus("ACTIVE");
+                user.setStatus(UserStatus.ACTIVE);
                 user.setSystemRole("USER");
                 return user;
             });
         lenient()
-            .when(taskMapper.transitionAssigneeTaskIfCurrent(anyLong(), anyLong(), anyString(), anyString(), any()))
+            .when(
+                taskMapper.transitionAssigneeTaskIfCurrent(
+                    anyLong(),
+                    anyLong(),
+                    any(TaskStatus.class),
+                    any(TaskStatus.class),
+                    any()
+                )
+            )
             .thenReturn(1);
         lenient()
-            .when(taskMapper.transitionStatusIfCurrent(anyLong(), anyString(), anyString(), any(), any()))
+            .when(taskMapper.transitionStatusIfCurrent(anyLong(), any(TaskStatus.class), any(TaskStatus.class), any(), any()))
             .thenReturn(1);
         lenient()
             .when(taskMapper.reassignTodoIfCurrent(anyLong(), nullable(Long.class), anyLong(), any()))
@@ -121,7 +135,7 @@ public class TaskServiceTest {
                 taskSubmissionMapper.reviewPendingSubmission(
                     anyLong(),
                     anyLong(),
-                    anyString(),
+                    any(TaskSubmissionStatus.class),
                     anyLong(),
                     nullable(String.class),
                     any()
@@ -139,12 +153,12 @@ public class TaskServiceTest {
     void creatingTaskWithAssigneeNotifiesAssignee() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         ProjectMember assignee = new ProjectMember();
         assignee.setProjectId(4L);
         assignee.setUserId(2L);
-        assignee.setStatus("ACTIVE");
+        assignee.setStatus(ProjectMemberStatus.ACTIVE);
 
         CreateTaskDTO dto = new CreateTaskDTO();
         dto.setTitle("登录接口");
@@ -185,14 +199,14 @@ public class TaskServiceTest {
     void disabledActiveMemberCannotReceiveNewTaskAssignment() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         ProjectMember member = new ProjectMember();
         member.setProjectId(4L);
         member.setUserId(2L);
-        member.setStatus("ACTIVE");
+        member.setStatus(ProjectMemberStatus.ACTIVE);
         User disabled = new User();
         disabled.setId(2L);
-        disabled.setStatus("DISABLED");
+        disabled.setStatus(UserStatus.DISABLED);
         disabled.setSystemRole("USER");
         CreateTaskDTO dto = new CreateTaskDTO();
         dto.setTitle("登录接口");
@@ -213,12 +227,12 @@ public class TaskServiceTest {
     void creatingTaskAssignedToCreatorDoesNotNotifyCreator() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         ProjectMember creator = new ProjectMember();
         creator.setProjectId(4L);
         creator.setUserId(1L);
-        creator.setStatus("ACTIVE");
+        creator.setStatus(ProjectMemberStatus.ACTIVE);
 
         CreateTaskDTO dto = new CreateTaskDTO();
         dto.setTitle("发布检查");
@@ -240,17 +254,17 @@ public class TaskServiceTest {
         Task task = new Task();
         task.setId(9L);
         task.setProjectId(4L);
-        task.setStatus("TODO");
+        task.setStatus(TaskStatus.TODO);
         task.setTitle("发布检查");
 
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         ProjectMember manager = new ProjectMember();
         manager.setProjectId(4L);
         manager.setUserId(1L);
-        manager.setStatus("ACTIVE");
+        manager.setStatus(ProjectMemberStatus.ACTIVE);
         manager.setRole("PROJECT_MANAGER");
 
         AssignTaskDTO dto = new AssignTaskDTO();
@@ -274,20 +288,20 @@ public class TaskServiceTest {
         Task task = new Task();
         task.setId(9L);
         task.setProjectId(4L);
-        task.setStatus("TODO");
+        task.setStatus(TaskStatus.TODO);
         task.setAssigneeId(null);
         task.setTitle("登录接口");
 
         // 2. 准备一个正在进行中的项目
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         // 3. 准备一个有效项目成员
         ProjectMember member = new ProjectMember();
         member.setProjectId(4L);
         member.setUserId(2L);
-        member.setStatus("ACTIVE");
+        member.setStatus(ProjectMemberStatus.ACTIVE);
 
         // 4. 模拟当前登录用户 Tom
         UserContext.set(new CurrentUser(1L, "USER"));
@@ -341,12 +355,12 @@ public class TaskServiceTest {
         Task task = new Task();
         task.setId(9L);
         task.setProjectId(4L);
-        task.setStatus("TODO");
+        task.setStatus(TaskStatus.TODO);
 
         // 2. 准备一个已经归档的项目
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("ARCHIVED");
+        project.setStatus(ProjectStatus.ARCHIVED);
 
         // 3. 前端准备把任务分给 Jack
         AssignTaskDTO dto = new AssignTaskDTO();
@@ -369,11 +383,11 @@ public class TaskServiceTest {
         Task task = new Task();
         task.setId(9L);
         task.setProjectId(4L);
-        task.setStatus("IN_PROGRESS");
+        task.setStatus(TaskStatus.IN_PROGRESS);
 
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         AssignTaskDTO dto = new AssignTaskDTO();
         dto.setAssigneeId(2L);
@@ -392,11 +406,11 @@ public class TaskServiceTest {
         Task task = new Task();
         task.setId(9L);
         task.setProjectId(4L);
-        task.setStatus("DONE");
+        task.setStatus(TaskStatus.DONE);
 
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         CancelTaskDTO dto = new CancelTaskDTO();
         dto.setReason("测试已完成任务不能取消");
@@ -417,12 +431,12 @@ public class TaskServiceTest {
         task.setId(10L);
         task.setProjectId(4L);
         task.setAssigneeId(2L);
-        task.setStatus("IN_PROGRESS");
+        task.setStatus(TaskStatus.IN_PROGRESS);
 
         // 2. 准备一个正在进行中的项目
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         // 3. 模拟前端提交的数据
         SubmitTaskDTO dto = new SubmitTaskDTO();
@@ -474,12 +488,18 @@ public class TaskServiceTest {
 
         assertEquals(2L, savedSubmission.getSubmitterId());
 
-        assertEquals("PENDING", savedSubmission.getReviewStatus());
+        assertEquals(TaskSubmissionStatus.PENDING, savedSubmission.getReviewStatus());
 
         // 12. 提交以后任务应该进入 REVIEW
-        assertEquals("REVIEW", task.getStatus());
+        assertEquals(TaskStatus.REVIEW, task.getStatus());
 
-        verify(taskMapper).transitionAssigneeTaskIfCurrent(eq(10L), eq(2L), eq("IN_PROGRESS"), eq("REVIEW"), any());
+        verify(taskMapper).transitionAssigneeTaskIfCurrent(
+            eq(10L),
+            eq(2L),
+            eq(TaskStatus.IN_PROGRESS),
+            eq(TaskStatus.REVIEW),
+            any()
+        );
     }
 
     @Test
@@ -489,12 +509,12 @@ public class TaskServiceTest {
         task.setId(9L);
         task.setProjectId(4L);
         task.setAssigneeId(2L);
-        task.setStatus("TODO");
+        task.setStatus(TaskStatus.TODO);
 
         // 2. 项目正在进行
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         // 3. 当前登录的是 userId=3，不是任务负责人
         UserContext.set(new CurrentUser(3L, "USER"));
@@ -522,12 +542,12 @@ public class TaskServiceTest {
         task.setId(9L);
         task.setProjectId(4L);
         task.setAssigneeId(2L);
-        task.setStatus("DONE");
+        task.setStatus(TaskStatus.DONE);
 
         // 2. 项目仍处于进行中
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         // 3. 当前登录用户就是任务负责人
         UserContext.set(new CurrentUser(2L, "USER"));
@@ -558,12 +578,12 @@ public class TaskServiceTest {
         Task task = new Task();
         task.setId(9L);
         task.setProjectId(4L);
-        task.setStatus("TODO");
+        task.setStatus(TaskStatus.TODO);
 
         // 2. 准备项目
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         // 3. 准备分配任务的 DTO
         AssignTaskDTO dto = new AssignTaskDTO();
@@ -600,17 +620,17 @@ public class TaskServiceTest {
         task.setProjectId(4L);
         task.setTitle("实现登录接口");
         task.setAssigneeId(2L);
-        task.setStatus("IN_PROGRESS");
+        task.setStatus(TaskStatus.IN_PROGRESS);
 
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         ProjectMember manager = new ProjectMember();
         manager.setProjectId(4L);
         manager.setUserId(1L);
         manager.setRole("PROJECT_MANAGER");
-        manager.setStatus("ACTIVE");
+        manager.setStatus(ProjectMemberStatus.ACTIVE);
 
         SubmitTaskDTO dto = new SubmitTaskDTO();
         dto.setCompletionNote("登录功能已完成");
@@ -666,17 +686,17 @@ public class TaskServiceTest {
         task.setProjectId(4L);
         task.setTitle("实现登录接口");
         task.setAssigneeId(2L);
-        task.setStatus("REVIEW");
+        task.setStatus(TaskStatus.REVIEW);
 
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         TaskSubmission submission = new TaskSubmission();
         submission.setId(100L);
         submission.setTaskId(10L);
         submission.setSubmissionNo(1);
-        submission.setReviewStatus("PENDING");
+        submission.setReviewStatus(TaskSubmissionStatus.PENDING);
 
         ReviewTaskDTO dto = new ReviewTaskDTO();
         dto.setAction("APPROVE");
@@ -694,9 +714,9 @@ public class TaskServiceTest {
         taskService.reviewTask(10L, dto);
 
         // 顺便确认业务状态真的改了
-        assertEquals("DONE", task.getStatus());
+        assertEquals(TaskStatus.DONE, task.getStatus());
 
-        assertEquals("APPROVED", submission.getReviewStatus());
+        assertEquals(TaskSubmissionStatus.APPROVED, submission.getReviewStatus());
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
@@ -724,17 +744,17 @@ public class TaskServiceTest {
         task.setProjectId(4L);
         task.setTitle("实现登录接口");
         task.setAssigneeId(2L);
-        task.setStatus("REVIEW");
+        task.setStatus(TaskStatus.REVIEW);
 
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         TaskSubmission submission = new TaskSubmission();
         submission.setId(100L);
         submission.setTaskId(10L);
         submission.setSubmissionNo(1);
-        submission.setReviewStatus("PENDING");
+        submission.setReviewStatus(TaskSubmissionStatus.PENDING);
 
         ReviewTaskDTO dto = new ReviewTaskDTO();
         dto.setAction("REJECT");
@@ -750,9 +770,9 @@ public class TaskServiceTest {
 
         taskService.reviewTask(10L, dto);
 
-        assertEquals("IN_PROGRESS", task.getStatus());
+        assertEquals(TaskStatus.IN_PROGRESS, task.getStatus());
 
-        assertEquals("REJECTED", submission.getReviewStatus());
+        assertEquals(TaskSubmissionStatus.REJECTED, submission.getReviewStatus());
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
@@ -775,17 +795,19 @@ public class TaskServiceTest {
         task.setId(10L);
         task.setProjectId(4L);
         task.setAssigneeId(2L);
-        task.setStatus("IN_PROGRESS");
+        task.setStatus(TaskStatus.IN_PROGRESS);
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         SubmitTaskDTO dto = new SubmitTaskDTO();
         dto.setCompletionNote("完成");
         dto.setTestNote("通过");
         UserContext.set(new CurrentUser(2L, "USER"));
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(taskMapper.transitionAssigneeTaskIfCurrent(eq(10L), eq(2L), eq("IN_PROGRESS"), eq("REVIEW"), any())).thenReturn(0);
+        when(
+            taskMapper.transitionAssigneeTaskIfCurrent(eq(10L), eq(2L), eq(TaskStatus.IN_PROGRESS), eq(TaskStatus.REVIEW), any())
+        ).thenReturn(0);
 
         BusinessException exception = assertThrows(BusinessException.class, () -> taskService.submitTask(10L, dto));
 
@@ -800,21 +822,23 @@ public class TaskServiceTest {
         task.setId(10L);
         task.setProjectId(4L);
         task.setAssigneeId(2L);
-        task.setStatus("REVIEW");
+        task.setStatus(TaskStatus.REVIEW);
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         TaskSubmission submission = new TaskSubmission();
         submission.setId(100L);
         submission.setTaskId(10L);
-        submission.setReviewStatus("PENDING");
+        submission.setReviewStatus(TaskSubmissionStatus.PENDING);
         ReviewTaskDTO dto = new ReviewTaskDTO();
         dto.setAction("APPROVE");
         UserContext.set(new CurrentUser(1L, "USER"));
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
-        when(taskMapper.transitionStatusIfCurrent(eq(10L), eq("REVIEW"), eq("DONE"), any(), any())).thenReturn(0);
+        when(taskMapper.transitionStatusIfCurrent(eq(10L), eq(TaskStatus.REVIEW), eq(TaskStatus.DONE), any(), any())).thenReturn(
+            0
+        );
 
         BusinessException exception = assertThrows(BusinessException.class, () -> taskService.reviewTask(10L, dto));
 
@@ -822,7 +846,7 @@ public class TaskServiceTest {
         verify(taskSubmissionMapper, never()).reviewPendingSubmission(
             anyLong(),
             anyLong(),
-            anyString(),
+            any(TaskSubmissionStatus.class),
             anyLong(),
             nullable(String.class),
             any()
@@ -835,14 +859,14 @@ public class TaskServiceTest {
         Task task = new Task();
         task.setId(10L);
         task.setProjectId(4L);
-        task.setStatus("REVIEW");
+        task.setStatus(TaskStatus.REVIEW);
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         TaskSubmission submission = new TaskSubmission();
         submission.setId(100L);
         submission.setTaskId(10L);
-        submission.setReviewStatus("PENDING");
+        submission.setReviewStatus(TaskSubmissionStatus.PENDING);
         ReviewTaskDTO dto = new ReviewTaskDTO();
         dto.setAction("REJECT");
         dto.setReviewNote("  ");
@@ -853,7 +877,13 @@ public class TaskServiceTest {
         BusinessException exception = assertThrows(BusinessException.class, () -> taskService.reviewTask(10L, dto));
 
         assertEquals(400, exception.getCode());
-        verify(taskMapper, never()).transitionStatusIfCurrent(anyLong(), anyString(), anyString(), any(), any());
+        verify(taskMapper, never()).transitionStatusIfCurrent(
+            anyLong(),
+            any(TaskStatus.class),
+            any(TaskStatus.class),
+            any(),
+            any()
+        );
     }
 
     @Test
@@ -880,7 +910,7 @@ public class TaskServiceTest {
         task.setProjectId(4L);
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("PENDING_ACCEPTANCE");
+        project.setStatus(ProjectStatus.PENDING_ACCEPTANCE);
         AddTaskCommentDTO dto = new AddTaskCommentDTO();
         dto.setContent("继续修改");
         when(taskMapper.selectById(10L)).thenReturn(task);
@@ -908,7 +938,7 @@ public class TaskServiceTest {
         BusinessException exception = assertThrows(BusinessException.class, () -> performTaskWrite(operation));
 
         assertEquals(409, exception.getCode());
-        assertEquals(taskStatus, task.getStatus());
+        assertEquals(TaskStatus.fromCode(taskStatus), task.getStatus());
         verify(projectMapper).selectByIdForUpdate(4L);
         verifyNoMoreInteractions(projectMapper);
         verify(taskMapper).selectById(10L);
@@ -936,7 +966,7 @@ public class TaskServiceTest {
             TaskSubmission submission = new TaskSubmission();
             submission.setId(100L);
             submission.setTaskId(10L);
-            submission.setReviewStatus("PENDING");
+            submission.setReviewStatus(TaskSubmissionStatus.PENDING);
             when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
         }
 
@@ -946,33 +976,46 @@ public class TaskServiceTest {
         order.verify(projectMapper).selectByIdForUpdate(4L);
         switch (operation) {
             case "START" -> {
-                order.verify(taskMapper).transitionAssigneeTaskIfCurrent(eq(10L), eq(1L), eq("TODO"), eq("IN_PROGRESS"), any());
-                assertEquals("IN_PROGRESS", task.getStatus());
+                order
+                    .verify(taskMapper)
+                    .transitionAssigneeTaskIfCurrent(eq(10L), eq(1L), eq(TaskStatus.TODO), eq(TaskStatus.IN_PROGRESS), any());
+                assertEquals(TaskStatus.IN_PROGRESS, task.getStatus());
             }
             case "SUBMIT" -> {
-                order.verify(taskMapper).transitionAssigneeTaskIfCurrent(eq(10L), eq(1L), eq("IN_PROGRESS"), eq("REVIEW"), any());
+                order
+                    .verify(taskMapper)
+                    .transitionAssigneeTaskIfCurrent(eq(10L), eq(1L), eq(TaskStatus.IN_PROGRESS), eq(TaskStatus.REVIEW), any());
                 order.verify(taskSubmissionMapper).insert(any(TaskSubmission.class));
-                assertEquals("REVIEW", task.getStatus());
+                assertEquals(TaskStatus.REVIEW, task.getStatus());
             }
             case "APPROVE", "REJECT" -> {
                 String nextStatus = "APPROVE".equals(operation) ? "DONE" : "IN_PROGRESS";
                 String reviewStatus = "APPROVE".equals(operation) ? "APPROVED" : "REJECTED";
-                order.verify(taskMapper).transitionStatusIfCurrent(eq(10L), eq("REVIEW"), eq(nextStatus), any(), any());
+                order
+                    .verify(taskMapper)
+                    .transitionStatusIfCurrent(eq(10L), eq(TaskStatus.REVIEW), eq(TaskStatus.fromCode(nextStatus)), any(), any());
                 order
                     .verify(taskSubmissionMapper)
-                    .reviewPendingSubmission(eq(100L), eq(10L), eq(reviewStatus), eq(1L), eq("审核意见"), any());
-                assertEquals(nextStatus, task.getStatus());
+                    .reviewPendingSubmission(
+                        eq(100L),
+                        eq(10L),
+                        eq(TaskSubmissionStatus.fromCode(reviewStatus)),
+                        eq(1L),
+                        eq("审核意见"),
+                        any()
+                    );
+                assertEquals(TaskStatus.fromCode(nextStatus), task.getStatus());
             }
             case "CANCEL" -> {
                 order.verify(taskMapper).cancelIfActive(eq(10L), eq("取消原因"), any());
-                assertEquals("CANCELLED", task.getStatus());
+                assertEquals(TaskStatus.CANCELLED, task.getStatus());
             }
             case "COMMENT" -> {
                 ArgumentCaptor<TaskComment> captor = ArgumentCaptor.forClass(TaskComment.class);
                 order.verify(taskCommentMapper).insert(captor.capture());
                 assertEquals(10L, captor.getValue().getTaskId());
                 assertEquals("评论内容", captor.getValue().getContent());
-                assertEquals(taskStatus, task.getStatus());
+                assertEquals(TaskStatus.fromCode(taskStatus), task.getStatus());
             }
             default -> throw new IllegalArgumentException(operation);
         }
@@ -994,7 +1037,7 @@ public class TaskServiceTest {
     void createTaskChecksManagerAfterProjectLock() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
@@ -1023,7 +1066,7 @@ public class TaskServiceTest {
     void demotedManagerCannotCreateTask() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
@@ -1051,10 +1094,10 @@ public class TaskServiceTest {
         task.setId(10L);
         task.setProjectId(4L);
         task.setAssigneeId(1L);
-        task.setStatus(taskStatus);
+        task.setStatus(TaskStatus.fromCode(taskStatus));
         Project project = new Project();
         project.setId(4L);
-        project.setStatus(projectStatus);
+        project.setStatus(ProjectStatus.fromCode(projectStatus));
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         return task;
@@ -1093,7 +1136,7 @@ public class TaskServiceTest {
     void createTaskRegistersCacheEviction() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
@@ -1112,7 +1155,7 @@ public class TaskServiceTest {
     void createTaskDoesNotRegisterCacheEvictionWhenPermissionDenied() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
@@ -1172,12 +1215,58 @@ public class TaskServiceTest {
         submission.setId(100L);
         submission.setTaskId(10L);
         submission.setSubmissionNo(1);
-        submission.setReviewStatus("PENDING");
+        submission.setReviewStatus(TaskSubmissionStatus.PENDING);
 
         when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
 
         performTaskWrite(action);
 
         verify(taskSummaryCache).evictAfterCommit(4L);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "APPROVE, REVIEW",
+            "REJECT, REVIEW",
+            "CANCEL, TODO",
+            "CANCEL, IN_PROGRESS"
+    })
+    void managerTaskWritesMustRecheckPermissionAfterProjectLock(
+            String operation, String initialStatus) {
+
+        Task task = mockTaskWriteContext(initialStatus, "IN_PROGRESS");
+
+        // 前置检查默认通过；模拟取得项目锁后，发现已不是负责人。
+        doThrow(new BusinessException(403, "你不是该项目负责人"))
+                .when(projectPermissionService)
+                .requireProjectManagerForUpdate(4L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> performTaskWrite(operation)
+        );
+
+        assertEquals(403, exception.getCode());
+        assertEquals(TaskStatus.fromCode(initialStatus), task.getStatus());
+
+        // 必须先普通权限检查，再锁项目，最后锁后权限复核。
+        org.mockito.InOrder order =
+                inOrder(projectPermissionService, projectMapper);
+
+        order.verify(projectPermissionService).requireProjectManager(4L);
+        order.verify(projectMapper).selectByIdForUpdate(4L);
+        order.verify(projectPermissionService).requireProjectManagerForUpdate(4L);
+
+        // 除了最初读取任务，不能继续更新任务或产生其他副作用。
+        verify(taskMapper).selectById(10L);
+        verifyNoMoreInteractions(taskMapper);
+
+        verifyNoInteractions(
+                taskSubmissionMapper,
+                taskCommentMapper,
+                operationLogService,
+                notificationService,
+                taskSummaryCache
+        );
     }
 }

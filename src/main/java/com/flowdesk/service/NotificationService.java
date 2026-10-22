@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.flowdesk.context.UserContext;
@@ -30,7 +32,7 @@ public class NotificationService {
     public void createNotification(CreateNotificationDTO dto) {
         User recipient = userMapper.selectById(dto.getRecipientId());
 
-        if (recipient == null || !"ACTIVE".equals(recipient.getStatus())) {
+        if (recipient == null || !UserStatus.ACTIVE.equals(recipient.getStatus())) {
             return;
         }
 

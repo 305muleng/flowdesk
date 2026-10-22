@@ -1,5 +1,7 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.ProjectInvitationStatus;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -15,7 +17,7 @@ public class ProjectInvitation {
     private Long projectId;
     private Long inviterId;
     private Long inviteeId;
-    private String status;
+    private ProjectInvitationStatus status;
 
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
@@ -72,11 +74,11 @@ public class ProjectInvitation {
         this.inviteeId = inviteeId;
     }
 
-    public String getStatus() {
+    public ProjectInvitationStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(ProjectInvitationStatus status) {
         this.status = status;
     }
 

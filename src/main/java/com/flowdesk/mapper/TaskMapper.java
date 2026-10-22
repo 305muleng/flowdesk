@@ -1,5 +1,7 @@
 package com.flowdesk.mapper;
 
+import com.flowdesk.enums.TaskStatus;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -55,8 +57,8 @@ public interface TaskMapper extends BaseMapper<Task> {
             """)
     int transitionStatusIfCurrent(
         @Param("taskId") Long taskId,
-        @Param("expectedStatus") String expectedStatus,
-        @Param("newStatus") String newStatus,
+        @Param("expectedStatus") TaskStatus expectedStatus,
+        @Param("newStatus") TaskStatus newStatus,
         @Param("completedAt") LocalDateTime completedAt,
         @Param("updatedAt") LocalDateTime updatedAt
     );
@@ -70,8 +72,8 @@ public interface TaskMapper extends BaseMapper<Task> {
     int transitionAssigneeTaskIfCurrent(
         @Param("taskId") Long taskId,
         @Param("assigneeId") Long assigneeId,
-        @Param("expectedStatus") String expectedStatus,
-        @Param("newStatus") String newStatus,
+        @Param("expectedStatus") TaskStatus expectedStatus,
+        @Param("newStatus") TaskStatus newStatus,
         @Param("updatedAt") LocalDateTime updatedAt
     );
 

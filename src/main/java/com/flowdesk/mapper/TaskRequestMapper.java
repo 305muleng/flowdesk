@@ -1,5 +1,7 @@
 package com.flowdesk.mapper;
 
+import com.flowdesk.enums.TaskRequestStatus;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.flowdesk.model.TaskRequest;
 import com.flowdesk.vo.TaskRequestVO;
@@ -34,7 +36,7 @@ public interface TaskRequestMapper extends BaseMapper<TaskRequest> {
     int reviewIfPending(
         @Param("requestId") Long requestId,
         @Param("projectId") Long projectId,
-        @Param("newStatus") String newStatus,
+        @Param("newStatus") TaskRequestStatus newStatus,
         @Param("reviewerId") Long reviewerId,
         @Param("reviewNote") String reviewNote,
         @Param("reviewedAt") LocalDateTime reviewedAt

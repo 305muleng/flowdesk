@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.UserStatus;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.flowdesk.common.PageResult;
@@ -56,7 +58,7 @@ public class AdminUserService {
         }
 
         if (status != null && !status.isBlank()) {
-            wrapper.eq(User::getStatus, status.trim());
+            wrapper.eq(User::getStatus, UserStatus.fromCode(status.trim()));
         }
 
         if (systemRole != null && !systemRole.isBlank()) {
@@ -89,7 +91,7 @@ public class AdminUserService {
             throw new BusinessException(409, "不能禁用自己的账号");
         }
 
-        if ("DISABLED".equals(user.getStatus())) {
+        if (UserStatus.DISABLED.equals(user.getStatus())) {
             return;
         }
 
@@ -99,8 +101,8 @@ public class AdminUserService {
                 .stream()
                 .map(project -> {
                     String reason = switch (project.getStatus()) {
-                        case "PENDING_ACCEPTANCE" -> "先完成验收处理，当前不能转让";
-                        case "COMPLETED" -> "先归档项目";
+                        case PENDING_ACCEPTANCE -> "先完成验收处理，当前不能转让";
+                        case COMPLETED -> "先归档项目";
                         default -> "先转让项目负责人";
                     };
                     return "项目 #" + project.getId() + " “" + project.getName() + "”：" + reason;
@@ -109,7 +111,7 @@ public class AdminUserService {
             throw new BusinessException(409, "该用户仍担任以下项目的项目负责人：" + details);
         }
 
-        user.setStatus("DISABLED");
+        user.setStatus(UserStatus.DISABLED);
         user.setUpdatedAt(LocalDateTime.now());
 
         userMapper.updateById(user);
@@ -123,11 +125,11 @@ public class AdminUserService {
             throw new BusinessException(404, "用户不存在");
         }
 
-        if ("ACTIVE".equals(user.getStatus())) {
+        if (UserStatus.ACTIVE.equals(user.getStatus())) {
             return;
         }
 
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         user.setUpdatedAt(LocalDateTime.now());
 
         userMapper.updateById(user);
@@ -140,7 +142,7 @@ public class AdminUserService {
         vo.setUsername(user.getUsername());
         vo.setRealName(user.getRealName());
         vo.setSystemRole(user.getSystemRole());
-        vo.setStatus(user.getStatus());
+        vo.setStatus(user.getStatus() == null ? null : user.getStatus().getCode());
         vo.setCreatedAt(user.getCreatedAt());
         vo.setUpdatedAt(user.getUpdatedAt());
 

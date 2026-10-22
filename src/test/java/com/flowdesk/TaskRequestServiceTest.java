@@ -1,5 +1,11 @@
 package com.flowdesk;
 
+import com.flowdesk.enums.ProjectMemberStatus;
+import com.flowdesk.enums.UserStatus;
+import com.flowdesk.enums.TaskRequestStatus;
+import com.flowdesk.enums.TaskStatus;
+import com.flowdesk.enums.ProjectStatus;
+
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
@@ -78,12 +84,21 @@ public class TaskRequestServiceTest {
             .thenAnswer(invocation -> {
                 User user = new User();
                 user.setId(invocation.getArgument(0));
-                user.setStatus("ACTIVE");
+                user.setStatus(UserStatus.ACTIVE);
                 user.setSystemRole("USER");
                 return user;
             });
         lenient()
-            .when(taskRequestMapper.reviewIfPending(anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any()))
+            .when(
+                taskRequestMapper.reviewIfPending(
+                    anyLong(),
+                    anyLong(),
+                    any(TaskRequestStatus.class),
+                    anyLong(),
+                    nullable(String.class),
+                    any()
+                )
+            )
             .thenReturn(1);
         lenient()
             .when(taskRequestMapper.cancelIfPending(anyLong(), anyLong(), anyLong(), any()))
@@ -95,7 +110,7 @@ public class TaskRequestServiceTest {
                 member.setProjectId(4L);
                 member.setUserId(2L);
                 member.setRole("DEVELOPER");
-                member.setStatus("ACTIVE");
+                member.setStatus(ProjectMemberStatus.ACTIVE);
                 return member;
             });
     }
@@ -113,7 +128,7 @@ public class TaskRequestServiceTest {
         // 1. 准备一个已经归档的项目
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("ARCHIVED");
+        project.setStatus(ProjectStatus.ARCHIVED);
 
         // 2. 准备审批参数
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
@@ -141,7 +156,7 @@ public class TaskRequestServiceTest {
         // 1. 准备一个正在进行中的项目
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         // 2. 准备 Jack 提交的任务申请
         TaskRequest request = new TaskRequest();
@@ -154,7 +169,7 @@ public class TaskRequestServiceTest {
         request.setDescription("统计项目中的任务数量");
         request.setGoal("查看项目任务完成情况");
 
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
 
         // 3. 准备 Tom 的审批参数
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
@@ -226,7 +241,7 @@ public class TaskRequestServiceTest {
          */
         assertEquals(1L, createdTask.getCreatorId());
 
-        assertEquals("TODO", createdTask.getStatus());
+        assertEquals(TaskStatus.TODO, createdTask.getStatus());
 
         assertEquals("MEDIUM", createdTask.getPriority());
 
@@ -237,7 +252,7 @@ public class TaskRequestServiceTest {
         assertEquals("查看项目任务完成情况", createdTask.getGoal());
 
         // 11. 检查原来的 TaskRequest
-        assertEquals("APPROVED", request.getStatus());
+        assertEquals(TaskRequestStatus.APPROVED, request.getStatus());
 
         assertEquals(1L, request.getReviewerId());
 
@@ -273,14 +288,14 @@ public class TaskRequestServiceTest {
         developer.setProjectId(4L);
         developer.setUserId(2L);
         developer.setRole("DEVELOPER");
-        developer.setStatus("ACTIVE");
+        developer.setStatus(ProjectMemberStatus.ACTIVE);
 
         when(projectPermissionService.requireProjectMember(4L)).thenReturn(developer);
 
         // 项目允许提交任务申请
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
@@ -310,7 +325,7 @@ public class TaskRequestServiceTest {
         manager.setProjectId(4L);
         manager.setUserId(1L);
         manager.setRole("PROJECT_MANAGER");
-        manager.setStatus("ACTIVE");
+        manager.setStatus(ProjectMemberStatus.ACTIVE);
 
         when(projectMemberMapper.selectList(any())).thenReturn(List.of(manager));
 
@@ -348,16 +363,16 @@ public class TaskRequestServiceTest {
         when(projectPermissionService.requireProjectMember(4L)).thenReturn(developer);
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         ProjectMember manager = new ProjectMember();
         manager.setUserId(1L);
         manager.setRole("PROJECT_MANAGER");
-        manager.setStatus("ACTIVE");
+        manager.setStatus(ProjectMemberStatus.ACTIVE);
         when(projectMemberMapper.selectList(any())).thenReturn(List.of(manager));
         User disabled = new User();
         disabled.setId(1L);
-        disabled.setStatus("DISABLED");
+        disabled.setStatus(UserStatus.DISABLED);
         disabled.setSystemRole("USER");
         when(userMapper.selectById(1L)).thenReturn(disabled);
         UserContext.set(new CurrentUser(2L, "USER"));
@@ -373,14 +388,14 @@ public class TaskRequestServiceTest {
     void rejectingTaskRequestNotifiesRequester() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         TaskRequest request = new TaskRequest();
         request.setId(10L);
         request.setProjectId(4L);
         request.setRequesterId(2L);
         request.setTitle("增加缓存");
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
 
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
 
@@ -399,7 +414,7 @@ public class TaskRequestServiceTest {
         // REJECT 不会产生正式 Task
         assertEquals(null, result);
 
-        assertEquals("REJECTED", request.getStatus());
+        assertEquals(TaskRequestStatus.REJECTED, request.getStatus());
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
@@ -422,7 +437,7 @@ public class TaskRequestServiceTest {
     void approvingTaskRequestAndAssigningToRequesterCreatesCombinedNotification() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         TaskRequest request = new TaskRequest();
         request.setId(10L);
@@ -431,7 +446,7 @@ public class TaskRequestServiceTest {
         request.setTitle("增加缓存");
         request.setDescription("增加 Redis 缓存");
         request.setGoal("降低数据库压力");
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
 
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
 
@@ -454,7 +469,7 @@ public class TaskRequestServiceTest {
         ProjectMember jack = new ProjectMember();
         jack.setProjectId(4L);
         jack.setUserId(2L);
-        jack.setStatus("ACTIVE");
+        jack.setStatus(ProjectMemberStatus.ACTIVE);
         jack.setRole("DEVELOPER");
 
         when(projectMemberMapper.selectOne(any())).thenReturn(jack);
@@ -498,7 +513,7 @@ public class TaskRequestServiceTest {
     void approvingTaskRequestAndAssigningToAnotherDeveloperCreatesTwoNotifications() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         TaskRequest request = new TaskRequest();
         request.setId(10L);
@@ -507,7 +522,7 @@ public class TaskRequestServiceTest {
         request.setTitle("增加缓存");
         request.setDescription("增加 Redis 缓存");
         request.setGoal("降低数据库压力");
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
 
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
 
@@ -530,7 +545,7 @@ public class TaskRequestServiceTest {
         ProjectMember rose = new ProjectMember();
         rose.setProjectId(4L);
         rose.setUserId(3L);
-        rose.setStatus("ACTIVE");
+        rose.setStatus(ProjectMemberStatus.ACTIVE);
         rose.setRole("DEVELOPER");
 
         when(projectMemberMapper.selectOne(any())).thenReturn(rose);
@@ -583,18 +598,18 @@ public class TaskRequestServiceTest {
     void approvingRequestFromInactiveRequesterIsRejected() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         TaskRequest request = new TaskRequest();
         request.setId(10L);
         request.setProjectId(4L);
         request.setRequesterId(2L);
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("APPROVE");
         dto.setDeadline(LocalDateTime.now().plusDays(1));
         User disabled = new User();
         disabled.setId(2L);
-        disabled.setStatus("DISABLED");
+        disabled.setStatus(UserStatus.DISABLED);
         disabled.setSystemRole("USER");
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
@@ -609,7 +624,7 @@ public class TaskRequestServiceTest {
         verify(taskRequestMapper, never()).reviewIfPending(
             anyLong(),
             anyLong(),
-            anyString(),
+            any(TaskRequestStatus.class),
             anyLong(),
             nullable(String.class),
             any()
@@ -621,12 +636,12 @@ public class TaskRequestServiceTest {
     void concurrentRequestReviewCreatesNoDuplicateTask() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         TaskRequest request = new TaskRequest();
         request.setId(10L);
         request.setProjectId(4L);
         request.setRequesterId(2L);
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("APPROVE");
         dto.setDeadline(LocalDateTime.now().plusDays(1));
@@ -634,7 +649,14 @@ public class TaskRequestServiceTest {
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskRequestMapper.selectById(10L)).thenReturn(request);
         when(
-            taskRequestMapper.reviewIfPending(anyLong(), anyLong(), anyString(), anyLong(), nullable(String.class), any())
+            taskRequestMapper.reviewIfPending(
+                anyLong(),
+                anyLong(),
+                any(TaskRequestStatus.class),
+                anyLong(),
+                nullable(String.class),
+                any()
+            )
         ).thenReturn(0);
 
         BusinessException exception = assertThrows(BusinessException.class, () ->
@@ -650,13 +672,13 @@ public class TaskRequestServiceTest {
     void concurrentCancelCannotOverwriteReviewedRequest() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         TaskRequest request = new TaskRequest();
         request.setId(10L);
         request.setProjectId(4L);
         request.setRequesterId(2L);
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
         UserContext.set(new CurrentUser(2L, "USER"));
         when(taskRequestMapper.selectById(10L)).thenReturn(request);
         when(taskRequestMapper.cancelIfPending(eq(10L), eq(4L), eq(2L), any())).thenReturn(0);
@@ -679,7 +701,7 @@ public class TaskRequestServiceTest {
     void approvingTaskRequestRegistersCacheEviction() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         TaskRequest request = new TaskRequest();
         request.setId(10L);
@@ -688,7 +710,7 @@ public class TaskRequestServiceTest {
         request.setTitle("缓存测试任务");
         request.setDescription("测试描述");
         request.setGoal("测试目标");
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
 
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("APPROVE");
@@ -720,14 +742,14 @@ public class TaskRequestServiceTest {
     void rejectingTaskRequestDoesNotRegisterCacheEviction() {
         Project project = new Project();
         project.setId(4L);
-        project.setStatus("IN_PROGRESS");
+        project.setStatus(ProjectStatus.IN_PROGRESS);
 
         TaskRequest request = new TaskRequest();
         request.setId(10L);
         request.setProjectId(4L);
         request.setRequesterId(2L);
         request.setTitle("缓存测试任务");
-        request.setStatus("PENDING");
+        request.setStatus(TaskRequestStatus.PENDING);
 
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("REJECT");

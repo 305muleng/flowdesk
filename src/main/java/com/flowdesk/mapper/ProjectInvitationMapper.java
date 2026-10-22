@@ -1,5 +1,7 @@
 package com.flowdesk.mapper;
 
+import com.flowdesk.enums.ProjectInvitationStatus;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.flowdesk.model.ProjectInvitation;
 import com.flowdesk.vo.InvitationVO;
@@ -33,7 +35,7 @@ public interface ProjectInvitationMapper extends BaseMapper<ProjectInvitation> {
             """)
     int transitionPending(
         @Param("invitationId") Long invitationId,
-        @Param("newStatus") String newStatus,
+        @Param("newStatus") ProjectInvitationStatus newStatus,
         @Param("respondedAt") LocalDateTime respondedAt
     );
 
