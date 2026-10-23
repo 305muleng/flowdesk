@@ -235,11 +235,12 @@ test('frozen and terminal project explanations retain the existing business dist
   assert.equal(message('IN_PROGRESS'), '')
   assert.equal(message('PREPARING'), '')
 })
-test('acceptance contribution scope explicitly includes historical members without claiming a snapshot', () => {
+test('acceptance detail labels delivery sources and keeps project status explicitly current', () => {
   const content = view('AdminAcceptanceDetailView').template.content
   assert.match(content, /成员贡献（含历史成员）/)
-  assert.match(content, /包含已退出或被移除的历史成员/)
-  assert.match(content, /并非本轮验收提交时的历史快照/)
+  assert.match(content, /presentation\.notice/)
+  assert.match(content, /presentation\.memberDescription/)
+  assert.match(content, /当前项目状态/)
 })
 test('historical acceptance notifications open the record rather than the pending-only list', () => {
   const context = runFunctions('NotificationsView', ['isManagerTransferNotification', 'categoryFor', 'actionFor'], {

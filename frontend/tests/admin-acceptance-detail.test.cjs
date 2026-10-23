@@ -7,6 +7,11 @@ const ts = require('typescript')
 const { parse } = require('@vue/compiler-sfc')
 const { compile } = require('@vue/compiler-dom')
 const Vue = require('vue')
+const presentationModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(
+  fs.readFileSync(path.join(__dirname, '../src/utils/acceptanceSnapshot.ts'), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS } },
+).outputText, presentationModule)
 
 const source = fs.readFileSync(path.join(__dirname, '../src/views/AdminAcceptanceDetailView.vue'), 'utf8')
 const descriptor = parse(source).descriptor
@@ -47,8 +52,11 @@ function nodes(vnode) {
   ]
 }
 
-function page(status = 'PENDING') {
+function page(status = 'PENDING', dataSource = 'LEGACY_CURRENT') {
   const detail = {
+    dataSource,
+    snapshotVersion: dataSource === 'SUBMISSION_SNAPSHOT' ? 1 : null,
+    snapshotCapturedAt: dataSource === 'SUBMISSION_SNAPSHOT' ? '2026-09-28' : null,
     id: 7,
     acceptanceNo: 2,
     projectName: 'FlowDesk',
@@ -104,6 +112,7 @@ function page(status = 'PENDING') {
   }
   const context = {
     detail,
+    presentation: presentationModule.exports.acceptancePresentation(dataSource),
     loading: false,
     error: '',
     processing: false,
@@ -162,13 +171,24 @@ test('pending acceptance shows review actions; reviewed acceptance hides them', 
   assert.ok(approved.includes('检查通过'))
 })
 
-test('multiple rounds explain that project data is current rather than a historical snapshot', () => {
+test('legacy rounds explicitly label current data and cannot reconstruct old delivery', () => {
   const tree = page()
-  const notice = tree.find((node) => node.type === 'el-alert' && node.props?.type === 'info')
+  const notice = tree.find((node) => node.type === 'el-alert' && node.props?.type === 'warning')
   assert.ok(notice)
-  assert.match(notice.props.title, /当前数据.*并非本轮验收提交时的历史快照/)
+  assert.match(notice.props.title, /未保存提交快照.*当前数据.*无法还原提交时状态/)
   const text = content(tree)
   for (const label of ['当前项目状态', '当前交付信息', '当前任务统计', '当前成员贡献', '当前取消任务']) {
     assert.ok(text.includes(label))
   }
+})
+
+test('snapshot rounds label frozen sections while project and review state stay current', () => {
+  const tree = page('APPROVED', 'SUBMISSION_SNAPSHOT')
+  const notice = tree.find((node) => node.type === 'el-alert' && node.props?.type === 'info')
+  assert.match(notice.props.title, /本轮提交时的数据/)
+  const text = content(tree)
+  for (const label of ['本轮提交快照', '快照时间', '本轮提交时的交付信息', '本轮提交时的任务统计', '本轮提交时的成员贡献', '当前项目状态', '检查通过']) {
+    assert.ok(text.includes(label), `${label} should appear`)
+  }
+  assert.ok(!text.includes('旧记录 · 当前数据'))
 })

@@ -40,6 +40,21 @@ public class ProjectAcceptanceDetailVO {
 
     private List<ProjectAcceptanceVO> acceptanceHistory;
 
+    private String dataSource;
+    private Integer snapshotVersion;
+    private LocalDateTime snapshotCapturedAt;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String snapshotJson;
+
+    public String getDataSource() { return dataSource; }
+    public void setDataSource(String dataSource) { this.dataSource = dataSource; }
+    public Integer getSnapshotVersion() { return snapshotVersion; }
+    public void setSnapshotVersion(Integer snapshotVersion) { this.snapshotVersion = snapshotVersion; }
+    public LocalDateTime getSnapshotCapturedAt() { return snapshotCapturedAt; }
+    public void setSnapshotCapturedAt(LocalDateTime snapshotCapturedAt) { this.snapshotCapturedAt = snapshotCapturedAt; }
+    public String getSnapshotJson() { return snapshotJson; }
+    public void setSnapshotJson(String snapshotJson) { this.snapshotJson = snapshotJson; }
+
     public List<ProjectAcceptanceVO> getAcceptanceHistory() {
         return acceptanceHistory;
     }

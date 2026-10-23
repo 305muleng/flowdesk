@@ -97,6 +97,9 @@ public class ProjectManagerTransferService {
             throw new BusinessException(404, "项目不存在");
         }
 
+        // 项目锁等待期间负责人可能变化，使用当前成员关系重新授权。
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+
         // 3. 只有 PREPARING / IN_PROGRESS 可以转让
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许转让项目负责人");

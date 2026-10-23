@@ -281,6 +281,9 @@ public class MemberLeaveRequestService {
             throw new BusinessException(404, "项目不存在");
         }
 
+        // 项目锁等待期间负责人可能变化，使用当前成员关系重新授权。
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+
         // 3. 当前项目必须允许成员变化
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许审批退出申请");

@@ -16,6 +16,7 @@ import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
 import com.flowdesk.vo.*;
+import com.flowdesk.snapshot.AcceptanceSnapshotCodec;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ public class ProjectAcceptanceService {
     private final NotificationService notificationService;
     private final ProjectMemberMapper projectMemberMapper;
     private final ProjectRequestClosureService requestClosureService;
+    private final AcceptanceSnapshotCodec snapshotCodec;
 
     public ProjectAcceptanceService(
         ProjectAcceptanceMapper projectAcceptanceMapper,
@@ -48,7 +50,8 @@ public class ProjectAcceptanceService {
         UserMapper userMapper,
         NotificationService notificationService,
         ProjectMemberMapper projectMemberMapper,
-        ProjectRequestClosureService requestClosureService
+        ProjectRequestClosureService requestClosureService,
+        AcceptanceSnapshotCodec snapshotCodec
     ) {
         this.projectAcceptanceMapper = projectAcceptanceMapper;
         this.projectMapper = projectMapper;
@@ -60,6 +63,7 @@ public class ProjectAcceptanceService {
         this.notificationService = notificationService;
         this.projectMemberMapper = projectMemberMapper;
         this.requestClosureService = requestClosureService;
+        this.snapshotCodec = snapshotCodec;
     }
 
     @Transactional
@@ -135,6 +139,25 @@ public class ProjectAcceptanceService {
 
         acceptance.setReviewStatus(ProjectAcceptanceStatus.PENDING);
         acceptance.setSubmittedAt(now);
+
+        // All snapshot reads occur after the project lock. Use this submission's validated links.
+        ProjectAcceptanceDetailVO captured = new ProjectAcceptanceDetailVO();
+        captured.setProjectId(projectId);
+        captured.setProjectName(project.getName());
+        captured.setProjectDescription(project.getDescription());
+        captured.setProjectGoal(project.getGoal());
+        captured.setRepositoryUrl(repositoryUrl);
+        captured.setDeployUrl(deployUrl);
+        captured.setDocumentUrl(documentUrl);
+        captured.setSubmitterId(currentUser.getUserId());
+        User submitter = userMapper.selectById(currentUser.getUserId());
+        if (submitter == null) {
+            throw new BusinessException(401, "当前用户不存在");
+        }
+        captured.setSubmitterName(submitter.getRealName());
+        populateCurrentDelivery(captured);
+        acceptance.setSnapshotVersion(AcceptanceSnapshotCodec.VERSION);
+        acceptance.setSnapshotJson(snapshotCodec.encode(captured));
 
         int transitioned = projectMapper.submitAcceptanceIfInProgress(projectId, repositoryUrl, deployUrl, documentUrl, now);
         if (transitioned != 1) {
@@ -415,11 +438,23 @@ public class ProjectAcceptanceService {
             throw new BusinessException(404, "项目验收记录不存在");
         }
 
-        Long projectId = detail.getProjectId();
+        if (detail.getSnapshotVersion() == null && detail.getSnapshotJson() == null) {
+            detail.setDataSource("LEGACY_CURRENT");
+            populateCurrentDelivery(detail);
+        } else {
+            snapshotCodec.apply(detail.getSnapshotVersion(), detail.getSnapshotJson(), detail);
+            detail.setDataSource("SUBMISSION_SNAPSHOT");
+            detail.setSnapshotCapturedAt(detail.getSubmittedAt());
+        }
+        detail.setAcceptanceHistory(projectAcceptanceMapper.selectProjectAcceptances(detail.getProjectId()));
+        return detail;
+    }
 
-        // 2. 一次查出项目所有有效任务
+    private void populateCurrentDelivery(ProjectAcceptanceDetailVO detail) {
+        Long projectId = detail.getProjectId();
+        // Direct MySQL aggregation; never freeze a potentially stale cache value.
         List<Task> tasks = taskMapper.selectList(
-            new LambdaQueryWrapper<Task>().eq(Task::getProjectId, projectId).isNull(Task::getDeletedAt)
+            new LambdaQueryWrapper<Task>().eq(Task::getProjectId, projectId).isNull(Task::getDeletedAt).orderByAsc(Task::getId)
         );
 
         int completedTaskCount = 0;
@@ -501,10 +536,6 @@ public class ProjectAcceptanceService {
 
         detail.setCancelledTasks(cancelledTasks);
 
-        // 6. 历次验收记录
-        detail.setAcceptanceHistory(projectAcceptanceMapper.selectProjectAcceptances(projectId));
-
-        return detail;
     }
 
     private String trimToNull(String value) {
