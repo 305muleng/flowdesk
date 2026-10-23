@@ -142,7 +142,8 @@ class ProjectRequestClosureTransactionTest {
             ProjectMemberMapper m,
             ProjectRequestClosureService c
         ) {
-            return new ProjectAcceptanceService(a, p, t, permission, l, r, u, n, m, c);
+            return new ProjectAcceptanceService(a, p, t, permission, l, r, u, n, m, c,
+                new com.flowdesk.snapshot.AcceptanceSnapshotCodec(new tools.jackson.databind.ObjectMapper()));
         }
     }
 

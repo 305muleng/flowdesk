@@ -117,6 +117,8 @@ public interface ProjectAcceptanceMapper extends BaseMapper<ProjectAcceptance> {
         pa.reviewed_at AS reviewedAt,
 
         p.id AS projectId,
+        pa.snapshot_version AS snapshotVersion,
+        pa.snapshot_json AS snapshotJson,
         p.name AS projectName,
         p.description AS projectDescription,
         p.goal AS projectGoal,

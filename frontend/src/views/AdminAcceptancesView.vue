@@ -56,7 +56,7 @@ onMounted(load)
   <section class="toolbar">
     <div>
       <h3>验收申请</h3>
-      <p>{{ error ? '列表暂不可用' : '共 ' + list.length + ' 条记录' }}</p>
+      <p>{{ error ? '列表暂不可用' : '共 ' + list.length + ' 条记录' }} · 列表项目名称为当前名称，进入详情查看当轮资料。</p>
     </div>
     <el-segmented
       v-model="filter"
