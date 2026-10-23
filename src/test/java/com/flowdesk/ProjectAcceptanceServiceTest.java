@@ -30,6 +30,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import com.flowdesk.snapshot.AcceptanceSnapshotCodec;
+import tools.jackson.databind.ObjectMapper;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -84,6 +87,9 @@ public class ProjectAcceptanceServiceTest {
     @InjectMocks
     private ProjectAcceptanceService projectAcceptanceService;
 
+    @Spy
+    private AcceptanceSnapshotCodec snapshotCodec = new AcceptanceSnapshotCodec(new ObjectMapper());
+
     @Mock
     private UserMapper userMapper;
 
@@ -95,6 +101,9 @@ public class ProjectAcceptanceServiceTest {
 
     @BeforeEach
     void setUpAtomicTransitionsAndManager() {
+        lenient().when(userMapper.selectById(anyLong())).thenAnswer(call -> {
+            User user = new User(); user.setId(call.getArgument(0)); user.setRealName("Test submitter"); return user;
+        });
         lenient()
             .when(
                 projectMapper.submitAcceptanceIfInProgress(
@@ -143,6 +152,7 @@ public class ProjectAcceptanceServiceTest {
     void submitAcceptanceMustNotReadPermissionBeforeProjectLock() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
@@ -162,6 +172,7 @@ public class ProjectAcceptanceServiceTest {
     void unfinishedTaskBlocksAcceptance() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
 
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
@@ -187,6 +198,7 @@ public class ProjectAcceptanceServiceTest {
     void pendingTaskRequestBlocksAcceptance() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
 
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
@@ -214,6 +226,7 @@ public class ProjectAcceptanceServiceTest {
     void validProjectCanSubmitAcceptance() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
 
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
@@ -263,6 +276,7 @@ public class ProjectAcceptanceServiceTest {
     void submittingAcceptanceNotifiesSystemAdmin() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setName("FlowDesk");
         project.setStatus(ProjectStatus.IN_PROGRESS);
 
@@ -335,6 +349,7 @@ public class ProjectAcceptanceServiceTest {
 
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setName("FlowDesk");
         project.setStatus(ProjectStatus.PENDING_ACCEPTANCE);
 
@@ -389,6 +404,7 @@ public class ProjectAcceptanceServiceTest {
 
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setName("FlowDesk");
         project.setStatus(ProjectStatus.PENDING_ACCEPTANCE);
 
@@ -444,6 +460,7 @@ public class ProjectAcceptanceServiceTest {
         // 1. 模拟项目存在，并且状态为进行中
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
@@ -483,6 +500,7 @@ public class ProjectAcceptanceServiceTest {
     void deletedProjectCannotSubmitAcceptance() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
         project.setDeletedAt(java.time.LocalDateTime.now());
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
@@ -502,6 +520,7 @@ public class ProjectAcceptanceServiceTest {
     void concurrentDoubleSubmitCreatesOnlyOnePendingAcceptance() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("提交验收");
@@ -581,6 +600,7 @@ public class ProjectAcceptanceServiceTest {
     void secondAcceptanceGetsNewHistoryNumber() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
         SubmitProjectAcceptanceDTO dto = new SubmitProjectAcceptanceDTO();
         dto.setSubmissionNote("第二轮验收");
@@ -745,6 +765,7 @@ public class ProjectAcceptanceServiceTest {
     private void prepareSubmission() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setStatus(ProjectStatus.IN_PROGRESS);
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
@@ -765,6 +786,7 @@ public class ProjectAcceptanceServiceTest {
     private Project pendingProject() {
         Project project = new Project();
         project.setId(4L);
+        project.setName("Test project");
         project.setName("FlowDesk");
         project.setStatus(ProjectStatus.PENDING_ACCEPTANCE);
         return project;

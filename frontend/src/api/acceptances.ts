@@ -25,6 +25,9 @@ export interface AcceptanceCancelledTask {
 }
 
 export interface ProjectAcceptanceDetail extends ProjectAcceptance {
+  dataSource: 'SUBMISSION_SNAPSHOT' | 'LEGACY_CURRENT'
+  snapshotVersion: number | null
+  snapshotCapturedAt: string | null
   projectDescription: string | null
   projectGoal: string | null
   projectStatus: string

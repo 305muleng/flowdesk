@@ -184,7 +184,7 @@ public class ProjectServiceTest {
 
         UserContext.set(new CurrentUser(1L, "USER"));
 
-        when(projectMapper.selectById(4L)).thenReturn(project);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
         projectService.startProject(4L);
 

@@ -28,6 +28,14 @@ public class ProjectAcceptance {
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;
 
+    private Integer snapshotVersion;
+    private String snapshotJson;
+
+    public Integer getSnapshotVersion() { return snapshotVersion; }
+    public void setSnapshotVersion(Integer snapshotVersion) { this.snapshotVersion = snapshotVersion; }
+    public String getSnapshotJson() { return snapshotJson; }
+    public void setSnapshotJson(String snapshotJson) { this.snapshotJson = snapshotJson; }
+
     public Long getId() {
         return id;
     }

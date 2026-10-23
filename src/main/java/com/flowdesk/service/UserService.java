@@ -10,6 +10,7 @@ import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.User;
 import com.flowdesk.util.JwtUtil;
+import com.flowdesk.validation.PasswordRules;
 import com.flowdesk.vo.LoginVO;
 import com.flowdesk.vo.UserProfileVO;
 import org.springframework.dao.DuplicateKeyException;
@@ -36,6 +37,10 @@ public class UserService {
 
         if (username.length() < 3) {
             throw new BusinessException(400, "用户名长度必须在3到50个字符之间");
+        }
+
+        if (!PasswordRules.isWithinBcryptLimit(dto.getPassword())) {
+            throw new BusinessException(400, PasswordRules.BCRYPT_LENGTH_MESSAGE);
         }
 
         Long count = userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
@@ -65,6 +70,10 @@ public class UserService {
     }
 
     public LoginVO login(LoginDTO dto) {
+        if (!PasswordRules.isWithinBcryptLimit(dto.getPassword())) {
+            throw new BusinessException(401, "用户名或密码错误");
+        }
+
         String username = dto.getUsername().trim();
 
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));

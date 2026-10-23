@@ -71,6 +71,9 @@ public class ProjectInvitationService {
             throw new BusinessException(404, "项目不存在");
         }
 
+        // 项目锁等待期间负责人可能变化，使用当前成员关系重新授权。
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许发送邀请");
         }

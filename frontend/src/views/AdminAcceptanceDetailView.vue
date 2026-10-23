@@ -7,6 +7,7 @@ import StatusTag from '@/components/StatusTag.vue'
 import { getAdminAcceptanceDetailApi, type ProjectAcceptanceDetail } from '@/api/acceptances'
 import { formatDateTime } from '@/utils/format'
 import { promptReviewAcceptance } from '@/utils/reviewAcceptance'
+import { acceptancePresentation } from '@/utils/acceptanceSnapshot'
 
 const route = useRoute()
 const acceptanceId = computed(() => Number(route.params.acceptanceId))
@@ -14,6 +15,7 @@ const detail = ref<ProjectAcceptanceDetail | null>(null)
 const loading = ref(false)
 const processing = ref(false)
 const error = ref('')
+const presentation = computed(() => acceptancePresentation(detail.value?.dataSource))
 
 const display = (value: string | null | undefined) => value?.trim() || '未提供'
 const date = (value: string | null | undefined) => formatDateTime(value || undefined)
@@ -61,7 +63,7 @@ watch(acceptanceId, load, { immediate: true })
 </script>
 
 <template>
-  <PageHeader eyebrow="SYSTEM ADMIN" title="项目验收详情" description="查看本轮审核记录，以及明确标注的项目当前交付与成员贡献。">
+  <PageHeader eyebrow="SYSTEM ADMIN" title="项目验收详情" description="按验收轮次查看交付资料、成员贡献与审核进展。">
     <el-button @click="$router.push({ name: 'admin-acceptances' })">返回列表</el-button>
     <el-button :icon="Refresh" circle :loading="loading" @click="load" />
   </PageHeader>
@@ -72,13 +74,14 @@ watch(acceptanceId, load, { immediate: true })
     </el-result>
     <template v-else-if="detail">
       <el-alert
-        title="以下项目状态、交付信息、任务统计、成员贡献和取消任务反映项目当前数据，并非本轮验收提交时的历史快照。"
-        type="info"
+        :title="presentation.notice"
+        :type="presentation.isSnapshot ? 'info' : 'warning'"
         :closable="false"
         show-icon
       />
+      <p class="muted"><strong>{{ presentation.label }}</strong><span v-if="presentation.isSnapshot"> · 快照时间：{{ date(detail.snapshotCapturedAt) }}</span></p>
       <section class="surface-card detail-section">
-        <h2>项目基本信息</h2>
+        <h2>{{ presentation.prefix }}项目资料</h2>
         <div class="info-grid">
           <div>
             <span>项目名称</span><strong>{{ detail.projectName }}</strong>
@@ -134,7 +137,7 @@ watch(acceptanceId, load, { immediate: true })
       </section>
 
       <section class="surface-card detail-section">
-        <h2>当前交付信息</h2>
+        <h2>{{ presentation.prefix }}交付信息</h2>
         <div class="info-grid">
           <div
             v-for="link in [
@@ -154,7 +157,7 @@ watch(acceptanceId, load, { immediate: true })
       </section>
 
       <section class="surface-card detail-section">
-        <h2>当前任务统计</h2>
+        <h2>{{ presentation.prefix }}任务统计</h2>
         <div class="stats-grid">
           <div>
             <span>总任务数</span><strong>{{ detail.totalTaskCount }}</strong>
@@ -173,8 +176,8 @@ watch(acceptanceId, load, { immediate: true })
 
       <p class="muted">验收完成占比 = DONE / (DONE + CANCELLED)，分母为零时为 0；表示已结束任务的完成与取消比例。</p>
       <section class="surface-card detail-section">
-        <h2>当前成员贡献（含历史成员）</h2>
-        <p class="muted">按项目当前任务数据统计，包含已退出或被移除的历史成员；项目内角色取保留的成员记录。</p>
+        <h2>{{ presentation.prefix }}成员贡献（含历史成员）</h2>
+        <p class="muted">{{ presentation.memberDescription }}</p>
         <el-empty v-if="!detail.members?.length" description="暂无成员贡献记录" />
         <div v-else class="record-list">
           <article v-for="member in detail.members" :key="member.userId" class="record-item">
@@ -194,7 +197,7 @@ watch(acceptanceId, load, { immediate: true })
       </section>
 
       <section class="surface-card detail-section">
-        <h2>当前取消任务</h2>
+        <h2>{{ presentation.prefix }}取消任务</h2>
         <el-empty v-if="!detail.cancelledTasks?.length" description="没有取消任务" />
         <div v-else class="record-list">
           <article v-for="task in detail.cancelledTasks" :key="task.taskId" class="record-item">

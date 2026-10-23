@@ -1,5 +1,6 @@
 package com.flowdesk.dto;
 
+import com.flowdesk.validation.BcryptPasswordLength;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -11,6 +12,7 @@ public class RegisterDTO {
 
     @NotBlank(message = "密码不能为空")
     @Size(min = 6, max = 50, message = "密码长度必须在6到50个字符之间")
+    @BcryptPasswordLength
     private String password;
 
     @NotBlank(message = "真实姓名不能为空")

@@ -176,11 +176,14 @@ public class ProjectService {
         projectPermissionService.requireProjectManager(projectId);
 
         // 2. 查询项目
-        Project project = projectMapper.selectById(projectId);
+        Project project = projectMapper.selectByIdForUpdate(projectId);
 
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
+
+        // 项目锁等待期间负责人可能变化，使用当前成员关系重新授权。
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
 
         // 3. 只有准备中的项目可以启动
         if (!ProjectStatus.PREPARING.equals(project.getStatus())) {
@@ -353,6 +356,9 @@ public class ProjectService {
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
+
+        // 项目锁等待期间负责人可能变化，使用当前成员关系重新授权。
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
 
         // 3. 只有准备中 / 进行中可以变更成员
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {

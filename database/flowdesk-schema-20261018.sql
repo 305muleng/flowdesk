@@ -142,6 +142,8 @@ CREATE TABLE `project_acceptance` (
   `review_note` text,
   `submitted_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `reviewed_at` datetime DEFAULT NULL,
+  `snapshot_version` int DEFAULT NULL,
+  `snapshot_json` json DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_acceptance_project_no` (`project_id`,`acceptance_no`),
   KEY `idx_acceptance_project_time` (`project_id`,`submitted_at`),

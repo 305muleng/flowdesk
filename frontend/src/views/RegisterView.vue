@@ -11,6 +11,10 @@ async function submit() {
     ElMessage.warning('请完整填写信息，用户名至少3位、密码至少6位')
     return
   }
+  if (new TextEncoder().encode(form.value.password).length > 72) {
+    ElMessage.warning('密码的 UTF-8 编码长度不能超过72字节，请缩短密码')
+    return
+  }
   loading.value = true
   try {
     await registerApi(form.value)
