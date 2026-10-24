@@ -140,7 +140,7 @@ public class ProjectAcceptanceService {
         acceptance.setReviewStatus(ProjectAcceptanceStatus.PENDING);
         acceptance.setSubmittedAt(now);
 
-        // All snapshot reads occur after the project lock. Use this submission's validated links.
+        // 获取项目锁后再读取全部快照数据；使用本次提交已校验的链接。
         ProjectAcceptanceDetailVO captured = new ProjectAcceptanceDetailVO();
         captured.setProjectId(projectId);
         captured.setProjectName(project.getName());
@@ -452,7 +452,7 @@ public class ProjectAcceptanceService {
 
     private void populateCurrentDelivery(ProjectAcceptanceDetailVO detail) {
         Long projectId = detail.getProjectId();
-        // Direct MySQL aggregation; never freeze a potentially stale cache value.
+        // 直接在 MySQL 中聚合，避免将可能过期的缓存值固化为快照。
         List<Task> tasks = taskMapper.selectList(
             new LambdaQueryWrapper<Task>().eq(Task::getProjectId, projectId).isNull(Task::getDeletedAt).orderByAsc(Task::getId)
         );

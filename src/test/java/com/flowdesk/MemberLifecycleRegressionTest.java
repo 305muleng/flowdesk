@@ -217,7 +217,7 @@ class MemberLifecycleRegressionTest {
         dto.setAssigneeId(2L);
         when(tasks.selectById(10L)).thenReturn(task("TODO"));
         when(projects.selectByIdForUpdate(4L)).thenReturn(project());
-        // The current membership read after acquiring the lock sees the committed departure.
+        // 获取锁后再次读取成员状态，应能看到已经提交的退出结果。
         when(members.selectMemberForUpdate(4L, 1L)).thenReturn(manager());
         when(members.selectMemberForUpdate(4L, 2L)).thenReturn(null);
         assertEquals(409, assertThrows(BusinessException.class, () -> taskService.assignTask(10L, dto)).getCode());
@@ -471,7 +471,7 @@ class MemberLifecycleRegressionTest {
         assertEquals(2, result.get(0).getUnfinishedTaskCount());
     }
 
-    // Guard actual mapper predicates without introducing a replacement database or schema.
+    // 检查真实映射器的查询条件，不引入替代数据库，也不修改表结构。
     String selectSql(Class<?> type, String method) {
         return java.util.Arrays.stream(type.getMethods())
             .filter(m -> m.getName().equals(method))

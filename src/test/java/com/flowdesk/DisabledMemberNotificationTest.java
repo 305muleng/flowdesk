@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import org.springframework.boot.test.context.TestConfiguration;
+
 import com.flowdesk.enums.ProjectStatus;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.UserStatus;
@@ -38,7 +40,7 @@ class DisabledMemberNotificationTest {
     AdminUserService admin;
     StubTransactionManager transactions;
 
-    @Configuration
+    @TestConfiguration
     @EnableTransactionManagement
     static class Config {
 

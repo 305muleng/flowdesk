@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import org.springframework.boot.test.context.TestConfiguration;
+
 import com.flowdesk.enums.ProjectStatus;
 import com.flowdesk.enums.ProjectAcceptanceStatus;
 
@@ -34,7 +36,7 @@ class ProjectRequestClosureTransactionTest {
     ProjectManagerTransferMapper transfers;
     TaskRequestMapper tasks;
 
-    @Configuration
+    @TestConfiguration
     @EnableTransactionManagement
     static class Config {
 

@@ -402,7 +402,7 @@ public class ProjectService {
             throw new BusinessException(409, "成员状态已发生变化，请刷新后重试");
         }
 
-        // 8. 自动取消该成员自己的 PENDING Task Request
+        // 8. 自动取消该成员自己仍处于 PENDING 状态的任务申请
         taskRequestMapper.cancelPendingByRequester(projectId, userId, now);
 
         // 9. 如果他自己还有 PENDING 退出申请，也结束掉
@@ -415,7 +415,7 @@ public class ProjectService {
             reason = dto.getReason().trim();
         }
 
-        // 11. Operation Log
+        // 11. 写入操作日志
         operationLogService.record(
             projectId,
             currentUser.getUserId(),

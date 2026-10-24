@@ -31,7 +31,7 @@ async function submit() {
     await props.submitAction(acceptanceSubmissionPayload(form.value))
     emit('update:modelValue', false)
   } catch {
-    // The shared request layer displays the server's error; keep the form open.
+    // 统一请求层会显示服务端错误；保留表单，便于用户修改后重试。
   } finally {
     submitting.value = false
   }

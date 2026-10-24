@@ -1,5 +1,9 @@
 package com.flowdesk;
 
+import org.springframework.boot.test.context.TestConfiguration;
+
+import com.flowdesk.support.IntegrationTest;
+
 import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
 import com.flowdesk.config.MybatisPlusConfig;
 import com.flowdesk.context.CurrentUser;
@@ -44,11 +48,12 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Real MySQL transactions and real Spring service proxy; deliberately no Redis or web context. */
+/** 使用真实 MySQL 事务和 Spring 服务代理；无需 Redis 或 Web 上下文。 */
 @SpringJUnitConfig(ProjectManagerAuthorizationConcurrencyIntegrationTest.DatabaseConfig.class)
 @TestPropertySource("classpath:application-test.properties")
+@IntegrationTest
 class ProjectManagerAuthorizationConcurrencyIntegrationTest {
-    @Configuration(proxyBeanMethods = false)
+    @TestConfiguration(proxyBeanMethods = false)
     @EnableTransactionManagement
     @ImportAutoConfiguration({DataSourceAutoConfiguration.class, DataSourceTransactionManagerAutoConfiguration.class,
             JdbcTemplateAutoConfiguration.class, MybatisPlusAutoConfiguration.class})
@@ -67,8 +72,8 @@ class ProjectManagerAuthorizationConcurrencyIntegrationTest {
         }
     }
 
-    // The hook only observes successful REAL authorization and the existing RR snapshot.
-    // All mapper calls, database locks, role checks and business writes remain real.
+    // 钩子只观察真实权限校验成功后的状态，以及已有的可重复读（RR）快照。
+    // 映射器调用、数据库锁、角色校验和业务写入均使用真实实现。
     static class ObservedPermissions extends ProjectPermissionService {
         private final JdbcTemplate jdbc;
         volatile Long observedUserId;
@@ -94,12 +99,12 @@ class ProjectManagerAuthorizationConcurrencyIntegrationTest {
         @Override
         public ProjectMember requireProjectManagerForUpdate(Long projectId) {
             if (UserContext.get().getUserId().equals(observedUserId)) {
-                // Even AFTER the transfer commits, a normal read still sees the old role.
+                // 即使转让已经提交，普通快照读仍然看到旧角色。
                 assertEquals("PROJECT_MANAGER", jdbc.queryForObject(
                         "SELECT role FROM project_member WHERE project_id = ? AND user_id = ?",
                         String.class, projectId, observedUserId));
             }
-            // SELECT ... FOR UPDATE must instead read the committed DEVELOPER role and reject.
+            // SELECT ... FOR UPDATE 必须读到已提交的 DEVELOPER 角色并拒绝操作。
             return super.requireProjectManagerForUpdate(projectId);
         }
     }
@@ -115,7 +120,7 @@ class ProjectManagerAuthorizationConcurrencyIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"start", "remove"})
     void committedTransferRejectsFormerManagerButAllowsCurrentManager(String operation) throws Exception {
-        // Guard the ACTUAL connection before creating any data. Never fall back to the application DB.
+        // 创建任何数据前先核实实际连接；绝不能退回使用业务数据库。
         assertEquals("flowdesk_test", jdbc.queryForObject("SELECT DATABASE()", String.class));
         String account = jdbc.queryForObject("SELECT CURRENT_USER()", String.class);
         assertNotNull(account);
@@ -161,7 +166,7 @@ class ProjectManagerAuthorizationConcurrencyIntegrationTest {
                 writerConnection.set(jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class));
                 writerLocked.countDown();
                 await(releaseWriter, "release the role transfer");
-                // Use the same conditional mapper updates as STAY acceptance, under the project lock.
+                // 持有项目锁时，使用与接受 STAY 转让相同的映射器条件更新。
                 assertEquals(1, members.demoteManagerToDeveloper(pid, formerManager, LocalDateTime.now()));
                 assertEquals(1, members.promoteDeveloperToManager(pid, currentManager, LocalDateTime.now()));
             }));
@@ -180,7 +185,7 @@ class ProjectManagerAuthorizationConcurrencyIntegrationTest {
             assertThrows(TimeoutException.class, () -> staleRequest.get(300, TimeUnit.MILLISECONDS),
                     "The request must wait while the transfer holds the project lock");
             releaseWriter.countDown();
-            transfer.get(15, TimeUnit.SECONDS); // A committed transfer is a prerequisite for the 403 assertion.
+            transfer.get(15, TimeUnit.SECONDS); // 确认转让已提交后，才能断言返回 403。
 
             ExecutionException error = assertThrows(ExecutionException.class,
                     () -> staleRequest.get(15, TimeUnit.SECONDS));
@@ -192,7 +197,7 @@ class ProjectManagerAuthorizationConcurrencyIntegrationTest {
             assertEquals(0L, count("operation_log", pid));
             assertEquals(0L, count("notification", pid));
 
-            // Positive control: the current manager can perform the SAME operation through the Spring proxy.
+            // 正向对照：当前项目负责人可以通过 Spring 代理执行同一操作。
             UserContext.set(new CurrentUser(currentManager, "USER"));
             try {
                 invoke(operation, pid, targetDeveloper);
@@ -221,7 +226,7 @@ class ProjectManagerAuthorizationConcurrencyIntegrationTest {
                 pool.shutdownNow();
                 stopped = pool.awaitTermination(15, TimeUnit.SECONDS);
             }
-            // Do not race cleanup against a still-running database writer.
+            // 数据库写入线程结束后再清理，避免清理与写入并发执行。
             assertTrue(stopped, "Workers must stop before fixture cleanup");
             permissions.observedUserId = null;
             permissions.initialCheck = null;
@@ -300,7 +305,7 @@ class ProjectManagerAuthorizationConcurrencyIntegrationTest {
     }
 
     private long count(String table, long projectId) {
-        // table is always a test-owned literal, never application input.
+        // 表名 table 始终来自测试中的固定字面量，不接受应用输入。
         return jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE project_id = ?", Long.class, projectId);
     }
 

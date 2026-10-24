@@ -1,5 +1,9 @@
 package com.flowdesk;
 
+import org.springframework.boot.test.context.TestConfiguration;
+
+import com.flowdesk.support.IntegrationTest;
+
 import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
 import com.flowdesk.config.MybatisPlusConfig;
 import com.flowdesk.context.*;
@@ -31,11 +35,12 @@ import java.util.*;
 import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Real MySQL mapper, JSON column and Spring transaction verification; no Redis context. */
+/** 使用真实 MySQL 验证映射器、JSON 列和 Spring 事务，不加载 Redis 上下文。 */
 @SpringJUnitConfig(AcceptanceSnapshotIntegrationTest.DatabaseConfig.class)
 @TestPropertySource("classpath:application-test.properties")
+@IntegrationTest
 class AcceptanceSnapshotIntegrationTest {
-    @Configuration(proxyBeanMethods=false)
+    @TestConfiguration(proxyBeanMethods=false)
     @EnableTransactionManagement
     @ImportAutoConfiguration({DataSourceAutoConfiguration.class,DataSourceTransactionManagerAutoConfiguration.class,
             JdbcTemplateAutoConfiguration.class,MybatisPlusAutoConfiguration.class})

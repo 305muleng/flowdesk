@@ -6,7 +6,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>4.1.1</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <relativePath/> <!-- 从依赖仓库查找父项目 -->
     </parent>
     <groupId>com.flowdesk</groupId>
     <artifactId>flowdesk</artifactId>
@@ -28,6 +28,8 @@
     </scm>
     <properties>
         <java.version>17</java.version>
+        <!-- 默认测试集不依赖 MySQL/Redis；通过显式配置选择真实集成测试。 -->
+        <test.groups>!integration</test.groups>
     </properties>
     <dependencies>
         <dependency>
@@ -111,7 +113,24 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <groups>${test.groups}</groups>
+                    <failIfNoTests>true</failIfNoTests>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>integration</id>
+            <properties>
+                <test.groups>integration</test.groups>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>

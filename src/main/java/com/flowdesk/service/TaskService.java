@@ -565,8 +565,8 @@ public class TaskService {
             taskUpdated = taskMapper.rejectToTodoAndUnassign(taskId, oldAssigneeId, now);
         } else {
             // 正常情况：
-            // APPROVE: REVIEW -> DONE
-            // REJECT且负责人正常: REVIEW -> IN_PROGRESS
+            // 批准验收：REVIEW -> DONE
+            // 驳回验收且负责人正常：REVIEW -> IN_PROGRESS
             taskUpdated = taskMapper.transitionStatusIfCurrent(
                 taskId,
                 TaskStatus.REVIEW,

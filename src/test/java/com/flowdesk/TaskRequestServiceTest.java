@@ -518,7 +518,7 @@ public class TaskRequestServiceTest {
         TaskRequest request = new TaskRequest();
         request.setId(10L);
         request.setProjectId(4L);
-        request.setRequesterId(2L); // Jack
+        request.setRequesterId(2L); // 测试用户：Jack
         request.setTitle("增加缓存");
         request.setDescription("增加 Redis 缓存");
         request.setGoal("降低数据库压力");
