@@ -3,7 +3,7 @@ package com.flowdesk.snapshot;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Persisted V1 contract. Keep independent of the live API's mutable VO classes. */
+/** 持久化快照的 V1 数据契约，与实时接口中可能变化的 VO 类保持独立。 */
 public record AcceptanceSnapshotV1(
         Long projectId, String projectName, String projectDescription, String projectGoal,
         String repositoryUrl, String deployUrl, String documentUrl,

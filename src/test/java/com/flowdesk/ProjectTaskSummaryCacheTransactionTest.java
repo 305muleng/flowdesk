@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import com.flowdesk.support.IntegrationTest;
+
 import com.flowdesk.cache.ProjectTaskSummaryCache;
 import com.flowdesk.vo.ProjectTaskSummaryVO;
 import org.junit.jupiter.api.AfterEach;
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
+@IntegrationTest
 class ProjectTaskSummaryCacheTransactionTest {
 
     @Autowired
@@ -52,6 +55,7 @@ class ProjectTaskSummaryCacheTransactionTest {
     void cleanCache() {
         if (key != null) {
             redisTemplate.delete(key);
+            assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(key)), "Test-owned Redis key must be removed");
         }
     }
 

@@ -67,7 +67,7 @@ class ManagerWriteAuthorizationTest {
         project.setId(projectId);
         project.setStatus(ProjectStatus.PREPARING);
         when(projects.selectByIdForUpdate(projectId)).thenAnswer(call -> {
-            // A STAY transfer committed while this request waited for the project lock.
+            // 当前请求等待项目锁期间，保留旧负责人成员身份的 STAY 转让已提交。
             actor.setRole("DEVELOPER");
             return project;
         });

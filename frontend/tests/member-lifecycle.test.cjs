@@ -9,7 +9,7 @@ const { baseParse } = require('@vue/compiler-dom')
 
 const source = (relative) => fs.readFileSync(path.join(__dirname, '../src', relative), 'utf8')
 
-// Execute the view's actual pure notification functions without mounting its API-backed page.
+// 直接执行页面中的纯通知处理函数，不挂载依赖后端接口的完整页面。
 const notificationScript = parse(source('views/NotificationsView.vue')).descriptor.scriptSetup.content
 const ast = ts.createSourceFile('notifications.ts', notificationScript, ts.ScriptTarget.Latest, true)
 const names = ['isManagerTransferNotification', 'categoryFor', 'actionFor']

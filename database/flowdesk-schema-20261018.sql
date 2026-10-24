@@ -4,11 +4,11 @@
 -- 不用于升级已有数据库；已有库变更应使用单独的增量脚本。
 -- 已包含项目任务统计覆盖索引，无需重复创建。
 -- 本文件不会由应用自动执行。
--- MySQL dump 10.13  Distrib 9.7.0, for Linux (x86_64)
+-- MySQL 结构导出工具：10.13，发行版 9.7.0，运行平台 Linux（x86_64）
 --
--- Host: localhost    Database: flowdesk
+-- 主机：localhost    数据库：flowdesk
 -- ------------------------------------------------------
--- Server version	9.7.0
+-- 服务器版本：9.7.0
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -22,7 +22,7 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
--- Table structure for table `member_leave_request`
+-- 表结构：`member_leave_request`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -48,7 +48,7 @@ CREATE TABLE `member_leave_request` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `notification`
+-- 表结构：`notification`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -74,7 +74,7 @@ CREATE TABLE `notification` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `operation_log`
+-- 表结构：`operation_log`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -98,7 +98,7 @@ CREATE TABLE `operation_log` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `project`
+-- 表结构：`project`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -126,7 +126,7 @@ CREATE TABLE `project` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `project_acceptance`
+-- 表结构：`project_acceptance`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -152,7 +152,7 @@ CREATE TABLE `project_acceptance` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `project_invitation`
+-- 表结构：`project_invitation`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -175,7 +175,7 @@ CREATE TABLE `project_invitation` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `project_manager_transfer`
+-- 表结构：`project_manager_transfer`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -200,7 +200,7 @@ CREATE TABLE `project_manager_transfer` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `project_member`
+-- 表结构：`project_member`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -221,7 +221,7 @@ CREATE TABLE `project_member` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `task`
+-- 表结构：`task`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -252,7 +252,7 @@ CREATE TABLE `task` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `task_comment`
+-- 表结构：`task_comment`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -273,7 +273,7 @@ CREATE TABLE `task_comment` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `task_request`
+-- 表结构：`task_request`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -302,7 +302,7 @@ CREATE TABLE `task_request` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `task_submission`
+-- 表结构：`task_submission`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -328,7 +328,7 @@ CREATE TABLE `task_submission` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `user`
+-- 表结构：`user`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -348,11 +348,11 @@ CREATE TABLE `user` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping events for database 'flowdesk'
+-- 导出数据库 flowdesk 的事件
 --
 
 --
--- Dumping routines for database 'flowdesk'
+-- 导出数据库 flowdesk 的存储例程
 --
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -364,4 +364,4 @@ CREATE TABLE `user` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed
+-- 导出完成
