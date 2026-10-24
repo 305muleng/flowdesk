@@ -306,7 +306,7 @@ public class TaskRequestService {
 
         // 下面全部属于 APPROVE
 
-        // 5. 正式任务 deadline 必填
+        // 5. 正式任务的截止时间 deadline 必填
         if (dto.getDeadline() == null) {
             throw new BusinessException(400, "批准任务申请时必须设置正式截止时间");
         }
@@ -315,7 +315,7 @@ public class TaskRequestService {
             throw new BusinessException(400, "正式任务截止时间必须晚于当前时间");
         }
 
-        // 6. priority
+        // 6. 校验优先级 priority
         String priority = dto.getPriority();
 
         if (priority == null || priority.isBlank()) {
@@ -359,7 +359,7 @@ public class TaskRequestService {
 
         task.setProjectId(projectId);
 
-        // 注意：creator 是审批人 Tom
+        // 注意：创建人 creator 是审批人，而不是申请人
         task.setCreatorId(currentUser.getUserId());
 
         task.setAssigneeId(dto.getAssigneeId());

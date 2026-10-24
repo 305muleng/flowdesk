@@ -271,10 +271,10 @@ public class ProjectInvitationServiceTest {
         invitation.setId(50L);
         invitation.setProjectId(4L);
 
-        // Tom
+        // 测试用户：Tom
         invitation.setInviterId(1L);
 
-        // Jack
+        // 测试用户：Jack
         invitation.setInviteeId(2L);
 
         invitation.setStatus(ProjectInvitationStatus.PENDING);
@@ -348,10 +348,10 @@ public class ProjectInvitationServiceTest {
         invitation.setId(50L);
         invitation.setProjectId(4L);
 
-        // Tom
+        // 测试用户：Tom
         invitation.setInviterId(1L);
 
-        // Jack
+        // 测试用户：Jack
         invitation.setInviteeId(2L);
 
         invitation.setStatus(ProjectInvitationStatus.PENDING);

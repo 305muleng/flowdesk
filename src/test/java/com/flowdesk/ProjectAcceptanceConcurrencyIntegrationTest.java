@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import com.flowdesk.support.IntegrationTest;
+
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.UserStatus;
 import com.flowdesk.enums.TaskStatus;
@@ -30,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@IntegrationTest
 class ProjectAcceptanceConcurrencyIntegrationTest {
 
     @Autowired

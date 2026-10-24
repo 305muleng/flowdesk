@@ -366,7 +366,7 @@ async function submitAcceptance(payload: SubmitAcceptancePayload) {
   try {
     await submitAcceptanceApi(id.value, payload)
     ElMessage.success('项目已提交验收')
-    // A refresh failure should not keep the completed submission form open for resubmission.
+    // 提交完成后，即使刷新失败也应关闭表单，避免用户重复提交。
     await load().catch(() => {})
   } finally {
     actionBusy.value = false

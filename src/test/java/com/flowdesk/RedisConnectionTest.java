@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import com.flowdesk.support.IntegrationTest;
+
 import com.flowdesk.vo.ProjectTaskSummaryVO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@IntegrationTest
 class RedisConnectionTest {
 
     @Value("${flowdesk.test.redis-confirmed:false}")
@@ -66,6 +69,7 @@ class RedisConnectionTest {
             System.out.println("还原后的完成率：" + restored.getCompletionRate());
         } finally {
             redisTemplate.delete(key);
+            assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(key)), "Test-owned Redis key must be removed");
         }
     }
 
@@ -88,6 +92,7 @@ class RedisConnectionTest {
             System.out.println("剩余有效期：" + remainingSeconds + " 秒");
         } finally {
             redisTemplate.delete(key);
+            assertFalse(Boolean.TRUE.equals(redisTemplate.hasKey(key)), "Test-owned Redis key must be removed");
         }
     }
 }

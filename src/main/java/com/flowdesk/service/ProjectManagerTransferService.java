@@ -190,7 +190,7 @@ public class ProjectManagerTransferService {
 
         transferMapper.insert(transfer);
 
-        // 13. 写 Operation Log
+        // 13. 写入操作日志
         operationLogService.record(
             projectId,
             currentUser.getUserId(),
@@ -348,7 +348,7 @@ public class ProjectManagerTransferService {
                 throw new BusinessException(409, "目标成员状态已发生变化，请刷新后重试");
             }
         } else if (ProjectMemberStatus.ACTIVE.equals(targetMember.getStatus()) && "DEVELOPER".equals(targetMember.getRole())) {
-            // 当前 Developer 升级为 PM
+            // 当前开发人员升级为项目负责人
             int updated = projectMemberMapper.promoteDeveloperToManager(projectId, currentUser.getUserId(), now);
 
             if (updated != 1) {
@@ -379,7 +379,7 @@ public class ProjectManagerTransferService {
             taskRequestMapper.cancelPendingByRequester(projectId, transfer.getFromUserId(), now);
         }
 
-        // 13. Operation Log
+        // 13. 写入操作日志
         operationLogService.record(
             projectId,
             currentUser.getUserId(),

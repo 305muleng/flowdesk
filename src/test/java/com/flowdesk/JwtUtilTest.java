@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-// JWT signing/parsing has no dependency on the Spring context, MySQL or Redis.
+// JWT 签名和解析不依赖 Spring 上下文、MySQL 或 Redis。
 class JwtUtilTest {
 
     @Test

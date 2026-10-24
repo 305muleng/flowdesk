@@ -8,7 +8,7 @@ public final class PasswordRules {
 
     private PasswordRules() {}
 
-    // Null and blank checks belong to the DTO's existing validation constraints.
+    // null 和空白值由 DTO 中已有的校验约束负责检查。
     public static boolean isWithinBcryptLimit(String password) {
         return password == null || password.getBytes(StandardCharsets.UTF_8).length <= MAX_BCRYPT_BYTES;
     }

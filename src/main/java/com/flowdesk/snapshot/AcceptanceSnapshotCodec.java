@@ -76,7 +76,7 @@ public class AcceptanceSnapshotCodec {
                 value.setAssigneeId(task.assigneeId()); value.setAssigneeName(task.assigneeName()); return value;
             }).toList());
         } catch (JacksonException | IllegalArgumentException | NullPointerException e) {
-            // Do not log the document or silently substitute current project data.
+            // 不记录快照正文，也不能在解析失败时悄悄改用项目当前数据。
             log.error("Cannot read acceptance snapshot: acceptanceId={}, version={}", detail.getId(), version);
             throw new BusinessException(500, "验收快照数据不可用，请联系管理员");
         }

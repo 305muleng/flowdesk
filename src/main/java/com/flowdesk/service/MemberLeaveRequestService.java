@@ -313,7 +313,7 @@ public class MemberLeaveRequestService {
         }
 
         // ==========================
-        // REJECT
+        // 拒绝申请
         // ==========================
 
         if ("REJECT".equals(action)) {
@@ -371,7 +371,7 @@ public class MemberLeaveRequestService {
         }
 
         // ==========================
-        // APPROVE
+        // 批准申请
         // ==========================
 
         // 7. 申请人必须还是 ACTIVE DEVELOPER
@@ -423,10 +423,10 @@ public class MemberLeaveRequestService {
             throw new BusinessException(409, "成员状态已发生变化，请刷新后重试");
         }
 
-        // 11. 自动取消该成员自己的 PENDING Task Request
+        // 11. 自动取消该成员自己仍处于 PENDING 状态的任务申请
         taskRequestMapper.cancelPendingByRequester(projectId, request.getApplicantId(), now);
 
-        // 12. 写 Operation Log
+        // 12. 写入操作日志
         operationLogService.record(
             projectId,
             currentUser.getUserId(),

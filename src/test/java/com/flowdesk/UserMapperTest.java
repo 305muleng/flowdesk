@@ -1,5 +1,7 @@
 package com.flowdesk;
 
+import com.flowdesk.support.IntegrationTest;
+
 import com.flowdesk.enums.UserStatus;
 
 import com.flowdesk.mapper.UserMapper;
@@ -20,6 +22,7 @@ import java.util.UUID;
 
 @ActiveProfiles("test")
 @SpringBootTest
+@IntegrationTest
 public class UserMapperTest {
 
     @Autowired
