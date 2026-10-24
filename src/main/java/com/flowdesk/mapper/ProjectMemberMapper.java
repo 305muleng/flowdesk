@@ -171,24 +171,6 @@ public interface ProjectMemberMapper extends BaseMapper<ProjectMember> {
     );
 
     @Select("""
-        SELECT COUNT(*)
-        FROM project_member pm
-        JOIN project p
-          ON p.id = pm.project_id
-        WHERE pm.user_id = #{userId}
-          AND pm.role = 'PROJECT_MANAGER'
-          AND pm.status = 'ACTIVE'
-          AND p.status IN (
-              'PREPARING',
-              'IN_PROGRESS',
-              'PENDING_ACCEPTANCE',
-              'COMPLETED'
-          )
-          AND p.deleted_at IS NULL
-        """)
-    Long countActiveManagedProjects(@Param("userId") Long userId);
-
-    @Select("""
     SELECT
         pm.user_id AS userId,
         u.real_name AS userName,

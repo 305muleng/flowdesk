@@ -2,7 +2,6 @@ package com.flowdesk.service;
 
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
-import com.flowdesk.enums.TaskStatus;
 import com.flowdesk.enums.UserStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -16,7 +15,6 @@ import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
-import com.flowdesk.model.Task;
 import com.flowdesk.model.User;
 import com.flowdesk.vo.ProjectMemberVO;
 import com.flowdesk.vo.ProjectVO;
@@ -27,7 +25,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class ProjectService {
@@ -384,11 +381,7 @@ public class ProjectService {
 
         // 6. 检查未完成任务
         Long unfinishedTaskCount = taskMapper.selectCount(
-            new LambdaQueryWrapper<Task>()
-                .eq(Task::getProjectId, projectId)
-                .eq(Task::getAssigneeId, userId)
-                .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
-                .isNull(Task::getDeletedAt)
+            TaskQueryConditions.unfinishedForAssignee(projectId, userId)
         );
 
         if (unfinishedTaskCount > 0) {

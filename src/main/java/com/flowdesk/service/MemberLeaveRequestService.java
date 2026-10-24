@@ -3,7 +3,6 @@ package com.flowdesk.service;
 import com.flowdesk.enums.MemberLeaveRequestStatus;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
-import com.flowdesk.enums.TaskStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.context.CurrentUser;
@@ -16,7 +15,6 @@ import com.flowdesk.mapper.*;
 import com.flowdesk.model.MemberLeaveRequest;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
-import com.flowdesk.model.Task;
 import com.flowdesk.vo.MemberLeaveRequestVO;
 import com.flowdesk.vo.ProjectMemberVO;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class MemberLeaveRequestService {
@@ -95,11 +92,7 @@ public class MemberLeaveRequestService {
 
         // 5. 有未完成任务时不能申请退出
         Long unfinishedTaskCount = taskMapper.selectCount(
-            new LambdaQueryWrapper<Task>()
-                .eq(Task::getProjectId, projectId)
-                .eq(Task::getAssigneeId, userId)
-                .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
-                .isNull(Task::getDeletedAt)
+            TaskQueryConditions.unfinishedForAssignee(projectId, userId)
         );
 
         if (unfinishedTaskCount > 0) {
@@ -389,11 +382,7 @@ public class MemberLeaveRequestService {
 
         // 8. 再次检查有没有未完成任务
         Long unfinishedTaskCount = taskMapper.selectCount(
-            new LambdaQueryWrapper<Task>()
-                .eq(Task::getProjectId, projectId)
-                .eq(Task::getAssigneeId, request.getApplicantId())
-                .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
-                .isNull(Task::getDeletedAt)
+            TaskQueryConditions.unfinishedForAssignee(projectId, request.getApplicantId())
         );
 
         if (unfinishedTaskCount > 0) {

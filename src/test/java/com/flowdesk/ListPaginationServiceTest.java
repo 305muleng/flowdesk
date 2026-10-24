@@ -22,6 +22,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -137,6 +138,37 @@ class ListPaginationServiceTest {
                 taskService.getProjectTasks(7L, "ALL", "ALL", 1, 20, assignee, true)
             ).getCode()
         );
+        verifyNoInteractions(tasks);
+    }
+
+    @Test
+    void projectAndPersonalTaskFiltersNormalizeIndependentlyOfDefaultLocale() {
+        when(tasks.selectProjectTasks(any(), eq(7L), eq("ALL"), eq(9L), eq("IN_PROGRESS"), isNull(), eq(false)))
+            .thenAnswer(call -> call.<Page<TaskVO>>getArgument(0).setTotal(0).setRecords(List.of()));
+        when(tasks.selectMyTasks(any(), eq(9L), eq("IN_PROGRESS"), eq("")))
+            .thenAnswer(call -> call.<Page<TaskVO>>getArgument(0).setTotal(0).setRecords(List.of()));
+        Locale original = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            taskService.getProjectTasks(7L, "ALL", " in_progress ", 1, 20, null, false);
+            taskService.getMyTasks(1, 20, " in_progress ", null);
+        } finally {
+            Locale.setDefault(original);
+        }
+        verify(tasks).selectProjectTasks(any(), eq(7L), eq("ALL"), eq(9L), eq("IN_PROGRESS"), isNull(), eq(false));
+        verify(tasks).selectMyTasks(any(), eq(9L), eq("IN_PROGRESS"), eq(""));
+    }
+
+    @Test
+    void unknownTaskStatusIsRejectedBeforeEitherTaskQuery() {
+        for (boolean personal : List.of(true, false)) {
+            BusinessException failure = assertThrows(BusinessException.class, () -> {
+                if (personal) taskService.getMyTasks(1, 20, "UNKNOWN", null);
+                else taskService.getProjectTasks(7L, "ALL", "UNKNOWN", 1, 20, null, false);
+            });
+            assertEquals(400, failure.getCode());
+            assertEquals("任务状态筛选条件不正确", failure.getMessage());
+        }
         verifyNoInteractions(tasks);
     }
 

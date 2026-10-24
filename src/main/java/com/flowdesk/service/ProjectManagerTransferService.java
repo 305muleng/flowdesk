@@ -3,7 +3,6 @@ package com.flowdesk.service;
 import com.flowdesk.enums.ProjectManagerTransferStatus;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
-import com.flowdesk.enums.TaskStatus;
 import com.flowdesk.enums.UserStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -22,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class ProjectManagerTransferService {
@@ -165,11 +163,7 @@ public class ProjectManagerTransferService {
         // 必须保证自己没有未完成任务
         if ("LEAVE".equals(oldManagerAction)) {
             Long unfinishedTaskCount = taskMapper.selectCount(
-                new LambdaQueryWrapper<Task>()
-                    .eq(Task::getProjectId, projectId)
-                    .eq(Task::getAssigneeId, currentUser.getUserId())
-                    .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
-                    .isNull(Task::getDeletedAt)
+                TaskQueryConditions.unfinishedForAssignee(projectId, currentUser.getUserId())
             );
 
             if (unfinishedTaskCount > 0) {
@@ -291,11 +285,7 @@ public class ProjectManagerTransferService {
         // 接受时必须再次检查他的任务
         if ("LEAVE".equals(transfer.getOldManagerAction())) {
             Long unfinishedTaskCount = taskMapper.selectCount(
-                new LambdaQueryWrapper<Task>()
-                    .eq(Task::getProjectId, projectId)
-                    .eq(Task::getAssigneeId, transfer.getFromUserId())
-                    .in(Task::getStatus, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
-                    .isNull(Task::getDeletedAt)
+                TaskQueryConditions.unfinishedForAssignee(projectId, transfer.getFromUserId())
             );
 
             if (unfinishedTaskCount > 0) {

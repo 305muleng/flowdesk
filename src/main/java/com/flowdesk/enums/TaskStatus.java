@@ -4,12 +4,16 @@ import com.baomidou.mybatisplus.annotation.IEnum;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
+import java.util.Set;
+
 public enum TaskStatus implements IEnum<String> {
     TODO("TODO"),
     IN_PROGRESS("IN_PROGRESS"),
     REVIEW("REVIEW"),
     DONE("DONE"),
     CANCELLED("CANCELLED");
+
+    private static final Set<TaskStatus> UNFINISHED_STATUSES = Set.of(TODO, IN_PROGRESS, REVIEW);
 
     private final String code;
 
@@ -25,6 +29,11 @@ public enum TaskStatus implements IEnum<String> {
     @Override
     public String getValue() {
         return code;
+    }
+
+    /** 未完成任务会阻止验收或成员离开，统一维护其业务范围。 */
+    public static Set<TaskStatus> unfinishedStatuses() {
+        return UNFINISHED_STATUSES;
     }
 
     @JsonCreator
