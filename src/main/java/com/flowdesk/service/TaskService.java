@@ -14,6 +14,7 @@ import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.*;
 import com.flowdesk.exception.BusinessException;
+import com.flowdesk.validation.UserRules;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
 import com.flowdesk.vo.TaskCommentVO;
@@ -111,7 +112,7 @@ public class TaskService {
             if (
                 assignee == null ||
                 !ProjectMemberStatus.ACTIVE.equals(assignee.getStatus()) ||
-                !isActiveProjectUser(dto.getAssigneeId())
+                !isActiveOrdinaryUser(dto.getAssigneeId())
             ) {
                 throw new BusinessException(409, "任务负责人不是该项目的有效开发成员");
             }
@@ -194,13 +195,7 @@ public class TaskService {
             throw new BusinessException(400, "任务查看范围只能是 ALL 或 MINE");
         }
 
-        String normalizedStatus = status.trim().toUpperCase();
-
-        Set<String> allowedStatuses = Set.of("ALL", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "CANCELLED");
-
-        if (!allowedStatuses.contains(normalizedStatus)) {
-            throw new BusinessException(400, "任务状态筛选条件不正确");
-        }
+        String normalizedStatus = normalizeTaskStatusFilter(status);
 
         CurrentUser currentUser = UserContext.get();
 
@@ -218,10 +213,7 @@ public class TaskService {
 
     public PageResult<TaskVO> getMyTasks(long page, long size, String status, String keyword) {
         var taskPage = ListPagination.<TaskVO>page(page, size);
-        String normalizedStatus = status.trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("ALL", "TODO", "IN_PROGRESS", "REVIEW", "DONE", "CANCELLED").contains(normalizedStatus)) {
-            throw new BusinessException(400, "任务状态筛选条件不正确");
-        }
+        String normalizedStatus = normalizeTaskStatusFilter(status);
         String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
         if (!"USER".equals(UserContext.get().getSystemRole())) {
             return new PageResult<>(List.of(), 0, page, size, 0);
@@ -427,7 +419,7 @@ public class TaskService {
         );
 
         for (ProjectMember manager : managers) {
-            if (!isActiveProjectUser(manager.getUserId())) {
+            if (!isActiveOrdinaryUser(manager.getUserId())) {
                 continue;
             }
 
@@ -526,7 +518,7 @@ public class TaskService {
         submission.setReviewedAt(now);
 
         // 判断原任务负责人现在是否仍然有效
-        boolean assigneeStillEffective = oldAssigneeId != null && isActiveProjectUser(oldAssigneeId);
+        boolean assigneeStillEffective = oldAssigneeId != null && isActiveOrdinaryUser(oldAssigneeId);
 
         // 9. 根据审核结果修改状态
         if ("APPROVE".equals(action)) {
@@ -631,7 +623,7 @@ public class TaskService {
 
         Long assigneeId = task.getAssigneeId();
 
-        if (assigneeId != null && isActiveProjectUser(assigneeId) && !assigneeId.equals(currentUser.getUserId())) {
+        if (assigneeId != null && isActiveOrdinaryUser(assigneeId) && !assigneeId.equals(currentUser.getUserId())) {
             CreateNotificationDTO notificationDTO = new CreateNotificationDTO();
 
             notificationDTO.setRecipientId(assigneeId);
@@ -895,9 +887,21 @@ public class TaskService {
         taskSummaryCache.evictAfterCommit(projectId);
     }
 
-    private boolean isActiveProjectUser(Long userId) {
-        User user = userMapper.selectById(userId);
-        return user != null && UserStatus.ACTIVE.equals(user.getStatus()) && "USER".equals(user.getSystemRole());
+    private String normalizeTaskStatusFilter(String status) {
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        // ALL 仅属于查询筛选，不能作为任务状态写入数据库。
+        if (!"ALL".equals(normalized)) {
+            try {
+                TaskStatus.fromCode(normalized);
+            } catch (IllegalArgumentException exception) {
+                throw new BusinessException(400, "任务状态筛选条件不正确");
+            }
+        }
+        return normalized;
+    }
+
+    private boolean isActiveOrdinaryUser(Long userId) {
+        return UserRules.isActiveOrdinaryUser(userMapper.selectById(userId));
     }
 
     private Project requireExistingProject(Long projectId) {
