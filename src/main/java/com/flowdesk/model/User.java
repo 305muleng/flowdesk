@@ -1,6 +1,7 @@
 package com.flowdesk.model;
 
 import com.flowdesk.enums.UserStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -27,6 +28,12 @@ public class User {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    /** 仅判断账号自身状态与系统角色，不包含项目成员关系检查。 */
+    @JsonIgnore
+    public boolean isActiveOrdinaryUser() {
+        return UserStatus.ACTIVE.equals(status) && "USER".equals(systemRole);
+    }
 
     public Long getId() {
         return id;

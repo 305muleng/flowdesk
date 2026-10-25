@@ -13,7 +13,6 @@ import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.CreateTaskRequestDTO;
 import com.flowdesk.dto.ReviewTaskRequestDTO;
 import com.flowdesk.exception.BusinessException;
-import com.flowdesk.validation.UserRules;
 import com.flowdesk.mapper.ProjectMapper;
 import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.mapper.TaskMapper;
@@ -23,6 +22,7 @@ import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.Task;
 import com.flowdesk.model.TaskRequest;
+import com.flowdesk.model.User;
 import com.flowdesk.vo.TaskRequestVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -441,7 +441,8 @@ public class TaskRequestService {
     }
 
     private boolean isActiveOrdinaryUser(Long userId) {
-        return UserRules.isActiveOrdinaryUser(userMapper.selectById(userId));
+        User user = userMapper.selectById(userId);
+        return user != null && user.isActiveOrdinaryUser();
     }
 
     @Transactional

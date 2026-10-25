@@ -14,7 +14,6 @@ import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.*;
 import com.flowdesk.exception.BusinessException;
-import com.flowdesk.validation.UserRules;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
 import com.flowdesk.vo.TaskCommentVO;
@@ -901,7 +900,8 @@ public class TaskService {
     }
 
     private boolean isActiveOrdinaryUser(Long userId) {
-        return UserRules.isActiveOrdinaryUser(userMapper.selectById(userId));
+        User user = userMapper.selectById(userId);
+        return user != null && user.isActiveOrdinaryUser();
     }
 
     private Project requireExistingProject(Long projectId) {
