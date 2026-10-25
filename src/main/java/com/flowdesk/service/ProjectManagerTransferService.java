@@ -14,6 +14,7 @@ import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.CreateProjectManagerTransferDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.*;
 import com.flowdesk.vo.ProjectManagerTransferVO;
 import org.springframework.beans.factory.annotation.Value;
@@ -189,7 +190,6 @@ public class ProjectManagerTransferService {
         // 13. 写入操作日志
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MANAGER_TRANSFER",
             transfer.getId(),
             "CREATE_MANAGER_TRANSFER",
@@ -374,7 +374,6 @@ public class ProjectManagerTransferService {
         // 13. 写入操作日志
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MANAGER_TRANSFER",
             transferId,
             "ACCEPT_MANAGER_TRANSFER",
@@ -449,7 +448,6 @@ public class ProjectManagerTransferService {
 
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MANAGER_TRANSFER",
             transferId,
             "REJECT_MANAGER_TRANSFER",
@@ -525,7 +523,6 @@ public class ProjectManagerTransferService {
 
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MANAGER_TRANSFER",
             transferId,
             "CANCEL_MANAGER_TRANSFER",

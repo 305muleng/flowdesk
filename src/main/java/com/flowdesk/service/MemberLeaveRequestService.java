@@ -1,5 +1,6 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ReviewAction;
 import com.flowdesk.enums.ProjectRole;
 import com.flowdesk.enums.MemberLeaveRequestStatus;
 import com.flowdesk.enums.ProjectMemberStatus;
@@ -13,6 +14,7 @@ import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.ReviewMemberLeaveRequestDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.MemberLeaveRequest;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
@@ -127,7 +129,6 @@ public class MemberLeaveRequestService {
         // 8. 写项目操作日志
         operationLogService.record(
             projectId,
-            userId,
             "MEMBER_LEAVE_REQUEST",
             request.getId(),
             "CREATE_MEMBER_LEAVE_REQUEST",
@@ -221,7 +222,6 @@ public class MemberLeaveRequestService {
         // 8. 写操作日志
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "MEMBER_LEAVE_REQUEST",
             request.getId(),
             "CANCEL_MEMBER_LEAVE_REQUEST",
@@ -302,7 +302,7 @@ public class MemberLeaveRequestService {
 
         String action = dto.getAction().trim().toUpperCase();
 
-        if (!"APPROVE".equals(action) && !"REJECT".equals(action)) {
+        if (!ReviewAction.isKnownCode(action)) {
             throw new BusinessException(400, "审批结果只能是 APPROVE 或 REJECT");
         }
 
@@ -310,7 +310,7 @@ public class MemberLeaveRequestService {
         // 拒绝申请
         // ==========================
 
-        if ("REJECT".equals(action)) {
+        if (ReviewAction.REJECT.matches(action)) {
             if (dto.getReviewNote() == null || dto.getReviewNote().isBlank()) {
                 throw new BusinessException(400, "拒绝退出申请时必须填写原因");
             }
@@ -332,7 +332,6 @@ public class MemberLeaveRequestService {
 
             operationLogService.record(
                 projectId,
-                currentUser.getUserId(),
                 "MEMBER_LEAVE_REQUEST",
                 requestId,
                 "REJECT_MEMBER_LEAVE_REQUEST",
@@ -419,7 +418,6 @@ public class MemberLeaveRequestService {
         // 12. 写入操作日志
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "MEMBER_LEAVE_REQUEST",
             requestId,
             "APPROVE_MEMBER_LEAVE_REQUEST",

@@ -47,7 +47,6 @@ public class OperationLogService {
 
     public void record(
         Long projectId,
-        Long actorId,
         String targetType,
         Long targetId,
         String action,

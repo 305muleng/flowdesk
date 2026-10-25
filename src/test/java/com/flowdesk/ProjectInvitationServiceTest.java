@@ -249,7 +249,6 @@ public class ProjectInvitationServiceTest {
         assertEquals(4L, notification.getProjectId());
         verify(operationLogService).record(
             eq(4L),
-            eq(1L),
             eq("PROJECT_INVITATION"),
             eq(50L),
             eq("SEND_PROJECT_INVITATION"),
@@ -490,7 +489,7 @@ public class ProjectInvitationServiceTest {
         assertEquals(409, exception.getCode());
         verify(projectMemberMapper, never()).insert(any(ProjectMember.class));
         verify(notificationService, never()).createNotification(any(CreateNotificationDTO.class));
-        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

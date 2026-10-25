@@ -1,4 +1,4 @@
-package com.flowdesk.mapper;
+package com.flowdesk.query;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.enums.TaskStatus;

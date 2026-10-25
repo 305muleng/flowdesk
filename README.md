@@ -27,7 +27,7 @@ FlowDesk 是一个以研发团队协作为背景的项目、任务与交付验�
 | 数据访问 | MyBatis-Plus、MySQL |
 | 缓存 | Spring Data Redis、Redis |
 | 认证 | JWT、BCrypt（Spring Security Crypto）、Interceptor、ThreadLocal |
-| 前端 | Vue 3、TypeScript、Element Plus、Pinia、Vue Router、Vite |
+| 前端 | Vue 3、TypeScript、Element Plus、Pinia、Vue Router、Vite、ECharts |
 | 测试 | JUnit、Mockito、MockMvc、Node 测试 |
 | 参数校验与接口文档 | Jakarta Bean Validation、springdoc OpenAPI |
 | 构建与自动检查 | Maven、npm、GitHub Actions |

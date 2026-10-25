@@ -73,12 +73,21 @@ class OperationLogServiceTest {
         OperationLogService service = service();
         UserContext.set(new CurrentUser(7L, "USER"));
 
-        service.record(4L, 999L, "PROJECT", 4L, "TEST", "测试", null, null);
+        service.record(4L, "PROJECT", 4L, "TEST", "测试", null, null);
 
         ArgumentCaptor<OperationLog> captor = ArgumentCaptor.forClass(OperationLog.class);
         verify(operationLogMapper).insert(captor.capture());
         assertEquals(7L, captor.getValue().getActorId());
         assertEquals(4L, captor.getValue().getProjectId());
+    }
+
+    @Test
+    void missingActorContextCannotCreateAnAuditRecord() {
+        OperationLogService service = service();
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.record(4L, "PROJECT", 4L, "TEST", "测试", null, null));
+        assertEquals(500, error.getCode());
+        verify(operationLogMapper, never()).insert(any(OperationLog.class));
     }
 
     private OperationLogService service() {

@@ -15,6 +15,7 @@ import com.flowdesk.dto.CreateProjectDTO;
 import com.flowdesk.dto.RemoveProjectMemberDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.User;
@@ -114,7 +115,6 @@ public class ProjectService {
 
         operationLogService.record(
             project.getId(),
-            currentUser.getUserId(),
             "PROJECT",
             project.getId(),
             "CREATE_PROJECT",
@@ -189,8 +189,6 @@ public class ProjectService {
             throw new BusinessException(409, "只有准备中的项目可以启动");
         }
 
-        CurrentUser currentUser = UserContext.get();
-
         LocalDateTime now = LocalDateTime.now();
 
         // 4. 保存修改前状态
@@ -221,7 +219,6 @@ public class ProjectService {
         // 8. 写操作日志
         operationLogService.record(
             project.getId(),
-            currentUser.getUserId(),
             "PROJECT",
             project.getId(),
             "START_PROJECT",
@@ -251,7 +248,6 @@ public class ProjectService {
             throw new BusinessException(409, "当前项目状态不允许取消");
         }
 
-        CurrentUser currentUser = UserContext.get();
         LocalDateTime now = LocalDateTime.now();
 
         // 4. 保存旧状态
@@ -286,7 +282,6 @@ public class ProjectService {
 
         operationLogService.record(
             project.getId(),
-            currentUser.getUserId(),
             "PROJECT",
             project.getId(),
             "CANCEL_PROJECT",
@@ -310,7 +305,6 @@ public class ProjectService {
             throw new BusinessException(409, "只有已完成的项目可以归档");
         }
 
-        CurrentUser currentUser = UserContext.get();
         LocalDateTime now = LocalDateTime.now();
 
         String oldStatus = project.getStatus() == null ? null : project.getStatus().getCode();
@@ -331,7 +325,6 @@ public class ProjectService {
 
         operationLogService.record(
             project.getId(),
-            currentUser.getUserId(),
             "PROJECT",
             project.getId(),
             "ARCHIVE_PROJECT",
@@ -413,7 +406,6 @@ public class ProjectService {
         // 11. 写入操作日志
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MEMBER",
             targetMember.getId(),
             "REMOVE_PROJECT_MEMBER",

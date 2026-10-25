@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.TaskPriority;
+import com.flowdesk.enums.ReviewAction;
 import com.flowdesk.enums.ProjectRole;
 import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectMemberStatus;
@@ -95,13 +97,11 @@ public class TaskService {
         String priority = dto.getPriority();
 
         if (priority == null || priority.isBlank()) {
-            priority = "MEDIUM";
+            priority = TaskPriority.MEDIUM.getCode();
         } else {
             priority = priority.trim().toUpperCase();
 
-            Set<String> allowedPriorities = Set.of("LOW", "MEDIUM", "HIGH");
-
-            if (!allowedPriorities.contains(priority)) {
+            if (!TaskPriority.isKnownCode(priority)) {
                 throw new BusinessException(400, "任务优先级只能是 LOW、MEDIUM 或 HIGH");
             }
         }
@@ -146,7 +146,6 @@ public class TaskService {
 
         operationLogService.record(
             task.getProjectId(),
-            currentUser.getUserId(),
             "TASK",
             task.getId(),
             "CREATE_TASK",
@@ -294,7 +293,6 @@ public class TaskService {
 
         operationLogService.record(
             task.getProjectId(),
-            currentUser.getUserId(),
             "TASK",
             task.getId(),
             "START_TASK",
@@ -403,7 +401,6 @@ public class TaskService {
 
         operationLogService.record(
             task.getProjectId(),
-            currentUser.getUserId(),
             "TASK",
             task.getId(),
             "SUBMIT_TASK",
@@ -492,11 +489,11 @@ public class TaskService {
         // 6. 检查审核动作
         String action = dto.getAction().trim().toUpperCase();
 
-        if (!"APPROVE".equals(action) && !"REJECT".equals(action)) {
+        if (!ReviewAction.isKnownCode(action)) {
             throw new BusinessException(400, "审核结果只能是 APPROVE 或 REJECT");
         }
 
-        if ("REJECT".equals(action) && (dto.getReviewNote() == null || dto.getReviewNote().isBlank())) {
+        if (ReviewAction.REJECT.matches(action) && (dto.getReviewNote() == null || dto.getReviewNote().isBlank())) {
             throw new BusinessException(400, "驳回任务时必须填写修改意见");
         }
 
@@ -522,7 +519,7 @@ public class TaskService {
         boolean assigneeStillEffective = oldAssigneeId != null && isActiveOrdinaryUser(oldAssigneeId);
 
         // 9. 根据审核结果修改状态
-        if ("APPROVE".equals(action)) {
+        if (ReviewAction.APPROVE.matches(action)) {
             // 审核通过
             submission.setReviewStatus(TaskSubmissionStatus.APPROVED);
 
@@ -551,7 +548,7 @@ public class TaskService {
         // 10. 真正修改数据库中的任务
         int taskUpdated;
 
-        if ("REJECT".equals(action) && !assigneeStillEffective) {
+        if (ReviewAction.REJECT.matches(action) && !assigneeStillEffective) {
             // 特殊情况：
             // 审核驳回 + 原负责人已经失效
             // REVIEW -> TODO，并清空负责人
@@ -606,14 +603,13 @@ public class TaskService {
         afterData.put("submissionNo", submission.getSubmissionNo());
 
         // 13. 根据审核结果决定日志动作
-        String logAction = "APPROVE".equals(action) ? "APPROVE_TASK" : "REJECT_TASK";
+        String logAction = ReviewAction.APPROVE.matches(action) ? "APPROVE_TASK" : "REJECT_TASK";
 
-        String description = "APPROVE".equals(action) ? "审核通过任务" : "驳回任务";
+        String description = ReviewAction.APPROVE.matches(action) ? "审核通过任务" : "驳回任务";
 
         // 14. 写操作日志
         operationLogService.record(
             task.getProjectId(),
-            currentUser.getUserId(),
             "TASK",
             task.getId(),
             logAction,
@@ -630,7 +626,7 @@ public class TaskService {
             notificationDTO.setRecipientId(assigneeId);
             notificationDTO.setActorId(currentUser.getUserId());
 
-            if ("APPROVE".equals(action)) {
+            if (ReviewAction.APPROVE.matches(action)) {
                 notificationDTO.setType("TASK_SUBMISSION_APPROVED");
 
                 notificationDTO.setTitle("任务审核通过");
@@ -753,7 +749,6 @@ public class TaskService {
         // 10. 写操作日志
         operationLogService.record(
             task.getProjectId(),
-            currentUser.getUserId(),
             "TASK",
             task.getId(),
             "ASSIGN_TASK",
@@ -857,7 +852,6 @@ public class TaskService {
         Long actorId = UserContext.get().getUserId();
         operationLogService.record(
             projectId,
-            actorId,
             "TASK",
             taskId,
             "HANDOVER_TASK",
@@ -1033,8 +1027,6 @@ public class TaskService {
             throw new BusinessException(409, "只有待处理或进行中的任务可以取消");
         }
 
-        CurrentUser currentUser = UserContext.get();
-
         LocalDateTime now = LocalDateTime.now();
 
         // 5. 保存修改前状态
@@ -1070,7 +1062,6 @@ public class TaskService {
         // 8. 写日志
         operationLogService.record(
             task.getProjectId(),
-            currentUser.getUserId(),
             "TASK",
             task.getId(),
             "CANCEL_TASK",

@@ -332,7 +332,7 @@ public class TaskServiceTest {
         verify(taskMapper).reassignTodoIfCurrent(eq(9L), isNull(), eq(2L), any());
 
         // 10. 验证确实写了操作日志
-        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any());
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 

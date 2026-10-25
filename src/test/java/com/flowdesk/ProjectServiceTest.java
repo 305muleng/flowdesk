@@ -142,7 +142,7 @@ public class ProjectServiceTest {
         assertEquals(2L, member.getUserId());
         assertEquals("PROJECT_MANAGER", member.getRole());
         assertEquals(ProjectMemberStatus.ACTIVE, member.getStatus());
-        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -160,7 +160,7 @@ public class ProjectServiceTest {
         doThrow(new RuntimeException("member insert failed")).when(projectMemberMapper).insert(any(ProjectMember.class));
 
         assertThrows(RuntimeException.class, () -> projectService.createProject(dto));
-        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any());
         assertNotNull(
             ProjectService.class
                 .getMethod("createProject", CreateProjectDTO.class)
@@ -194,7 +194,7 @@ public class ProjectServiceTest {
 
         verify(projectMapper).startIfPreparing(eq(4L), any());
 
-        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -214,7 +214,7 @@ public class ProjectServiceTest {
         verify(projectMapper).archiveIfCompleted(eq(4L), any());
         verifyNoInteractions(requestClosureService);
 
-        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @ParameterizedTest
@@ -242,7 +242,7 @@ public class ProjectServiceTest {
 
         ArgumentCaptor<Object> before = ArgumentCaptor.forClass(Object.class);
         ArgumentCaptor<Object> after = ArgumentCaptor.forClass(Object.class);
-        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), before.capture(), after.capture());
+        verify(operationLogService).record(any(), any(), any(), any(), any(), before.capture(), after.capture());
         assertEquals(initialStatus, ((java.util.Map<?, ?>) before.getValue()).get("status"));
         assertEquals("CANCELLED", ((java.util.Map<?, ?>) after.getValue()).get("status"));
 
@@ -296,7 +296,7 @@ public class ProjectServiceTest {
         BusinessException exception = assertThrows(BusinessException.class, () -> projectService.archiveProject(4L));
 
         assertEquals(409, exception.getCode());
-        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

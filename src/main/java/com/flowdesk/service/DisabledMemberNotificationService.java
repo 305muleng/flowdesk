@@ -2,16 +2,14 @@ package com.flowdesk.service;
 
 import com.flowdesk.enums.ProjectStatus;
 import com.flowdesk.enums.ProjectMemberStatus;
-import com.flowdesk.enums.TaskStatus;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.event.UserDisabledEvent;
 import com.flowdesk.mapper.ProjectMapper;
 import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.mapper.TaskMapper;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.Project;
-import com.flowdesk.model.Task;
 import com.flowdesk.vo.ProjectMemberVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,11 +86,7 @@ public class DisabledMemberNotificationService {
             throw new IllegalStateException("相关项目缺少有效项目负责人");
         }
         long count = tasks.selectCount(
-            new LambdaQueryWrapper<Task>()
-                .eq(Task::getProjectId, projectId)
-                .eq(Task::getAssigneeId, event.userId())
-                .in(Task::getStatus, TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW)
-                .isNull(Task::getDeletedAt)
+            TaskQueryConditions.unfinishedForAssignee(projectId, event.userId())
         );
 
         CreateNotificationDTO dto = new CreateNotificationDTO();

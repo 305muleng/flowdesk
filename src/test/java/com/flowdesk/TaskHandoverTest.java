@@ -106,7 +106,6 @@ class TaskHandoverTest {
         var after = ArgumentCaptor.forClass(Object.class);
         verify(logs).record(
             eq(4L),
-            eq(1L),
             eq("TASK"),
             eq(10L),
             eq("HANDOVER_TASK"),
@@ -240,7 +239,7 @@ class TaskHandoverTest {
             Future<Integer> one = pool.submit(attempt);
             Future<Integer> two = pool.submit(attempt);
             assertEquals(609, one.get(10, TimeUnit.SECONDS) + two.get(10, TimeUnit.SECONDS));
-            verify(logs, times(1)).record(anyLong(), anyLong(), anyString(), anyLong(), anyString(), anyString(), any(), any());
+            verify(logs, times(1)).record(anyLong(), anyString(), anyLong(), anyString(), anyString(), any(), any());
             verify(notifications, times(1)).createNotification(any());
             verify(cache, times(1)).evictAfterCommit(4L);
         } finally {
