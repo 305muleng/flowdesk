@@ -114,8 +114,8 @@ export interface Task {
 
 export interface CreateTaskPayload {
   title: string
-  description?: string
-  goal?: string
+  description: string
+  goal: string
   assigneeId?: number
   priority?: Priority
   deadline: string

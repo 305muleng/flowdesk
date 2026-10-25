@@ -6,6 +6,7 @@ import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import RequestClosureNotice from '@/components/RequestClosureNotice.vue'
+import TaskRequestSummary from '@/components/TaskRequestSummary.vue'
 import { cancelTaskRequestApi, getMyTaskRequestsApi } from '@/api/taskRequests'
 import { getMyProjectsApi } from '@/api/projects'
 import { formatDateTime } from '@/utils/format'
@@ -101,7 +102,7 @@ onMounted(load)
           ><small>{{ formatDateTime(item.createdAt) }}</small>
         </div>
         <h3>{{ item.title }}</h3>
-        <p>{{ item.description || item.goal || '未填写补充说明' }}</p>
+        <TaskRequestSummary :request="item" />
         <RequestClosureNotice :status="item.status" :closed-at="item.closedAt" :close-reason="item.closeReason" />
       </div>
       <div class="request-side">
