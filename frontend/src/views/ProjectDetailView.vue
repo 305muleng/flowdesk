@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import RequestClosureNotice from '@/components/RequestClosureNotice.vue'
+import TaskRequestSummary from '@/components/TaskRequestSummary.vue'
 import { ArrowLeft, Message, Plus, Refresh, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -236,6 +237,8 @@ const reviewForm = ref<{
 }>({ priority: 'MEDIUM', deadline: '', reviewNote: '' })
 const taskRules = {
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
+  description: [{ required: true, whitespace: true, message: '请输入任务描述', trigger: 'blur' }],
+  goal: [{ required: true, whitespace: true, message: '请输入任务目标', trigger: 'blur' }],
   deadline: [{ required: true, message: '请选择截止时间', trigger: 'change' }],
 }
 const requestRules = {
@@ -639,7 +642,7 @@ onMounted(load)
                 <StatusTag :value="item.status" /><span>{{ item.requesterName }} · {{ formatDateTime(item.createdAt) }}</span>
               </div>
               <h3>{{ item.title }}</h3>
-              <p>{{ item.description || item.goal || '未填写补充说明' }}</p>
+              <TaskRequestSummary :request="item" />
               <RequestClosureNotice :status="item.status" :closed-at="item.closedAt" :close-reason="item.closeReason" />
             </div>
             <div v-if="item.status === 'PENDING' && ['PREPARING', 'IN_PROGRESS'].includes(project?.status || '')">
@@ -684,7 +687,8 @@ onMounted(load)
       ><el-form ref="taskFormRef" :model="taskForm" :rules="taskRules" label-position="top"
         ><el-form-item label="任务标题" prop="title"
           ><el-input v-model="taskForm.title" maxlength="200" show-word-limit /></el-form-item
-        ><el-form-item label="任务描述"><el-input v-model="taskForm.description" type="textarea" :rows="3" /></el-form-item>
+        ><el-form-item label="任务描述" prop="description"><el-input v-model="taskForm.description" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="任务目标" prop="goal"><el-input v-model="taskForm.goal" type="textarea" :rows="3" /></el-form-item>
         <div class="two">
           <el-form-item label="负责人"
             ><el-select v-model="taskForm.assigneeId" clearable placeholder="暂不分配"
@@ -765,7 +769,11 @@ onMounted(load)
       <template #footer><el-button :loading="saving" @click="transferManager">发起转让</el-button></template>
     </el-dialog>
     <el-dialog v-model="reviewDialog" title="批准任务申请" width="min(92vw,560px)"
-      ><el-form :model="reviewForm" label-position="top"
+      ><section v-if="selectedRequest" class="request-review-summary">
+        <h3>{{ selectedRequest.title }}</h3>
+        <TaskRequestSummary :request="selectedRequest" />
+      </section>
+      <el-form :model="reviewForm" label-position="top"
         ><el-form-item label="任务负责人"
           ><el-select v-model="reviewForm.assigneeId" clearable
             ><el-option
