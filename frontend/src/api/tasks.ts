@@ -1,6 +1,8 @@
 import request from './request'
-import type { ApiResult, PageResult, MyTaskSummary, Task, TaskComment, TaskSubmission } from '@/types/api'
+import type { ApiResult, PageResult, MyTaskSummary, Task, TaskComment, TaskSubmission, UpdateTaskPayload } from '@/types/api'
 
+export const updateTaskApi = (id: string | number, payload: UpdateTaskPayload) =>
+  request.patch<ApiResult<void>>(`/tasks/${id}`, payload)
 export const getTaskApi = (id: string | number) => request.get<ApiResult<Task>>(`/tasks/${id}`)
 export const getMyTasksApi = (params: { page?: number; size?: number; status?: string; keyword?: string } = {}) =>
   request.get<ApiResult<PageResult<Task>>>('/tasks/my', { params })

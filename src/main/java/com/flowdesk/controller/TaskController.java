@@ -42,6 +42,13 @@ public class TaskController {
         return Result.success(taskService.getMyTaskSummary());
     }
 
+    @Operation(summary = "编辑任务资料", description = "项目负责人编辑准备中或进行中项目的 TODO 任务，不修改负责人或状态")
+    @PatchMapping("/{taskId}")
+    public Result<Void> updateTaskDetails(@PathVariable Long taskId, @Valid @RequestBody UpdateTaskDTO dto) {
+        taskService.updateTaskDetails(taskId, dto);
+        return Result.success("任务资料已更新", null);
+    }
+
     @Operation(summary = "开始任务", description = "任务负责人开始执行任务，使任务从 TODO 进入 IN_PROGRESS")
     @PostMapping("/{taskId}/start")
     public Result<Void> startTask(@PathVariable Long taskId) {

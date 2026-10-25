@@ -94,6 +94,21 @@ export interface CreateProjectPayload {
   expectedEndTime?: string
 }
 
+export interface UpdateProjectPayload {
+  name: string
+  description: string | null
+  goal: string | null
+  expectedEndTime: string | null
+}
+
+export interface UpdateTaskPayload {
+  title: string
+  description: string
+  goal: string
+  priority: Priority
+  deadline: string
+}
+
 export interface Task {
   id: number
   projectId: number
