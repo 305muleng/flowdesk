@@ -52,7 +52,8 @@ public class ProjectPermissionService {
         return member;
     }
 
-    public ProjectMember requireProjectManagerForUpdate(Long projectId) {
+    /** 调用方先持有项目行锁，再读取当前成员关系，避免沿用等待锁之前的快照。 */
+    public ProjectMember requireProjectMemberForUpdate(Long projectId) {
         CurrentUser currentUser = UserContext.get();
 
         if (currentUser == null || SystemRole.SYSTEM_ADMIN.matches(currentUser.getSystemRole())) {
@@ -65,10 +66,14 @@ public class ProjectPermissionService {
             throw new BusinessException(403, "你不是该项目的有效成员");
         }
 
+        return member;
+    }
+
+    public ProjectMember requireProjectManagerForUpdate(Long projectId) {
+        ProjectMember member = requireProjectMemberForUpdate(projectId);
         if (!ProjectRole.PROJECT_MANAGER.matches(member.getRole())) {
             throw new BusinessException(403, "你不是该项目负责人");
         }
-
         return member;
     }
 }
