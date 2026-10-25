@@ -1,5 +1,7 @@
 package com.flowdesk.interceptor;
 
+import com.flowdesk.enums.SystemRole;
+
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.exception.BusinessException;
@@ -23,7 +25,7 @@ public class SystemAdminInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        if (!"SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+        if (!SystemRole.SYSTEM_ADMIN.matches(currentUser.getSystemRole())) {
             ResponseUtil.writeErrorResponse(response, 403, "无系统管理员权限");
 
             return false;

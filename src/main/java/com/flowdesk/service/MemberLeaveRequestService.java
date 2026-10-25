@@ -1,5 +1,6 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectRole;
 import com.flowdesk.enums.MemberLeaveRequestStatus;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
@@ -70,7 +71,7 @@ public class MemberLeaveRequestService {
         ProjectMember member = projectPermissionService.requireProjectMember(projectId);
 
         // 2. 只有开发人员可以申请退出
-        if (!"DEVELOPER".equals(member.getRole())) {
+        if (!ProjectRole.DEVELOPER.matches(member.getRole())) {
             throw new BusinessException(403, "只有开发人员可以申请退出项目");
         }
 
@@ -372,7 +373,7 @@ public class MemberLeaveRequestService {
             new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, projectId)
                 .eq(ProjectMember::getUserId, request.getApplicantId())
-                .eq(ProjectMember::getRole, "DEVELOPER")
+                .eq(ProjectMember::getRole, ProjectRole.DEVELOPER.getCode())
                 .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
 

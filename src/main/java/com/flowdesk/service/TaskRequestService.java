@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectRole;
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
 import com.flowdesk.enums.TaskRequestStatus;
@@ -74,7 +76,7 @@ public class TaskRequestService {
         ProjectMember member = projectPermissionService.requireProjectMember(projectId);
 
         // 2. 只有开发人员需要提交任务申请
-        if (!"DEVELOPER".equals(member.getRole())) {
+        if (!ProjectRole.DEVELOPER.matches(member.getRole())) {
             throw new BusinessException(403, "只有开发人员可以提交任务申请");
         }
 
@@ -128,7 +130,7 @@ public class TaskRequestService {
         List<ProjectMember> managers = projectMemberMapper.selectList(
             new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, projectId)
-                .eq(ProjectMember::getRole, "PROJECT_MANAGER")
+                .eq(ProjectMember::getRole, ProjectRole.PROJECT_MANAGER.getCode())
                 .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
 
@@ -183,7 +185,7 @@ public class TaskRequestService {
 
     public List<TaskRequestVO> getMyTaskRequests(String status) {
         String normalizedStatus = normalizeStatus(status);
-        if (!"USER".equals(UserContext.get().getSystemRole())) {
+        if (!SystemRole.USER.matches(UserContext.get().getSystemRole())) {
             return List.of();
         }
         return taskRequestMapper.selectMyTaskRequests(UserContext.get().getUserId(), normalizedStatus);
@@ -243,7 +245,7 @@ public class TaskRequestService {
         );
         if (
             requesterMembership == null ||
-            !"DEVELOPER".equals(requesterMembership.getRole()) ||
+            !ProjectRole.DEVELOPER.matches(requesterMembership.getRole()) ||
             !isActiveOrdinaryUser(request.getRequesterId())
         ) {
             throw new BusinessException(409, "任务申请人已不是该项目的有效成员");

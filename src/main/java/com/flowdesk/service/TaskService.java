@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectRole;
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
 import com.flowdesk.enums.TaskStatus;
@@ -214,7 +216,7 @@ public class TaskService {
         var taskPage = ListPagination.<TaskVO>page(page, size);
         String normalizedStatus = normalizeTaskStatusFilter(status);
         String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
-        if (!"USER".equals(UserContext.get().getSystemRole())) {
+        if (!SystemRole.USER.matches(UserContext.get().getSystemRole())) {
             return new PageResult<>(List.of(), 0, page, size, 0);
         }
         var result = taskMapper.selectMyTasks(taskPage, UserContext.get().getUserId(), normalizedStatus, normalizedKeyword);
@@ -222,7 +224,7 @@ public class TaskService {
     }
 
     public MyTaskSummaryVO getMyTaskSummary() {
-        if (!"USER".equals(UserContext.get().getSystemRole())) return MyTaskSummaryVO.empty();
+        if (!SystemRole.USER.matches(UserContext.get().getSystemRole())) return MyTaskSummaryVO.empty();
         LocalDateTime now = LocalDateTime.now();
         return taskMapper.selectMyTaskSummary(UserContext.get().getUserId(), now, now.plusDays(3));
     }
@@ -413,7 +415,7 @@ public class TaskService {
         List<ProjectMember> managers = projectMemberMapper.selectList(
             new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, task.getProjectId())
-                .eq(ProjectMember::getRole, "PROJECT_MANAGER")
+                .eq(ProjectMember::getRole, ProjectRole.PROJECT_MANAGER.getCode())
                 .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
         );
 
@@ -689,10 +691,10 @@ public class TaskService {
         CurrentUser operator = UserContext.get();
         ProjectMember operatorMember = projectMemberMapper.selectMemberForUpdate(task.getProjectId(), operator.getUserId());
         if (
-            !"USER".equals(operator.getSystemRole()) ||
+            !SystemRole.USER.matches(operator.getSystemRole()) ||
             operatorMember == null ||
             !ProjectMemberStatus.ACTIVE.equals(operatorMember.getStatus()) ||
-            !"PROJECT_MANAGER".equals(operatorMember.getRole())
+            !ProjectRole.PROJECT_MANAGER.matches(operatorMember.getRole())
         ) {
             throw new BusinessException(403, "你不是该项目的有效负责人");
         }
@@ -713,7 +715,7 @@ public class TaskService {
         if (
             assigneeUser == null ||
             !UserStatus.ACTIVE.equals(assigneeUser.getStatus()) ||
-            !"USER".equals(assigneeUser.getSystemRole())
+            !SystemRole.USER.matches(assigneeUser.getSystemRole())
         ) {
             throw new BusinessException(409, "任务负责人不是该项目的有效成员");
         }
@@ -825,7 +827,7 @@ public class TaskService {
         if (
             target == null ||
             !ProjectMemberStatus.ACTIVE.equals(target.getStatus()) ||
-            (!"PROJECT_MANAGER".equals(target.getRole()) && !"DEVELOPER".equals(target.getRole()))
+            (!ProjectRole.PROJECT_MANAGER.matches(target.getRole()) && !ProjectRole.DEVELOPER.matches(target.getRole()))
         ) {
             throw new BusinessException(409, "新任务负责人不是该项目的有效成员");
         }
@@ -842,7 +844,7 @@ public class TaskService {
         if (
             replacement == null ||
             !UserStatus.ACTIVE.equals(replacement.getStatus()) ||
-            !"USER".equals(replacement.getSystemRole())
+            !SystemRole.USER.matches(replacement.getSystemRole())
         ) {
             throw new BusinessException(409, "新任务负责人不是该项目的有效成员");
         }

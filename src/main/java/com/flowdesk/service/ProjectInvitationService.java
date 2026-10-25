@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectRole;
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectInvitationStatus;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
@@ -89,7 +91,7 @@ public class ProjectInvitationService {
             throw new BusinessException(404, "被邀请用户不存在");
         }
 
-        if ("SYSTEM_ADMIN".equals(invitee.getSystemRole())) {
+        if (SystemRole.SYSTEM_ADMIN.matches(invitee.getSystemRole())) {
             throw new BusinessException(403, "不能邀请系统管理员加入项目");
         }
 
@@ -207,7 +209,7 @@ public class ProjectInvitationService {
             throw new BusinessException(403, "账号已被禁用");
         }
 
-        if ("SYSTEM_ADMIN".equals(invitee.getSystemRole())) {
+        if (SystemRole.SYSTEM_ADMIN.matches(invitee.getSystemRole())) {
             throw new BusinessException(403, "系统管理员不能加入项目");
         }
 
@@ -263,7 +265,7 @@ public class ProjectInvitationService {
 
             member.setProjectId(invitation.getProjectId());
             member.setUserId(currentUser.getUserId());
-            member.setRole("DEVELOPER");
+            member.setRole(ProjectRole.DEVELOPER.getCode());
             member.setStatus(ProjectMemberStatus.ACTIVE);
             member.setJoinedAt(now);
 

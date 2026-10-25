@@ -1,5 +1,6 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.UserStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -54,7 +55,7 @@ public class UserService {
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         user.setRealName(dto.getRealName().trim());
-        user.setSystemRole("USER");
+        user.setSystemRole(SystemRole.USER.getCode());
         user.setStatus(UserStatus.ACTIVE);
 
         try {
