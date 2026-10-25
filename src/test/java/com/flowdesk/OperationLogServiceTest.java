@@ -20,7 +20,7 @@ import tools.jackson.databind.ObjectMapper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -48,10 +48,10 @@ class OperationLogServiceTest {
         OperationLogService service = service();
         doThrow(new BusinessException(403, "你不是该项目的有效成员")).when(projectPermissionService).requireProjectMember(4L);
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> service.getProjectLogs(4L, 50));
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.getProjectLogs(4L, 1, 20));
 
         assertEquals(403, exception.getCode());
-        verify(operationLogMapper, never()).selectProjectLogs(any(), anyInt());
+        verify(operationLogMapper, never()).selectProjectLogs(any(), eq(4L));
     }
 
     @Test
@@ -62,10 +62,10 @@ class OperationLogServiceTest {
         project.setDeletedAt(java.time.LocalDateTime.now());
         when(projectMapper.selectById(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> service.getProjectLogs(4L, 50));
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.getProjectLogs(4L, 1, 20));
 
         assertEquals(404, exception.getCode());
-        verify(operationLogMapper, never()).selectProjectLogs(any(), anyInt());
+        verify(operationLogMapper, never()).selectProjectLogs(any(), eq(4L));
     }
 
     @Test

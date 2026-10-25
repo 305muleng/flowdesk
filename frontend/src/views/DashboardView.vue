@@ -97,7 +97,7 @@ async function load() {
     if (projectResult.status === 'fulfilled') {
       const [progressResults, logResults] = await Promise.all([
         Promise.allSettled(recentProjects.value.map((project) => getProjectTaskSummaryApi(project.id))),
-        Promise.allSettled(projects.value.slice(0, 4).map((project) => getProjectLogsApi(project.id, 5))),
+        Promise.allSettled(projects.value.slice(0, 4).map((project) => getProjectLogsApi(project.id, { page: 1, size: 5 }))),
       ])
       if (revision !== loadRevision) return
       recentProjects.value.forEach((project, index) => {
@@ -109,7 +109,7 @@ async function load() {
           (result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof getProjectLogsApi>>> =>
             result.status === 'fulfilled',
         )
-        .flatMap((result) => result.value.data.data)
+        .flatMap((result) => result.value.data.data.records)
         .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
         .slice(0, 7)
     }

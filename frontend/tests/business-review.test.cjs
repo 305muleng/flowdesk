@@ -78,38 +78,166 @@ for (const [name, field, api] of [
   })
 }
 
+const vue = require('vue')
+const pagedModule = { exports: {}, require }
+vm.runInNewContext(compile(source('composables/usePagedList.ts')), pagedModule)
+function activityState(overrides = {}) {
+  const scope = vue.effectScope()
+  const listing = scope.run(() => pagedModule.exports.usePagedList())
+  const state = {
+    projectId: ref(5), projects: ref([{ id: 5 }, { id: 6 }]), listing,
+    logs: listing.records, page: listing.page, size: listing.size, total: listing.total,
+    loading: listing.loading, error: listing.error,
+    selectionError: ref(''), projectsError: ref(''), projectsLoading: ref(false),
+    route: { query: {} }, router: { replace: () => {} },
+    getMyProjectsApi: async () => ({ data: { data: [{ id: 5 }, { id: 6 }] } }),
+    ...overrides,
+  }
+  const context = runFunctions('ActivityView',
+    ['loadLogs', 'loadProjects', 'selectProjectFromRoute', 'changeProject', 'changePage', 'changeSize'], state)
+  return { state, context, stop: () => scope.stop() }
+}
+const logPage = (id, page = 1, total = 150, size = 20) =>
+  ({ data: { data: { records: [{ id }], total, page, size, pages: Math.ceil(total / size) } } })
+
 test('activity failure, no-project empty state and rapid project changes stay distinct', async () => {
   const old = deferred()
   let calls = 0
-  const state = {
-    projectId: ref(5),
-    projects: ref([{ id: 5 }]),
-    logs: ref([{ id: 'stale' }]),
-    loading: ref(false),
-    error: ref(''),
-    projectsError: ref(''),
-    projectsLoading: ref(false),
-    getProjectLogsApi: () => (++calls === 1 ? old.promise : Promise.resolve({ data: { data: [{ id: 'latest' }] } })),
-    getMyProjectsApi: async () => {
-      throw new Error('offline')
-    },
-  }
-  const context = runFunctions('ActivityView', ['loadLogs', 'loadProjects'], state, 'let logRevision = 0;')
-  const first = context.loadLogs()
-  state.projectId.value = 6
-  await context.loadLogs()
-  old.reject(new Error('old'))
-  await first
-  assert.equal(state.logs.value[0].id, 'latest')
-  assert.equal(state.error.value, '')
-  await context.loadProjects()
-  assert.match(state.projectsError.value, /加载失败/)
-  assert.equal(state.projectId.value, undefined)
-  state.projectsError.value = ''
-  await context.loadLogs()
-  assert.equal(state.logs.value.length, 0)
-  assert.match(view('ActivityView').template.content, /还没有参与任何项目/)
-  assert.match(view('ActivityView').template.content, /!error && !projectsError/)
+  const { state, context, stop } = activityState({
+    getProjectLogsApi: () => (++calls === 1 ? old.promise : Promise.resolve(logPage('latest'))),
+    getMyProjectsApi: async () => { throw new Error('offline') },
+  })
+  try {
+    const first = context.loadLogs()
+    state.projectId.value = 6
+    await context.loadLogs()
+    old.reject(new Error('old'))
+    await first
+    assert.equal(state.logs.value[0].id, 'latest')
+    assert.equal(state.error.value, '')
+    await context.loadProjects()
+    assert.match(state.projectsError.value, /加载失败/)
+    assert.equal(state.projectId.value, undefined)
+    state.projectsError.value = ''
+    await context.loadLogs()
+    assert.equal(state.logs.value.length, 0)
+    assert.equal(state.total.value, 0)
+    assert.match(view('ActivityView').template.content, /还没有参与任何项目/)
+    assert.match(view('ActivityView').template.content, /!error && !projectsError/)
+  } finally { stop() }
+})
+
+test('activity forwards page and size and can read beyond the previous 100-row limit', async () => {
+  const requests = []
+  const { state, context, stop } = activityState({ getProjectLogsApi: async (id, params) => {
+    requests.push([id, params.page, params.size])
+    return logPage('older-record', params.page, 150, params.size)
+  } })
+  try {
+    await context.loadLogs()
+    state.page.value = 6
+    await context.loadLogs()
+    assert.deepEqual(requests, [[5, 1, 20], [5, 6, 20]])
+    assert.equal(state.total.value, 150)
+    assert.equal(state.logs.value[0].id, 'older-record')
+    context.changeSize(50)
+    await new Promise(setImmediate)
+    assert.equal(state.page.value, 1)
+    assert.deepEqual(requests.at(-1), [5, 1, 50])
+  } finally { stop() }
+})
+
+test('activity honors the linked project and never silently switches an invalid link to another project', async () => {
+  const { state, context, stop } = activityState()
+  try {
+    state.route.query.projectId = '6'
+    await context.loadProjects()
+    assert.equal(state.projectId.value, 6)
+    assert.equal(state.selectionError.value, '')
+    for (const requested of ['99', 'invalid', '-1', ['5', '6']]) {
+      state.route.query.projectId = requested
+      context.selectProjectFromRoute()
+      assert.equal(state.projectId.value, undefined)
+      assert.match(state.selectionError.value, /无权访问/)
+    }
+    delete state.route.query.projectId
+    context.selectProjectFromRoute()
+    assert.equal(state.projectId.value, 5)
+    assert.equal(state.selectionError.value, '')
+    let destination
+    state.router.replace = (value) => { destination = value }
+    context.changeProject(6)
+    assert.equal(destination.name, 'activity')
+    assert.equal(destination.query.projectId, '6')
+    assert.match(view('ProjectDetailView').template.content, /name: 'activity', query: \{ projectId: id \}/)
+  } finally { stop() }
+})
+
+test('activity cancels pending results when the project disappears and can retry a failed page', async () => {
+  const pending = deferred()
+  let fail = false
+  const { state, context, stop } = activityState({ getProjectLogsApi: async () => {
+    if (fail) throw new Error('offline')
+    return pending.promise
+  } })
+  try {
+    const first = context.loadLogs()
+    state.projectId.value = undefined
+    await context.loadLogs()
+    pending.resolve(logPage('stale'))
+    await first
+    assert.equal(state.logs.value.length, 0)
+    state.projectId.value = 5
+    fail = true
+    await context.loadLogs()
+    assert.match(state.error.value, /加载失败/)
+    assert.equal(state.logs.value.length, 0)
+    fail = false
+    await context.loadLogs()
+    assert.equal(state.error.value, '')
+    assert.equal(state.logs.value[0].id, 'stale')
+  } finally { stop() }
+})
+
+test('activity route changes reset pagination and stale responses cannot restore the previous project', async () => {
+  const scope = vue.effectScope()
+  const route = vue.reactive({ query: { projectId: '6' } })
+  const pending = deferred()
+  const calls = []
+  let mount
+  const context = vm.createContext({ exports: {}, require: (name) => {
+    if (name === 'vue') return { ...vue, onMounted: (fn) => { mount = fn } }
+    if (name === 'vue-router') return { useRoute: () => route, useRouter: () => ({ replace: () => {} }) }
+    if (name === '@/composables/usePagedList') return pagedModule.exports
+    if (name === '@/api/projects') return {
+      getMyProjectsApi: async () => ({ data: { data: [{ id: 5 }, { id: 6 }] } }),
+      getProjectLogsApi: async (id, params) => {
+        calls.push([id, params.page, params.size])
+        return id === 6 && params.page === 6 ? pending.promise : logPage(id, params.page)
+      },
+    }
+    return {}
+  } })
+  const code = view('ActivityView').scriptSetup.content +
+    '\nglobalThis.pageState = { projectId, page, logs, loadLogs };'
+  try {
+    scope.run(() => vm.runInContext(compile(code), context))
+    await mount()
+    await vue.nextTick()
+    await new Promise(setImmediate)
+    const state = context.pageState
+    assert.equal(state.projectId.value, 6)
+    state.page.value = 6
+    const old = state.loadLogs()
+    route.query.projectId = '5'
+    await vue.nextTick()
+    await new Promise(setImmediate)
+    assert.equal(state.page.value, 1)
+    assert.deepEqual(calls.at(-1), [5, 1, 20])
+    pending.resolve(logPage('old', 6))
+    await old
+    assert.equal(state.logs.value[0].id, 5)
+  } finally { scope.stop() }
 })
 
 function projectState() {
