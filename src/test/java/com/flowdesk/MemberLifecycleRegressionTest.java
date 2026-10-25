@@ -99,7 +99,8 @@ class MemberLifecycleRegressionTest {
             logs,
             notifications,
             users,
-            taskSummaryCache
+            taskSummaryCache,
+            mock(com.flowdesk.service.TaskReminderService.class)
         );
         requestService = new TaskRequestService(
             requests,
@@ -110,7 +111,8 @@ class MemberLifecycleRegressionTest {
             notifications,
             users,
             logs,
-            taskSummaryCache
+            taskSummaryCache,
+            mock(com.flowdesk.service.TaskReminderService.class)
         );
         transferService = new ProjectManagerTransferService(
             transfers,

@@ -48,6 +48,7 @@ public class TaskRequestService {
     private final UserMapper userMapper;
     private final OperationLogService operationLogService;
     private final ProjectTaskSummaryCache taskSummaryCache;
+    private final TaskReminderService taskReminderService;
 
     public TaskRequestService(
         TaskRequestMapper taskRequestMapper,
@@ -58,7 +59,8 @@ public class TaskRequestService {
         NotificationService notificationService,
         UserMapper userMapper,
         OperationLogService operationLogService,
-        ProjectTaskSummaryCache taskSummaryCache
+        ProjectTaskSummaryCache taskSummaryCache,
+        TaskReminderService taskReminderService
     ) {
         this.taskRequestMapper = taskRequestMapper;
         this.projectMapper = projectMapper;
@@ -69,6 +71,7 @@ public class TaskRequestService {
         this.userMapper = userMapper;
         this.operationLogService = operationLogService;
         this.taskSummaryCache = taskSummaryCache;
+        this.taskReminderService = taskReminderService;
     }
 
     @Transactional
@@ -371,6 +374,7 @@ public class TaskRequestService {
         task.setDeadline(dto.getDeadline());
 
         taskMapper.insert(task);
+        taskReminderService.syncTask(task.getId());
 
         // 9. 更新申请
         request.setStatus(TaskRequestStatus.APPROVED);

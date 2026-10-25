@@ -45,7 +45,8 @@ class ListPaginationServiceTest {
         mock(OperationLogService.class),
         mock(NotificationService.class),
         mock(UserMapper.class),
-        cache
+        cache,
+        mock(com.flowdesk.service.TaskReminderService.class)
     );
     NotificationService notificationService = new NotificationService(notifications, mock(UserMapper.class));
 

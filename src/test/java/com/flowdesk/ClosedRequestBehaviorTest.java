@@ -84,7 +84,8 @@ class ClosedRequestBehaviorTest {
         notifications,
         users,
         logs,
-        mock(ProjectTaskSummaryCache.class)
+        mock(ProjectTaskSummaryCache.class),
+        mock(com.flowdesk.service.TaskReminderService.class)
     );
 
     @BeforeEach

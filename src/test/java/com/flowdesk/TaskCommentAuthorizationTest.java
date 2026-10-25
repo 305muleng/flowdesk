@@ -39,7 +39,7 @@ class TaskCommentAuthorizationTest {
         comments = mock(TaskCommentMapper.class);
         service = new TaskService(tasks, projects, members, new ProjectPermissionService(members),
                 mock(TaskSubmissionMapper.class), comments, mock(OperationLogService.class),
-                mock(NotificationService.class), mock(UserMapper.class), mock(ProjectTaskSummaryCache.class));
+                mock(NotificationService.class), mock(UserMapper.class), mock(ProjectTaskSummaryCache.class), mock(com.flowdesk.service.TaskReminderService.class));
         UserContext.set(new CurrentUser(2L, "USER"));
         Task task = new Task();
         task.setId(10L);

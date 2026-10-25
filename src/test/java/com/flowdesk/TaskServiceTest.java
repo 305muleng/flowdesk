@@ -68,6 +68,9 @@ public class TaskServiceTest {
     @Mock
     private OperationLogService operationLogService;
 
+    @Mock
+    private com.flowdesk.service.TaskReminderService taskReminderService;
+
     @InjectMocks
     private TaskService taskService;
 
@@ -182,6 +185,7 @@ public class TaskServiceTest {
         Long taskId = taskService.createTask(4L, dto);
 
         assertEquals(9L, taskId);
+        verify(taskReminderService).syncTask(9L);
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
@@ -279,6 +283,7 @@ public class TaskServiceTest {
         when(projectMemberMapper.selectMemberForUpdate(4L, 1L)).thenReturn(manager);
 
         taskService.assignTask(9L, dto);
+        verify(taskReminderService).syncTask(9L);
 
         verify(taskMapper).reassignTodoIfCurrent(eq(9L), isNull(), eq(1L), any());
         verify(notificationService, never()).createNotification(any(CreateNotificationDTO.class));
@@ -714,6 +719,7 @@ public class TaskServiceTest {
         when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
 
         taskService.reviewTask(10L, dto);
+        verify(taskReminderService).syncTask(10L);
 
         // 顺便确认业务状态真的改了
         assertEquals(TaskStatus.DONE, task.getStatus());

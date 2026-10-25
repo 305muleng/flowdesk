@@ -31,7 +31,8 @@ class TaskProjectScopeTest {
         mock(OperationLogService.class),
         mock(NotificationService.class),
         mock(UserMapper.class),
-        mock(ProjectTaskSummaryCache.class)
+        mock(ProjectTaskSummaryCache.class),
+        mock(com.flowdesk.service.TaskReminderService.class)
     );
 
     @BeforeEach

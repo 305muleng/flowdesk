@@ -65,6 +65,9 @@ public class TaskRequestServiceTest {
     @Mock
     private ProjectMemberMapper projectMemberMapper;
 
+    @Mock
+    private com.flowdesk.service.TaskReminderService taskReminderService;
+
     @InjectMocks
     private TaskRequestService taskRequestService;
 
@@ -220,6 +223,7 @@ public class TaskRequestServiceTest {
 
         // 8. Service 应该返回新任务 id
         assertEquals(99L, taskId);
+        verify(taskReminderService).syncTask(99L);
 
         /*
          * 9. 抓住 taskMapper.insert(...) 时

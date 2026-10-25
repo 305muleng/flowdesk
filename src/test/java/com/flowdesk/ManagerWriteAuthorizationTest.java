@@ -79,7 +79,7 @@ class ManagerWriteAuthorizationTest {
         MemberLeaveRequestService leaveService = new MemberLeaveRequestService(leaveRequests, projects,
                 members, permissions, tasks, notifications, logs, taskRequests, 7);
         TaskRequestService requestService = new TaskRequestService(taskRequests, projects, permissions,
-                tasks, members, notifications, users, logs, cache);
+                tasks, members, notifications, users, logs, cache, mock(com.flowdesk.service.TaskReminderService.class));
         ProjectManagerTransferService transferService = new ProjectManagerTransferService(transfers,
                 projects, users, tasks, permissions, notifications, logs, encoder, members, taskRequests, leaveRequests, 7);
 

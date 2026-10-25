@@ -43,6 +43,7 @@ public class TaskService {
     private final NotificationService notificationService;
     private final UserMapper userMapper;
     private final ProjectTaskSummaryCache taskSummaryCache;
+    private final TaskReminderService taskReminderService;
 
     public TaskService(
         TaskMapper taskMapper,
@@ -54,7 +55,8 @@ public class TaskService {
         OperationLogService operationLogService,
         NotificationService notificationService,
         UserMapper userMapper,
-        ProjectTaskSummaryCache taskSummaryCache
+        ProjectTaskSummaryCache taskSummaryCache,
+        TaskReminderService taskReminderService
     ) {
         this.taskMapper = taskMapper;
         this.projectMapper = projectMapper;
@@ -66,6 +68,7 @@ public class TaskService {
         this.notificationService = notificationService;
         this.userMapper = userMapper;
         this.taskSummaryCache = taskSummaryCache;
+        this.taskReminderService = taskReminderService;
     }
 
     @Transactional
@@ -110,6 +113,7 @@ public class TaskService {
         if (taskMapper.updateDetailsIfTodo(task) != 1) {
             throw new BusinessException(409, "任务状态已发生变化，请刷新后重试");
         }
+        taskReminderService.syncTask(taskId);
         operationLogService.record(projectId, "TASK", taskId, "UPDATE_TASK_DETAILS", "修改任务资料", before, taskDetailsData(task));
     }
 
@@ -190,6 +194,7 @@ public class TaskService {
         task.setDeadline(dto.getDeadline());
 
         taskMapper.insert(task);
+        taskReminderService.syncTask(task.getId());
 
         Map<String, Object> afterData = new HashMap<>();
 
@@ -355,6 +360,7 @@ public class TaskService {
             beforeData,
             afterData
         );
+        taskReminderService.syncTask(taskId);
         taskSummaryCache.evictAfterCommit(task.getProjectId());
     }
 
@@ -496,6 +502,7 @@ public class TaskService {
 
             notificationService.createNotification(notificationDTO);
         }
+        taskReminderService.syncTask(taskId);
         taskSummaryCache.evictAfterCommit(task.getProjectId());
 
         return submission.getId();
@@ -701,6 +708,7 @@ public class TaskService {
 
             notificationService.createNotification(notificationDTO);
         }
+        taskReminderService.syncTask(taskId);
         taskSummaryCache.evictAfterCommit(task.getProjectId());
     }
 
@@ -787,6 +795,7 @@ public class TaskService {
         }
         task.setAssigneeId(dto.getAssigneeId());
         task.setUpdatedAt(now);
+        taskReminderService.syncTask(taskId);
 
         // 7. 准备审计日志的修改前数据
         Map<String, Object> beforeData = new HashMap<>();
@@ -904,6 +913,7 @@ public class TaskService {
         ) {
             throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
         }
+        taskReminderService.syncTask(taskId);
         Long actorId = UserContext.get().getUserId();
         operationLogService.record(
             projectId,
@@ -1127,6 +1137,7 @@ public class TaskService {
             beforeData,
             afterData
         );
+        taskReminderService.syncTask(taskId);
         taskSummaryCache.evictAfterCommit(task.getProjectId());
     }
 }

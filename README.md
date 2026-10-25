@@ -26,6 +26,7 @@ FlowDesk 是一个以研发团队协作为背景的项目、任务与交付验�
 | 后端 | Java 17、Spring Boot 4、Spring MVC |
 | 数据访问 | MyBatis-Plus、MySQL |
 | 缓存 | Spring Data Redis、Redis |
+| 异步提醒 | Spring Scheduling、Redis Streams（需显式启用） |
 | 认证 | JWT、BCrypt（Spring Security Crypto）、Interceptor、ThreadLocal |
 | 前端 | Vue 3、TypeScript、Element Plus、Pinia、Vue Router、Vite、ECharts |
 | 测试 | JUnit、Mockito、MockMvc、Node 测试 |
@@ -240,6 +241,26 @@ GET /tasks/my/summary
 ```
 
 只统计当前登录用户有权访问的任务，本接口当前不增加 Redis 缓存。
+
+### 任务到期提醒（需显式启用）
+
+提醒仅面向进行中项目的 TODO / IN_PROGRESS 任务：截止前24小时内一次、到期仍未提交再一次，不按天重复。REVIEW 不催执行人；优先通知当前有效执行人，无执行人或账号不可用时通知当前有效项目负责人。复用通知中心的“任务”分类与任务详情跳转。
+
+`task_reminder_plan` 保存截止时间、执行人及计划版本；改变截止时间或执行人时，与任务变更同事务推进版本。定时扫描补齐历史任务和关闭模块期间的计划，并按当前时间生成 `task_reminder_event`。恢复时已逾期的任务只补逾期事件。每个计划版本的每种提醒最多生成一个事件；已经提交、取消或失效的消息不再催办。审核驳回后，若任务重新符合条件，可恢复同版本尚未发出的作废事件；成功发送的事件不会重置，已保存的通知仍是历史记录。
+
+事件先落数据库，再投递到专用 Redis Stream。投递前持久化下次重投时间；Redis 暂时不可用、消息被裁剪或 Redis 数据丢失后，数据库中的待发送事件仍可再次投递。消费时按项目、任务、计划、事件顺序加锁，复核状态、版本和当前接收人；通知插入与事件完成在一个事务内提交，随后才确认 Redis 消息。重复投递依靠锁定后的事件完成状态去重，不宣称 Redis 提供恰好一次投递。
+
+消费者使用消费组，定期接管超过60秒未确认的消息。失败记录事件编号与异常类型，重投退避最长5分钟，不因固定重试次数耗尽而丢弃。扫描按任务ID分批轮询，避免持续失败的少数任务占满所有批次。后台通知不伪造用户登录上下文，操作者为空。
+
+启用步骤（本轮未执行）：
+
+1. 新库使用当前完整 schema；现有库由维护者确认目标后执行 `database/migrations/20261025_add_task_reminders.sql`，只增加两张表。
+2. 启动后端前设置 `FLOWDESK_REMINDERS_ENABLED=true`，沿用已有 MySQL / Redis 连接配置；默认关闭，不访问提醒表或队列。
+3. 未调整调度配置时，计划扫描30秒一次、投递5秒一次、消费1秒一次，每批最多100条。提醒是异步处理，时间不是硬实时保证。
+
+维护者可查询 `task_reminder_event` 的 `state`、`attempts`、`last_error`、`next_publish_at` 定位积压；修复故障后等待自动重投，不提供公共重放接口。专用流 `flowdesk:reminders:stream:v1` 只有一个业务消费组 `task-reminders`，确认后删除正文，并限制保留长度；业务结果保留在数据库。长期事件归档和清理策略尚未实现，不应假定存储可无限增长。
+
+本模块的自动化测试使用替身验证规则和故障分支，不代表真实 MySQL 事务、Redis 消费组、重启恢复或浏览器流程已验收。本轮按用户要求继续暂缓这些真实环境检查。现有邀请、审批、禁用账号等通知保持原有同步或本地事件方式，没有整体迁移到 Stream。
 
 ## 目录
 

@@ -92,3 +92,14 @@ test('task assignee options include effective managers and developers with role 
   assert.equal(optionLabel(options[0], formatContext.exports.statusLabel), 'Tom · 项目负责人 · 未完成任务 1')
   assert.equal(optionLabel(options[1], formatContext.exports.statusLabel), '张三 · 开发成员 · 未完成任务 2')
 })
+
+for (const type of ['TASK_DUE_SOON', 'TASK_OVERDUE']) {
+  test(`${type}: 到期提醒归入任务分类，已读前后都跳转同一任务`, () => {
+    assert.equal(context.categoryFor(type), 'TASK')
+    for (const readAt of [null, '2026-10-25T10:00:00']) {
+      const action = context.actionFor({ type, projectId: 4, targetType: 'TASK', targetId: 10, readAt })
+      assert.equal(action.to, '/tasks/10')
+      assert.equal(action.label, '查看任务')
+    }
+  })
+}
