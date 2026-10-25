@@ -397,7 +397,7 @@ onMounted(load)
         <el-form-item label="完成说明" required
           ><el-input v-model="submitForm.completionNote" type="textarea" :rows="3"
         /></el-form-item>
-        <el-form-item label="成果链接"><el-input v-model="submitForm.resultUrl" placeholder="https://…" /></el-form-item>
+        <el-form-item label="成果链接"><el-input v-model="submitForm.resultUrl" :maxlength="500" show-word-limit placeholder="https://…" /></el-form-item>
         <el-form-item label="测试说明" required
           ><el-input v-model="submitForm.testNote" type="textarea" :rows="3"
         /></el-form-item>

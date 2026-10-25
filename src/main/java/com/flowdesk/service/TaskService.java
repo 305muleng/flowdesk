@@ -948,6 +948,9 @@ public class TaskService {
             throw new BusinessException(404, "项目不存在");
         }
 
+        // 等待项目锁期间成员可能已退出或被移除，必须使用锁定读取重新授权。
+        projectPermissionService.requireProjectMemberForUpdate(task.getProjectId());
+
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许新增评论");
         }
