@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -689,7 +690,7 @@ public class TaskRequestServiceTest {
         BusinessException exception = assertThrows(BusinessException.class, () -> taskRequestService.cancelTaskRequest(4L, 10L));
 
         assertEquals(409, exception.getCode());
-        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -767,5 +768,37 @@ public class TaskRequestServiceTest {
 
         verify(taskMapper, never()).insert(any(Task.class));
         verifyNoInteractions(taskSummaryCache);
+    }
+    @ParameterizedTest
+    @CsvSource({"ALL,ALL", "PENDING,PENDING", "APPROVED,APPROVED", "REJECTED,REJECTED", "CANCELLED,CANCELLED", "CLOSED,CLOSED", "' pending ',PENDING"})
+    void personalAndProjectRequestFiltersShareTheSameStatusCodes(String input, String expected) {
+        UserContext.set(new CurrentUser(2L, "USER"));
+        Project project = new Project();
+        project.setId(4L);
+        project.setStatus(ProjectStatus.IN_PROGRESS);
+        when(projectMapper.selectById(4L)).thenReturn(project);
+
+        taskRequestService.getMyTaskRequests(input);
+        taskRequestService.getProjectTaskRequests(4L, input);
+
+        verify(taskRequestMapper).selectMyTaskRequests(2L, expected);
+        verify(taskRequestMapper).selectProjectTaskRequests(4L, expected);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UNKNOWN", "EXPIRED"})
+    void invalidRequestFiltersAreRejectedBeforeQuery(String input) {
+        UserContext.set(new CurrentUser(2L, "USER"));
+        Project project = new Project();
+        project.setId(4L);
+        when(projectMapper.selectById(4L)).thenReturn(project);
+
+        BusinessException personal = assertThrows(BusinessException.class,
+                () -> taskRequestService.getMyTaskRequests(input));
+        BusinessException projectError = assertThrows(BusinessException.class,
+                () -> taskRequestService.getProjectTaskRequests(4L, input));
+        assertEquals(400, personal.getCode());
+        assertEquals(personal.getMessage(), projectError.getMessage());
+        verifyNoInteractions(taskRequestMapper);
     }
 }

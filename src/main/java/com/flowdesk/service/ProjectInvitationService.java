@@ -144,7 +144,6 @@ public class ProjectInvitationService {
 
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_INVITATION",
             invitation.getId(),
             "SEND_PROJECT_INVITATION",
@@ -280,7 +279,6 @@ public class ProjectInvitationService {
 
         operationLogService.record(
             invitation.getProjectId(),
-            currentUser.getUserId(),
             "PROJECT_INVITATION",
             invitation.getId(),
             "ACCEPT_PROJECT_INVITATION",
@@ -391,7 +389,6 @@ public class ProjectInvitationService {
 
         operationLogService.record(
             invitation.getProjectId(),
-            currentUser.getUserId(),
             "PROJECT_INVITATION",
             invitation.getId(),
             "REJECT_PROJECT_INVITATION",

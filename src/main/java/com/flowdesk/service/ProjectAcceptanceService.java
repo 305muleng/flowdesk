@@ -1,5 +1,6 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ReviewAction;
 import com.flowdesk.enums.ProjectRole;
 import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectAcceptanceStatus;
@@ -189,7 +190,6 @@ public class ProjectAcceptanceService {
 
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT",
             projectId,
             "SUBMIT_PROJECT_ACCEPTANCE",
@@ -285,11 +285,11 @@ public class ProjectAcceptanceService {
 
         String action = dto.getAction().trim().toUpperCase();
 
-        if (!"APPROVE".equals(action) && !"REJECT".equals(action)) {
+        if (!ReviewAction.isKnownCode(action)) {
             throw new BusinessException(400, "验收结果只能是 APPROVE 或 REJECT");
         }
 
-        if ("REJECT".equals(action) && (dto.getReviewNote() == null || dto.getReviewNote().isBlank())) {
+        if (ReviewAction.REJECT.matches(action) && (dto.getReviewNote() == null || dto.getReviewNote().isBlank())) {
             throw new BusinessException(400, "驳回项目验收时必须填写原因");
         }
 
@@ -308,7 +308,7 @@ public class ProjectAcceptanceService {
         acceptance.setReviewedAt(now);
 
         // 根据审核结果修改状态
-        if ("APPROVE".equals(action)) {
+        if (ReviewAction.APPROVE.matches(action)) {
             acceptance.setReviewStatus(ProjectAcceptanceStatus.APPROVED);
 
             project.setStatus(ProjectStatus.COMPLETED);
@@ -344,7 +344,7 @@ public class ProjectAcceptanceService {
             throw new BusinessException(409, "该项目验收已经处理，请刷新后重试");
         }
 
-        if ("APPROVE".equals(action)) {
+        if (ReviewAction.APPROVE.matches(action)) {
             requestClosureService.closeForCompletedProject(project.getId(), now);
         }
 
@@ -370,14 +370,13 @@ public class ProjectAcceptanceService {
         afterData.put("acceptanceNo", acceptance.getAcceptanceNo());
 
         // 根据通过 / 驳回决定日志动作
-        String logAction = "APPROVE".equals(action) ? "APPROVE_PROJECT_ACCEPTANCE" : "REJECT_PROJECT_ACCEPTANCE";
+        String logAction = ReviewAction.APPROVE.matches(action) ? "APPROVE_PROJECT_ACCEPTANCE" : "REJECT_PROJECT_ACCEPTANCE";
 
-        String description = "APPROVE".equals(action) ? "项目验收通过" : "项目验收驳回";
+        String description = ReviewAction.APPROVE.matches(action) ? "项目验收通过" : "项目验收驳回";
 
         // 写审计日志
         operationLogService.record(
             project.getId(),
-            currentUser.getUserId(),
             "PROJECT",
             project.getId(),
             logAction,
@@ -397,7 +396,7 @@ public class ProjectAcceptanceService {
             notificationDTO.setRecipientId(manager.getUserId());
             notificationDTO.setActorId(currentUser.getUserId());
 
-            if ("APPROVE".equals(action)) {
+            if (ReviewAction.APPROVE.matches(action)) {
                 notificationDTO.setType("PROJECT_ACCEPTANCE_APPROVED");
 
                 notificationDTO.setTitle("项目验收已通过");

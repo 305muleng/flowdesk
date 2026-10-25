@@ -189,7 +189,6 @@ public class ProjectManagerTransferService {
         // 13. 写入操作日志
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MANAGER_TRANSFER",
             transfer.getId(),
             "CREATE_MANAGER_TRANSFER",
@@ -374,7 +373,6 @@ public class ProjectManagerTransferService {
         // 13. 写入操作日志
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MANAGER_TRANSFER",
             transferId,
             "ACCEPT_MANAGER_TRANSFER",
@@ -449,7 +447,6 @@ public class ProjectManagerTransferService {
 
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MANAGER_TRANSFER",
             transferId,
             "REJECT_MANAGER_TRANSFER",
@@ -525,7 +522,6 @@ public class ProjectManagerTransferService {
 
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "PROJECT_MANAGER_TRANSFER",
             transferId,
             "CANCEL_MANAGER_TRANSFER",

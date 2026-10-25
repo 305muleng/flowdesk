@@ -269,7 +269,7 @@ public class ProjectAcceptanceServiceTest {
         );
 
         // 应该记录审计日志
-        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -545,7 +545,7 @@ public class ProjectAcceptanceServiceTest {
 
         assertEquals(409, exception.getCode());
         verify(projectAcceptanceMapper, never()).insert(any(ProjectAcceptance.class));
-        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any());
         verify(notificationService, never()).createNotification(any());
     }
 
@@ -574,7 +574,7 @@ public class ProjectAcceptanceServiceTest {
             nullable(String.class),
             any()
         );
-        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationLogService, never()).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

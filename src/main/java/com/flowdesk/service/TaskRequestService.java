@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.TaskPriority;
+import com.flowdesk.enums.ReviewAction;
 import com.flowdesk.enums.ProjectRole;
 import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectMemberStatus;
@@ -33,7 +35,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class TaskRequestService {
@@ -118,7 +119,6 @@ public class TaskRequestService {
 
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "TASK_REQUEST",
             request.getId(),
             "CREATE_TASK_REQUEST",
@@ -172,13 +172,7 @@ public class TaskRequestService {
             throw new BusinessException(404, "项目不存在");
         }
 
-        String normalizedStatus = status.trim().toUpperCase();
-
-        Set<String> allowedStatuses = Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "CLOSED");
-
-        if (!allowedStatuses.contains(normalizedStatus)) {
-            throw new BusinessException(400, "任务申请状态筛选条件不正确");
-        }
+        String normalizedStatus = normalizeStatus(status);
 
         return taskRequestMapper.selectProjectTaskRequests(projectId, normalizedStatus);
     }
@@ -193,8 +187,12 @@ public class TaskRequestService {
 
     private String normalizeStatus(String status) {
         String normalizedStatus = status.trim().toUpperCase();
-        if (!Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "CLOSED").contains(normalizedStatus)) {
-            throw new BusinessException(400, "任务申请状态筛选条件不正确");
+        if (!"ALL".equals(normalizedStatus)) {
+            try {
+                TaskRequestStatus.fromCode(normalizedStatus);
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException(400, "任务申请状态筛选条件不正确");
+            }
         }
         return normalizedStatus;
     }
@@ -253,14 +251,14 @@ public class TaskRequestService {
 
         String action = dto.getAction().trim().toUpperCase();
 
-        if (!"APPROVE".equals(action) && !"REJECT".equals(action)) {
+        if (!ReviewAction.isKnownCode(action)) {
             throw new BusinessException(400, "审批结果只能是 APPROVE 或 REJECT");
         }
 
         LocalDateTime now = LocalDateTime.now();
 
         // 4. 拒绝
-        if ("REJECT".equals(action)) {
+        if (ReviewAction.REJECT.matches(action)) {
             int updated = taskRequestMapper.reviewIfPending(
                 requestId,
                 projectId,
@@ -280,7 +278,6 @@ public class TaskRequestService {
 
             operationLogService.record(
                 projectId,
-                currentUser.getUserId(),
                 "TASK_REQUEST",
                 request.getId(),
                 "REJECT_TASK_REQUEST",
@@ -320,11 +317,11 @@ public class TaskRequestService {
         String priority = dto.getPriority();
 
         if (priority == null || priority.isBlank()) {
-            priority = "MEDIUM";
+            priority = TaskPriority.MEDIUM.getCode();
         } else {
             priority = priority.trim().toUpperCase();
 
-            if (!Set.of("LOW", "MEDIUM", "HIGH").contains(priority)) {
+            if (!TaskPriority.isKnownCode(priority)) {
                 throw new BusinessException(400, "任务优先级只能是 LOW、MEDIUM 或 HIGH");
             }
         }
@@ -392,7 +389,6 @@ public class TaskRequestService {
         approvedData.put("taskId", task.getId());
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "TASK_REQUEST",
             request.getId(),
             "APPROVE_TASK_REQUEST",
@@ -489,7 +485,6 @@ public class TaskRequestService {
 
         operationLogService.record(
             projectId,
-            currentUser.getUserId(),
             "TASK_REQUEST",
             request.getId(),
             "CANCEL_TASK_REQUEST",
