@@ -8,7 +8,7 @@ import com.flowdesk.event.UserDisabledEvent;
 import com.flowdesk.mapper.ProjectMapper;
 import com.flowdesk.mapper.ProjectMemberMapper;
 import com.flowdesk.mapper.TaskMapper;
-import com.flowdesk.mapper.TaskQueryConditions;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.Project;
 import com.flowdesk.vo.ProjectMemberVO;
 import org.slf4j.Logger;

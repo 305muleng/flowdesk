@@ -17,6 +17,7 @@ import com.flowdesk.dto.ReviewProjectAcceptanceDTO;
 import com.flowdesk.dto.SubmitProjectAcceptanceDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.*;
 import com.flowdesk.vo.*;
 import com.flowdesk.snapshot.AcceptanceSnapshotCodec;

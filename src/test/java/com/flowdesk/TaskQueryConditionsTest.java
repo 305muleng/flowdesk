@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.flowdesk.enums.TaskStatus;
-import com.flowdesk.mapper.TaskQueryConditions;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.Task;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;

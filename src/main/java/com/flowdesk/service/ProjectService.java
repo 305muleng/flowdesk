@@ -15,6 +15,7 @@ import com.flowdesk.dto.CreateProjectDTO;
 import com.flowdesk.dto.RemoveProjectMemberDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.User;

@@ -14,6 +14,7 @@ import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.CreateProjectManagerTransferDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
+import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.*;
 import com.flowdesk.vo.ProjectManagerTransferVO;
 import org.springframework.beans.factory.annotation.Value;
