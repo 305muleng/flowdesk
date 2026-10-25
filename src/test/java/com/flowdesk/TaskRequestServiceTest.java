@@ -31,6 +31,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -356,8 +358,9 @@ public class TaskRequestServiceTest {
         assertEquals(4L, notification.getProjectId());
     }
 
-    @Test
-    void disabledManagerDoesNotReceiveTaskRequestNotification() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void unavailableManagerDoesNotReceiveTaskRequestNotification(boolean accountMissing) {
         ProjectMember developer = new ProjectMember();
         developer.setRole("DEVELOPER");
         when(projectPermissionService.requireProjectMember(4L)).thenReturn(developer);
@@ -374,7 +377,7 @@ public class TaskRequestServiceTest {
         disabled.setId(1L);
         disabled.setStatus(UserStatus.DISABLED);
         disabled.setSystemRole("USER");
-        when(userMapper.selectById(1L)).thenReturn(disabled);
+        when(userMapper.selectById(1L)).thenReturn(accountMissing ? null : disabled);
         UserContext.set(new CurrentUser(2L, "USER"));
         CreateTaskRequestDTO dto = new CreateTaskRequestDTO();
         dto.setTitle("增加统计");

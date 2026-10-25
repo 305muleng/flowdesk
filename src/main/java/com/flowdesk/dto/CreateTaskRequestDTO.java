@@ -11,8 +11,10 @@ public class CreateTaskRequestDTO {
     @Size(max = 200, message = "任务申请标题不能超过200个字符")
     private String title;
 
+    @NotBlank(message = "任务申请描述不能为空")
     private String description;
 
+    @NotBlank(message = "任务申请目标不能为空")
     private String goal;
 
     private LocalDateTime suggestedDeadline;

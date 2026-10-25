@@ -26,10 +26,13 @@ FlowDesk 是一个以研发团队协作为背景的项目、任务与交付验�
 | 后端 | Java 17、Spring Boot 4、Spring MVC |
 | 数据访问 | MyBatis-Plus、MySQL |
 | 缓存 | Spring Data Redis、Redis |
-| 认证 | JWT、BCrypt、Interceptor、ThreadLocal |
+| 认证 | JWT、BCrypt（Spring Security Crypto）、Interceptor、ThreadLocal |
 | 前端 | Vue 3、TypeScript、Element Plus、Pinia、Vue Router、Vite |
 | 测试 | JUnit、Mockito、MockMvc、Node 测试 |
-| 构建 | Maven、npm |
+| 参数校验与接口文档 | Jakarta Bean Validation、springdoc OpenAPI |
+| 构建与自动检查 | Maven、npm、GitHub Actions |
+
+密码哈希使用 Spring Security Crypto 的 BCrypt 组件；认证与授权由 JWT、拦截器和业务权限检查实现。
 
 ## 角色与权限
 
@@ -70,7 +73,7 @@ PREPARING / IN_PROGRESS → CANCELLED
 ### 任务与任务申请
 
 - 项目负责人创建正式任务，设置任务负责人、优先级和截止时间。
-- 开发人员提出任务申请，负责人批准后生成正式任务。
+- 开发人员提出任务申请，标题、描述和目标均为必填；负责人批准后生成正式任务。
 - 任务支持开始、提交、审核、取消、评论和提交历史查询。
 - TODO 状态允许重新分配任务负责人。
 - 项目负责人也可以承担任务，当前允许其审核自己提交的成果。
@@ -423,7 +426,9 @@ mvnw.cmd -Pintegration -Dtest=FlowdeskApplicationTests test
 
 ### 已执行的验证
 
-2026-10-24，本地实际执行结果：
+当前提交的普通测试和前端构建结果以对应 PR 与 GitHub Actions 记录为准；真实数据库、Redis 和浏览器验收需分别确认。
+
+以下为2026-10-24测试分层整理阶段的本地验收记录，不表示后续每次提交均已重新执行全部集成场景：
 
 - 默认命令：407项通过，执行时没有提供数据库、Redis凭据或应用密钥。
 - 集成profile：17项通过，分布于7类测试，包含原先单独排除的完整上下文、真实Mapper、Redis连接、提交后缓存删除和并发验收测试，以及快照和负责人并发测试。

@@ -238,7 +238,11 @@ const taskRules = {
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
   deadline: [{ required: true, message: '请选择截止时间', trigger: 'change' }],
 }
-const requestRules = { title: [{ required: true, message: '请输入任务申请标题', trigger: 'blur' }] }
+const requestRules = {
+  title: [{ required: true, message: '请输入任务申请标题', trigger: 'blur' }],
+  description: [{ required: true, whitespace: true, message: '请输入任务描述', trigger: 'blur' }],
+  goal: [{ required: true, whitespace: true, message: '请输入任务目标', trigger: 'blur' }],
+}
 
 async function load() {
   const revision = ++loadRevision
@@ -709,7 +713,8 @@ onMounted(load)
     <el-dialog v-model="requestDialog" title="提交任务申请" width="min(92vw,560px)"
       ><el-form ref="requestFormRef" :model="requestForm" :rules="requestRules" label-position="top"
         ><el-form-item label="申请标题" prop="title"><el-input v-model="requestForm.title" maxlength="200" /></el-form-item
-        ><el-form-item label="任务设想"><el-input v-model="requestForm.description" type="textarea" :rows="4" /></el-form-item
+        ><el-form-item label="任务描述" prop="description"><el-input v-model="requestForm.description" type="textarea" :rows="4" /></el-form-item
+        ><el-form-item label="任务目标" prop="goal"><el-input v-model="requestForm.goal" type="textarea" :rows="3" /></el-form-item
         ><el-form-item label="建议截止时间"
           ><el-date-picker
             v-model="requestForm.suggestedDeadline"

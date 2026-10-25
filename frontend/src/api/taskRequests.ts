@@ -9,7 +9,7 @@ export const getProjectTaskRequestsApi = (projectId: string | number, status = '
   })
 export const createTaskRequestApi = (
   projectId: string | number,
-  payload: { title: string; description?: string; goal?: string; suggestedDeadline?: string },
+  payload: { title: string; description: string; goal: string; suggestedDeadline?: string },
 ) => request.post<ApiResult<number>>(`/projects/${projectId}/task-requests`, payload)
 export const cancelTaskRequestApi = (projectId: string | number, requestId: number) =>
   request.post<ApiResult<void>>(`/projects/${projectId}/task-requests/${requestId}/cancel`)

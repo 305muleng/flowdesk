@@ -4,7 +4,6 @@ import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
 import com.flowdesk.enums.TaskRequestStatus;
 import com.flowdesk.enums.TaskStatus;
-import com.flowdesk.enums.UserStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.cache.ProjectTaskSummaryCache;
@@ -134,7 +133,7 @@ public class TaskRequestService {
         );
 
         for (ProjectMember manager : managers) {
-            if (!isActiveProjectUser(manager.getUserId())) {
+            if (!isActiveOrdinaryUser(manager.getUserId())) {
                 continue;
             }
 
@@ -245,7 +244,7 @@ public class TaskRequestService {
         if (
             requesterMembership == null ||
             !"DEVELOPER".equals(requesterMembership.getRole()) ||
-            !isActiveProjectUser(request.getRequesterId())
+            !isActiveOrdinaryUser(request.getRequesterId())
         ) {
             throw new BusinessException(409, "任务申请人已不是该项目的有效成员");
         }
@@ -337,7 +336,7 @@ public class TaskRequestService {
                     .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
             );
 
-            if (assignee == null || !isActiveProjectUser(dto.getAssigneeId())) {
+            if (assignee == null || !isActiveOrdinaryUser(dto.getAssigneeId())) {
                 throw new BusinessException(409, "任务负责人不是该项目的有效成员");
             }
         }
@@ -441,9 +440,9 @@ public class TaskRequestService {
         return task.getId();
     }
 
-    private boolean isActiveProjectUser(Long userId) {
+    private boolean isActiveOrdinaryUser(Long userId) {
         User user = userMapper.selectById(userId);
-        return user != null && UserStatus.ACTIVE.equals(user.getStatus()) && "USER".equals(user.getSystemRole());
+        return user != null && user.isActiveOrdinaryUser();
     }
 
     @Transactional

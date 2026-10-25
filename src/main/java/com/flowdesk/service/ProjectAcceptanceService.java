@@ -84,10 +84,7 @@ public class ProjectAcceptanceService {
 
         // 3. 不能还有未完成任务
         Long unfinishedTaskCount = taskMapper.selectCount(
-            new LambdaQueryWrapper<Task>()
-                .eq(Task::getProjectId, projectId)
-                .isNull(Task::getDeletedAt)
-                .in(Task::getStatus, List.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW))
+            TaskQueryConditions.unfinishedInProject(projectId)
         );
 
         if (unfinishedTaskCount > 0) {

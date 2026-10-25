@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -195,8 +196,9 @@ public class TaskServiceTest {
         assertEquals(9L, notification.getTargetId());
     }
 
-    @Test
-    void disabledActiveMemberCannotReceiveNewTaskAssignment() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void unavailableActiveMemberCannotReceiveNewTaskAssignment(boolean accountMissing) {
         Project project = new Project();
         project.setId(4L);
         project.setStatus(ProjectStatus.IN_PROGRESS);
@@ -215,7 +217,7 @@ public class TaskServiceTest {
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(projectMemberMapper.selectMemberForUpdate(4L, 2L)).thenReturn(member);
-        when(userMapper.selectById(2L)).thenReturn(disabled);
+        when(userMapper.selectById(2L)).thenReturn(accountMissing ? null : disabled);
 
         BusinessException exception = assertThrows(BusinessException.class, () -> taskService.createTask(4L, dto));
 
