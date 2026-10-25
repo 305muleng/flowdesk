@@ -17,6 +17,13 @@ import java.util.List;
 @Mapper
 public interface ProjectMapper extends BaseMapper<Project> {
     @Update("""
+        UPDATE project SET name = #{project.name}, description = #{project.description}, goal = #{project.goal},
+            expected_end_time = #{project.expectedEndTime}, updated_at = #{project.updatedAt}
+        WHERE id = #{project.id} AND status IN ('PREPARING', 'IN_PROGRESS') AND deleted_at IS NULL
+        """)
+    int updateDetailsIfEditable(@Param("project") Project project);
+
+    @Update("""
             UPDATE project
             SET status = 'IN_PROGRESS', start_time = #{startedAt}, updated_at = #{startedAt}
             WHERE id = #{projectId} AND status = 'PREPARING' AND deleted_at IS NULL

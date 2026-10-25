@@ -2,6 +2,7 @@ import request from './request'
 import type {
   ApiResult,
   CreateProjectPayload,
+  UpdateProjectPayload,
   CreateTaskPayload,
   OperationLog,
   Project,
@@ -14,6 +15,8 @@ import type {
 
 export const getMyProjectsApi = () => request.get<ApiResult<Project[]>>('/projects')
 export const createProjectApi = (payload: CreateProjectPayload) => request.post<ApiResult<number>>('/projects', payload)
+export const updateProjectApi = (projectId: string | number, payload: UpdateProjectPayload) =>
+  request.patch<ApiResult<void>>(`/projects/${projectId}`, payload)
 export const getProjectApi = (projectId: string | number) => request.get<ApiResult<Project>>(`/projects/${projectId}`)
 export const getProjectMembersApi = (projectId: string | number) =>
   request.get<ApiResult<ProjectMember[]>>(`/projects/${projectId}/members`)

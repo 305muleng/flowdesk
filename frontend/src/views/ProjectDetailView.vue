@@ -31,6 +31,7 @@ import {
   getProjectTaskSummaryApi,
   sendInvitationApi,
   startProjectApi,
+  updateProjectApi,
   submitAcceptanceApi,
   type SubmitAcceptancePayload,
 } from '@/api/projects'
@@ -38,6 +39,7 @@ import { createTaskRequestApi, getProjectTaskRequestsApi, reviewTaskRequestApi }
 import { formatDate, formatDateTime, statusLabel, projectRestrictionMessage } from '@/utils/format'
 import type {
   CreateTaskPayload,
+  UpdateProjectPayload,
   OperationLog,
   Priority,
   Project,
@@ -247,6 +249,42 @@ const requestRules = {
   goal: [{ required: true, whitespace: true, message: '请输入任务目标', trigger: 'blur' }],
 }
 
+const editProjectVisible = ref(false)
+const editProjectSaving = ref(false)
+const editProjectForm = ref<UpdateProjectPayload>({ name: '', description: '', goal: '', expectedEndTime: null })
+const canEditProject = computed(() => isManager.value && ['PREPARING', 'IN_PROGRESS'].includes(project.value?.status || ''))
+
+function openProjectEdit() {
+  if (!canEditProject.value || !project.value) return
+  editProjectForm.value = {
+    name: project.value.name,
+    description: project.value.description || '',
+    goal: project.value.goal || '',
+    expectedEndTime: project.value.expectedEndTime || null,
+  }
+  editProjectVisible.value = true
+}
+
+async function saveProjectEdit() {
+  if (editProjectSaving.value || !canEditProject.value) return
+  if (!editProjectForm.value.name.trim()) {
+    ElMessage.warning('请输入项目名称')
+    return
+  }
+  const targetId = id.value
+  const payload = { ...editProjectForm.value, name: editProjectForm.value.name.trim() }
+  editProjectSaving.value = true
+  try {
+    await updateProjectApi(targetId, payload)
+    if (id.value !== targetId) return
+    editProjectVisible.value = false
+    ElMessage.success('项目资料已更新')
+    await load()
+  } finally {
+    editProjectSaving.value = false
+  }
+}
+
 async function load() {
   const revision = ++loadRevision
   const projectId = id.value
@@ -430,6 +468,7 @@ async function rejectRequest(item: TaskRequest) {
 }
 
 watch(id, () => {
+  editProjectVisible.value = false
   taskListing.reset()
   void load()
 })
@@ -448,6 +487,7 @@ onMounted(load)
         <p>{{ project.description || project.goal || '暂未填写项目描述' }}</p>
       </div>
       <div class="hero-actions">
+        <el-button v-if="canEditProject" :disabled="editProjectSaving || actionBusy" @click="openProjectEdit">编辑资料</el-button>
         <el-button :icon="Refresh" circle @click="load" /><el-button
           v-if="isManager && project.status === 'PREPARING'"
           type="primary"
@@ -687,6 +727,15 @@ onMounted(load)
           <el-empty v-if="!logsLoadFailed && !logs.length" description="还没有操作记录" /></div
       ></el-tab-pane>
     </el-tabs>
+    <el-dialog v-model="editProjectVisible" title="编辑项目资料" width="min(92vw,600px)" :close-on-click-modal="!editProjectSaving">
+      <el-form label-position="top">
+        <el-form-item label="项目名称" required><el-input v-model="editProjectForm.name" :maxlength="100" show-word-limit /></el-form-item>
+        <el-form-item label="项目描述"><el-input v-model="editProjectForm.description" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="项目目标"><el-input v-model="editProjectForm.goal" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="预计结束时间"><el-date-picker v-model="editProjectForm.expectedEndTime" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" clearable /></el-form-item>
+      </el-form>
+      <template #footer><el-button :disabled="editProjectSaving" @click="editProjectVisible = false">取消</el-button><el-button type="primary" :loading="editProjectSaving" @click="saveProjectEdit">保存修改</el-button></template>
+    </el-dialog>
     <el-dialog v-model="taskDialog" title="新建正式任务" width="min(92vw,600px)"
       ><el-form ref="taskFormRef" :model="taskForm" :rules="taskRules" label-position="top"
         ><el-form-item label="任务标题" prop="title"

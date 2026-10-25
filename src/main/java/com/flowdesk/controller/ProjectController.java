@@ -52,6 +52,13 @@ public class ProjectController {
         return Result.success("项目创建成功", projectId);
     }
 
+    @Operation(summary = "编辑项目资料", description = "项目负责人编辑准备中或进行中项目的基本资料")
+    @PatchMapping("/{projectId}")
+    public Result<Void> updateProjectDetails(@PathVariable Long projectId, @Valid @RequestBody UpdateProjectDTO dto) {
+        projectService.updateProjectDetails(projectId, dto);
+        return Result.success("项目资料已更新", null);
+    }
+
     @Operation(summary = "查看我的项目", description = "查看当前登录用户作为有效成员参与的全部项目")
     @GetMapping
     public Result<List<ProjectVO>> getMyProjects() {

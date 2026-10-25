@@ -15,10 +15,11 @@ import {
   reviewTaskApi,
   startTaskApi,
   submitTaskApi,
+  updateTaskApi,
 } from '@/api/tasks'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
-import type { Project, ProjectMember, Task, TaskComment, TaskSubmission } from '@/types/api'
+import type { Project, ProjectMember, Task, TaskComment, TaskSubmission, UpdateTaskPayload } from '@/types/api'
 import { formatDateTime, statusLabel, projectRestrictionMessage } from '@/utils/format'
 
 const route = useRoute()
@@ -73,6 +74,49 @@ const isManager = computed(() => myMembership.value?.role === 'PROJECT_MANAGER')
 const isAssignee = computed(() => task.value?.assigneeId === auth.user?.userId)
 const projectAllowsPlanning = computed(() => ['PREPARING', 'IN_PROGRESS'].includes(project.value?.status || ''))
 const projectIsRunning = computed(() => project.value?.status === 'IN_PROGRESS')
+
+const editTaskVisible = ref(false)
+const editTaskSaving = ref(false)
+const editTaskForm = ref<UpdateTaskPayload>({ title: '', description: '', goal: '', priority: 'MEDIUM', deadline: '' })
+const canEditTask = computed(() => isManager.value && projectAllowsPlanning.value && task.value?.status === 'TODO')
+
+function openTaskEdit() {
+  if (!canEditTask.value || !task.value) return
+  editTaskForm.value = {
+    title: task.value.title,
+    description: task.value.description || '',
+    goal: task.value.goal || '',
+    priority: task.value.priority || 'MEDIUM',
+    deadline: task.value.deadline,
+  }
+  editTaskVisible.value = true
+}
+
+async function saveTaskEdit() {
+  if (editTaskSaving.value || !canEditTask.value) return
+  const form = editTaskForm.value
+  if (!form.title.trim() || !form.description.trim() || !form.goal.trim() || !form.deadline) {
+    ElMessage.warning('请填写标题、描述、目标和截止时间')
+    return
+  }
+  const deadline = new Date(form.deadline).getTime()
+  if (!Number.isFinite(deadline) || deadline <= Date.now()) {
+    ElMessage.warning('任务截止时间必须晚于当前时间')
+    return
+  }
+  const targetId = id.value
+  const payload = { ...form, title: form.title.trim() }
+  editTaskSaving.value = true
+  try {
+    await updateTaskApi(targetId, payload)
+    if (id.value !== targetId) return
+    editTaskVisible.value = false
+    ElMessage.success('任务资料已更新')
+    await load()
+  } finally {
+    editTaskSaving.value = false
+  }
+}
 
 async function load() {
   const revision = ++loadRevision
@@ -237,7 +281,10 @@ async function addComment() {
   }
 }
 
-watch(id, load)
+watch(id, () => {
+  editTaskVisible.value = false
+  void load()
+})
 onMounted(load)
 </script>
 
@@ -262,6 +309,7 @@ onMounted(load)
           <p>{{ task.description || '暂无任务描述' }}</p>
         </div>
         <div class="actions">
+          <el-button v-if="canEditTask" :disabled="editTaskSaving || actionBusy" @click="openTaskEdit">编辑资料</el-button>
           <el-button
             v-if="isManager && projectAllowsPlanning && task.status === 'IN_PROGRESS' && disabledAssignee"
             :disabled="actionBusy"
@@ -392,6 +440,16 @@ onMounted(load)
       </div>
     </template>
 
+    <el-dialog v-model="editTaskVisible" title="编辑任务资料" width="min(92vw,600px)" :close-on-click-modal="!editTaskSaving">
+      <el-form label-position="top">
+        <el-form-item label="任务标题" required><el-input v-model="editTaskForm.title" :maxlength="200" show-word-limit /></el-form-item>
+        <el-form-item label="任务描述" required><el-input v-model="editTaskForm.description" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="任务目标" required><el-input v-model="editTaskForm.goal" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="优先级"><el-select v-model="editTaskForm.priority"><el-option label="低" value="LOW" /><el-option label="中" value="MEDIUM" /><el-option label="高" value="HIGH" /></el-select></el-form-item>
+        <el-form-item label="截止时间" required><el-date-picker v-model="editTaskForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" /></el-form-item>
+      </el-form>
+      <template #footer><el-button :disabled="editTaskSaving" @click="editTaskVisible = false">取消</el-button><el-button type="primary" :loading="editTaskSaving" @click="saveTaskEdit">保存修改</el-button></template>
+    </el-dialog>
     <el-dialog v-model="submitVisible" title="提交任务成果" width="520px">
       <el-form label-position="top">
         <el-form-item label="完成说明" required

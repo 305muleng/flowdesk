@@ -20,6 +20,13 @@ import java.util.List;
 
 @Mapper
 public interface TaskMapper extends BaseMapper<Task> {
+    @Update("""
+        UPDATE task SET title = #{task.title}, description = #{task.description}, goal = #{task.goal},
+            priority = #{task.priority}, deadline = #{task.deadline}, updated_at = #{task.updatedAt}
+        WHERE id = #{task.id} AND project_id = #{task.projectId} AND status = 'TODO' AND deleted_at IS NULL
+        """)
+    int updateDetailsIfTodo(@Param("task") Task task);
+
     // 列表与个人汇总共用权限范围；汇总不应用列表状态或标题筛选。
     String MY_TASK_SCOPE = """
         FROM task t

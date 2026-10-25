@@ -69,6 +69,61 @@ public class TaskService {
     }
 
     @Transactional
+    public void updateTaskDetails(Long taskId, UpdateTaskDTO dto) {
+        Task original = taskMapper.selectById(taskId);
+        if (original == null || original.getDeletedAt() != null) {
+            throw new BusinessException(404, "任务不存在");
+        }
+        Long projectId = original.getProjectId();
+        Project project = projectMapper.selectByIdForUpdate(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许编辑任务");
+        }
+        // 在项目锁之后读取当前任务，不能沿用等待锁之前的状态。
+        Task task = taskMapper.selectByIdForUpdate(taskId);
+        if (task == null || task.getDeletedAt() != null || !projectId.equals(task.getProjectId())) {
+            throw new BusinessException(404, "任务不存在");
+        }
+        if (!TaskStatus.TODO.equals(task.getStatus())) {
+            throw new BusinessException(409, "只有待处理任务可以编辑资料");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (!dto.getDeadline().isAfter(now)) {
+            throw new BusinessException(400, "任务截止时间必须晚于当前时间");
+        }
+        String priority = dto.getPriority();
+        priority = priority == null || priority.isBlank() ? TaskPriority.MEDIUM.getCode() : priority.trim().toUpperCase(Locale.ROOT);
+        if (!TaskPriority.isKnownCode(priority)) {
+            throw new BusinessException(400, "任务优先级只能是 LOW、MEDIUM 或 HIGH");
+        }
+        Map<String, Object> before = taskDetailsData(task);
+        task.setTitle(dto.getTitle().trim());
+        task.setDescription(dto.getDescription());
+        task.setGoal(dto.getGoal());
+        task.setPriority(priority);
+        task.setDeadline(dto.getDeadline());
+        task.setUpdatedAt(now);
+        if (taskMapper.updateDetailsIfTodo(task) != 1) {
+            throw new BusinessException(409, "任务状态已发生变化，请刷新后重试");
+        }
+        operationLogService.record(projectId, "TASK", taskId, "UPDATE_TASK_DETAILS", "修改任务资料", before, taskDetailsData(task));
+    }
+
+    private Map<String, Object> taskDetailsData(Task task) {
+        Map<String, Object> values = new HashMap<>();
+        values.put("title", task.getTitle());
+        values.put("description", task.getDescription());
+        values.put("goal", task.getGoal());
+        values.put("priority", task.getPriority());
+        values.put("deadline", task.getDeadline());
+        return values;
+    }
+
+    @Transactional
     public Long createTask(Long projectId, CreateTaskDTO dto) {
         CurrentUser currentUser = UserContext.get();
 

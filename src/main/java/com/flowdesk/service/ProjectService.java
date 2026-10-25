@@ -12,6 +12,7 @@ import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.CancelProjectDTO;
 import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.CreateProjectDTO;
+import com.flowdesk.dto.UpdateProjectDTO;
 import com.flowdesk.dto.RemoveProjectMemberDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
@@ -124,6 +125,38 @@ public class ProjectService {
         );
 
         return project.getId();
+    }
+
+    @Transactional
+    public void updateProjectDetails(Long projectId, UpdateProjectDTO dto) {
+        Project project = projectMapper.selectByIdForUpdate(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许编辑资料");
+        }
+        Map<String, Object> before = projectDetailsData(project);
+        project.setName(dto.getName().trim());
+        project.setDescription(dto.getDescription());
+        project.setGoal(dto.getGoal());
+        project.setExpectedEndTime(dto.getExpectedEndTime());
+        project.setUpdatedAt(LocalDateTime.now());
+        if (projectMapper.updateDetailsIfEditable(project) != 1) {
+            throw new BusinessException(409, "项目状态已发生变化，请刷新后重试");
+        }
+        operationLogService.record(projectId, "PROJECT", projectId, "UPDATE_PROJECT_DETAILS", "修改项目资料",
+                before, projectDetailsData(project));
+    }
+
+    private Map<String, Object> projectDetailsData(Project project) {
+        Map<String, Object> values = new HashMap<>();
+        values.put("name", project.getName());
+        values.put("description", project.getDescription());
+        values.put("goal", project.getGoal());
+        values.put("expectedEndTime", project.getExpectedEndTime());
+        return values;
     }
 
     public List<ProjectVO> getMyProjects() {
