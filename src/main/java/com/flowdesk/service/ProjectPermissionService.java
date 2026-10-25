@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectRole;
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectMemberStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -22,7 +24,7 @@ public class ProjectPermissionService {
     public ProjectMember requireProjectMember(Long projectId) {
         CurrentUser currentUser = UserContext.get();
 
-        if ("SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+        if (SystemRole.SYSTEM_ADMIN.matches(currentUser.getSystemRole())) {
             throw new BusinessException(403, "系统管理员不能参与普通项目");
         }
 
@@ -43,7 +45,7 @@ public class ProjectPermissionService {
     public ProjectMember requireProjectManager(Long projectId) {
         ProjectMember member = requireProjectMember(projectId);
 
-        if (!"PROJECT_MANAGER".equals(member.getRole())) {
+        if (!ProjectRole.PROJECT_MANAGER.matches(member.getRole())) {
             throw new BusinessException(403, "你不是该项目负责人");
         }
 
@@ -53,7 +55,7 @@ public class ProjectPermissionService {
     public ProjectMember requireProjectManagerForUpdate(Long projectId) {
         CurrentUser currentUser = UserContext.get();
 
-        if (currentUser == null || "SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+        if (currentUser == null || SystemRole.SYSTEM_ADMIN.matches(currentUser.getSystemRole())) {
             throw new BusinessException(403, "系统管理员不能参与普通项目");
         }
 
@@ -63,7 +65,7 @@ public class ProjectPermissionService {
             throw new BusinessException(403, "你不是该项目的有效成员");
         }
 
-        if (!"PROJECT_MANAGER".equals(member.getRole())) {
+        if (!ProjectRole.PROJECT_MANAGER.matches(member.getRole())) {
             throw new BusinessException(403, "你不是该项目负责人");
         }
 

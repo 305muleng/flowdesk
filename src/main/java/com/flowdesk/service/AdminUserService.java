@@ -1,5 +1,6 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.UserStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -45,7 +46,7 @@ public class AdminUserService {
             throw new BusinessException(400, "status 只能是 ACTIVE 或 DISABLED");
         }
 
-        if (systemRole != null && !systemRole.isBlank() && !"USER".equals(systemRole) && !"SYSTEM_ADMIN".equals(systemRole)) {
+        if (systemRole != null && !systemRole.isBlank() && !SystemRole.isKnownCode(systemRole)) {
             throw new BusinessException(400, "systemRole 只能是 USER 或 SYSTEM_ADMIN");
         }
 
@@ -76,7 +77,7 @@ public class AdminUserService {
 
     @Transactional
     public void disableUser(Long userId) {
-        if (UserContext.get() == null || !"SYSTEM_ADMIN".equals(UserContext.get().getSystemRole())) {
+        if (UserContext.get() == null || !SystemRole.SYSTEM_ADMIN.matches(UserContext.get().getSystemRole())) {
             throw new BusinessException(403, "无系统管理员权限");
         }
         User user = userMapper.selectByIdForUpdate(userId);

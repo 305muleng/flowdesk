@@ -1,5 +1,6 @@
 package com.flowdesk.model;
 
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.UserStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -32,7 +33,7 @@ public class User {
     /** 仅判断账号自身状态与系统角色，不包含项目成员关系检查。 */
     @JsonIgnore
     public boolean isActiveOrdinaryUser() {
-        return UserStatus.ACTIVE.equals(status) && "USER".equals(systemRole);
+        return UserStatus.ACTIVE.equals(status) && SystemRole.USER.matches(systemRole);
     }
 
     public Long getId() {

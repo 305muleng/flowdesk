@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectRole;
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectAcceptanceStatus;
 import com.flowdesk.enums.ProjectStatus;
 import com.flowdesk.enums.TaskRequestStatus;
@@ -197,7 +199,7 @@ public class ProjectAcceptanceService {
         );
 
         List<User> admins = userMapper.selectList(
-            new LambdaQueryWrapper<User>().eq(User::getSystemRole, "SYSTEM_ADMIN").eq(User::getStatus, UserStatus.ACTIVE)
+            new LambdaQueryWrapper<User>().eq(User::getSystemRole, SystemRole.SYSTEM_ADMIN.getCode()).eq(User::getStatus, UserStatus.ACTIVE)
         );
 
         for (User admin : admins) {
@@ -386,7 +388,7 @@ public class ProjectAcceptanceService {
 
         List<ProjectMemberVO> managers = projectMemberMapper.selectActiveMembers(project.getId());
         for (ProjectMemberVO manager : managers) {
-            if (!"PROJECT_MANAGER".equals(manager.getRole()) || manager.getUserId().equals(currentUser.getUserId())) {
+            if (!ProjectRole.PROJECT_MANAGER.matches(manager.getRole()) || manager.getUserId().equals(currentUser.getUserId())) {
                 continue;
             }
 
@@ -419,7 +421,7 @@ public class ProjectAcceptanceService {
 
     private void requireSystemAdmin() {
         CurrentUser currentUser = UserContext.get();
-        if (currentUser == null || !"SYSTEM_ADMIN".equals(currentUser.getSystemRole())) {
+        if (currentUser == null || !SystemRole.SYSTEM_ADMIN.matches(currentUser.getSystemRole())) {
             throw new BusinessException(403, "无系统管理员权限");
         }
     }

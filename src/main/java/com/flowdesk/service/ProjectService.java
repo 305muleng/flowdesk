@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectRole;
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
 import com.flowdesk.enums.UserStatus;
@@ -78,7 +80,7 @@ public class ProjectService {
             throw new BusinessException(403, "账号已被禁用");
         }
 
-        if (!"USER".equals(creator.getSystemRole())) {
+        if (!SystemRole.USER.matches(creator.getSystemRole())) {
             throw new BusinessException(403, "系统管理员不能创建项目");
         }
 
@@ -97,7 +99,7 @@ public class ProjectService {
 
         projectMember.setProjectId(project.getId());
         projectMember.setUserId(currentUser.getUserId());
-        projectMember.setRole("PROJECT_MANAGER");
+        projectMember.setRole(ProjectRole.PROJECT_MANAGER.getCode());
         projectMember.setStatus(ProjectMemberStatus.ACTIVE);
 
         projectMemberMapper.insert(projectMember);
@@ -125,7 +127,7 @@ public class ProjectService {
     }
 
     public List<ProjectVO> getMyProjects() {
-        if ("SYSTEM_ADMIN".equals(UserContext.get().getSystemRole())) {
+        if (SystemRole.SYSTEM_ADMIN.matches(UserContext.get().getSystemRole())) {
             return List.of();
         }
         return projectMapper.selectProjectsForUser(UserContext.get().getUserId());
@@ -375,7 +377,7 @@ public class ProjectService {
         }
 
         // 5. PM 不能通过这个接口删除自己或其他 PM
-        if (!"DEVELOPER".equals(targetMember.getRole())) {
+        if (!ProjectRole.DEVELOPER.matches(targetMember.getRole())) {
             throw new BusinessException(409, "只能直接移除开发人员");
         }
 
@@ -416,8 +418,8 @@ public class ProjectService {
             targetMember.getId(),
             "REMOVE_PROJECT_MEMBER",
             reason == null ? "移除项目成员" : "移除项目成员，原因：" + reason,
-            Map.of("status", ProjectMemberStatus.ACTIVE.getCode(), "role", "DEVELOPER"),
-            Map.of("status", ProjectMemberStatus.INACTIVE.getCode(), "role", "DEVELOPER")
+            Map.of("status", ProjectMemberStatus.ACTIVE.getCode(), "role", ProjectRole.DEVELOPER.getCode()),
+            Map.of("status", ProjectMemberStatus.INACTIVE.getCode(), "role", ProjectRole.DEVELOPER.getCode())
         );
 
         // 12. 通知被移除的成员

@@ -1,5 +1,7 @@
 package com.flowdesk.service;
 
+import com.flowdesk.enums.ProjectRole;
+import com.flowdesk.enums.SystemRole;
 import com.flowdesk.enums.ProjectManagerTransferStatus;
 import com.flowdesk.enums.ProjectMemberStatus;
 import com.flowdesk.enums.ProjectStatus;
@@ -143,7 +145,7 @@ public class ProjectManagerTransferService {
         }
 
         // 9. 系统管理员不能成为项目负责人
-        if (!"USER".equals(targetUser.getSystemRole())) {
+        if (!SystemRole.USER.matches(targetUser.getSystemRole())) {
             throw new BusinessException(403, "系统管理员不能成为项目负责人");
         }
 
@@ -277,7 +279,7 @@ public class ProjectManagerTransferService {
             throw new BusinessException(403, "账号已被禁用");
         }
 
-        if (!"USER".equals(targetUser.getSystemRole())) {
+        if (!SystemRole.USER.matches(targetUser.getSystemRole())) {
             throw new BusinessException(403, "系统管理员不能成为项目负责人");
         }
 
@@ -325,7 +327,7 @@ public class ProjectManagerTransferService {
 
             newManager.setProjectId(projectId);
             newManager.setUserId(currentUser.getUserId());
-            newManager.setRole("PROJECT_MANAGER");
+            newManager.setRole(ProjectRole.PROJECT_MANAGER.getCode());
             newManager.setStatus(ProjectMemberStatus.ACTIVE);
             newManager.setJoinedAt(now);
 
@@ -337,7 +339,7 @@ public class ProjectManagerTransferService {
             if (updated != 1) {
                 throw new BusinessException(409, "目标成员状态已发生变化，请刷新后重试");
             }
-        } else if (ProjectMemberStatus.ACTIVE.equals(targetMember.getStatus()) && "DEVELOPER".equals(targetMember.getRole())) {
+        } else if (ProjectMemberStatus.ACTIVE.equals(targetMember.getStatus()) && ProjectRole.DEVELOPER.matches(targetMember.getRole())) {
             // 当前开发人员升级为项目负责人
             int updated = projectMemberMapper.promoteDeveloperToManager(projectId, currentUser.getUserId(), now);
 

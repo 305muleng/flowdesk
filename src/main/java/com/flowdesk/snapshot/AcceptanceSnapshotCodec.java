@@ -1,5 +1,7 @@
 package com.flowdesk.snapshot;
 
+import com.flowdesk.enums.ProjectRole;
+
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.vo.*;
 import org.slf4j.Logger;
@@ -100,7 +102,7 @@ public class AcceptanceSnapshotCodec {
         long attributedTasks = 0;
         for (var member : value.members()) {
             require(member != null && member.userId() != null && memberIds.add(member.userId()));
-            require(text(member.userName()) && Set.of("PROJECT_MANAGER", "DEVELOPER").contains(member.role()));
+            require(text(member.userName()) && ProjectRole.isKnownCode(member.role()));
             require(member.completedTasks() != null && member.completedTaskCount() != null);
             require(member.completedTaskCount() == member.completedTasks().size());
             attributedTasks += member.completedTaskCount();
