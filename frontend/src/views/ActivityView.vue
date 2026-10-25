@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
 import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { usePagedList } from '@/composables/usePagedList'
 import PageHeader from '@/components/PageHeader.vue'
 import { getMyProjectsApi, getProjectLogsApi } from '@/api/projects'
 import { formatDateTime } from '@/utils/format'
@@ -8,12 +10,13 @@ import type { OperationLog, Project } from '@/types/api'
 
 const projects = ref<Project[]>([])
 const projectId = ref<number>()
-const logs = ref<OperationLog[]>([])
-const loading = ref(false)
-const error = ref('')
+const listing = usePagedList<OperationLog>()
+const { records: logs, page, size, total, loading, error } = listing
+const route = useRoute()
+const router = useRouter()
+const selectionError = ref('')
 const projectsError = ref('')
 const projectsLoading = ref(false)
-let logRevision = 0
 const targetNames: Record<string, string> = {
   PROJECT: '项目',
   TASK: '任务',
@@ -25,23 +28,41 @@ const targetNames: Record<string, string> = {
 }
 
 async function loadLogs() {
-  const revision = ++logRevision
   const currentProjectId = projectId.value
-  error.value = ''
   logs.value = []
-  if (!currentProjectId) {
-    loading.value = false
-    return
+  await listing.load((page, size) => currentProjectId
+    ? getProjectLogsApi(currentProjectId, { page, size }).then((result) => result.data.data)
+    : Promise.resolve({ records: [], total: 0, page: 1, size, pages: 0 }))
+}
+
+function selectProjectFromRoute() {
+  selectionError.value = ''
+  const requested = route.query.projectId
+  if (requested !== undefined) {
+    const parsed = typeof requested === 'string' && /^[1-9]\d*$/.test(requested) ? Number(requested) : NaN
+    const selected = Number.isSafeInteger(parsed) && projects.value.find((item) => item.id === parsed)
+    projectId.value = selected ? selected.id : undefined
+    if (!selected) selectionError.value = '指定项目不存在或你已无权访问，请选择其他项目'
+  } else {
+    projectId.value = projects.value.find((item) => item.id === projectId.value)?.id ?? projects.value[0]?.id
   }
-  loading.value = true
-  try {
-    const result = await getProjectLogsApi(currentProjectId, 100)
-    if (revision === logRevision) logs.value = result.data.data
-  } catch {
-    if (revision === logRevision) error.value = '操作记录加载失败，请重试'
-  } finally {
-    if (revision === logRevision) loading.value = false
+}
+
+function changeProject(value: number) {
+  void router.replace({ name: 'activity', query: { projectId: String(value) } })
+}
+
+function changePage(value: number) {
+  if (page.value !== value) {
+    page.value = value
+    void loadLogs()
   }
+}
+
+function changeSize(value: number) {
+  size.value = value
+  listing.reset()
+  void loadLogs()
 }
 
 async function loadProjects() {
@@ -49,9 +70,10 @@ async function loadProjects() {
   projectsError.value = ''
   try {
     projects.value = (await getMyProjectsApi()).data.data
-    projectId.value = projects.value[0]?.id
+    selectProjectFromRoute()
   } catch {
     projects.value = []
+    selectionError.value = ''
     projectId.value = undefined
     projectsError.value = '项目列表加载失败，请重试'
   } finally {
@@ -59,12 +81,19 @@ async function loadProjects() {
   }
 }
 onMounted(loadProjects)
-watch(projectId, loadLogs)
+watch(projectId, () => {
+  listing.reset()
+  total.value = 0
+  void loadLogs()
+})
+watch(() => route.query.projectId, () => {
+  if (!projectsLoading.value && !projectsError.value) selectProjectFromRoute()
+})
 </script>
 
 <template>
   <PageHeader eyebrow="ACTIVITY LOG" title="项目操作记录" description="查看项目中的关键操作记录。">
-    <el-select v-model="projectId" placeholder="选择项目" filterable style="width: 220px"
+    <el-select :model-value="projectId" @change="changeProject" placeholder="选择项目" filterable style="width: 220px"
       ><el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id"
     /></el-select>
     <el-button :icon="Refresh" circle aria-label="刷新操作记录" @click="projectsError ? loadProjects() : loadLogs()" />
@@ -73,6 +102,7 @@ watch(projectId, loadLogs)
     <el-alert v-if="projectsError" :title="projectsError" type="error" :closable="false"
       ><el-button link @click="loadProjects">重试</el-button></el-alert
     >
+    <el-alert v-else-if="selectionError" :title="selectionError" type="warning" :closable="false" />
     <el-alert v-else-if="error" :title="error" type="error" :closable="false"
       ><el-button link @click="loadLogs">重试</el-button></el-alert
     >
@@ -88,13 +118,27 @@ watch(projectId, loadLogs)
       <time>{{ formatDateTime(log.createdAt) }}</time>
     </div>
     <el-empty
-      v-if="!loading && !projectsLoading && !error && !projectsError && !logs.length"
+      v-if="!loading && !projectsLoading && !error && !projectsError && !selectionError && !logs.length"
       :description="!projects.length ? '还没有参与任何项目' : !projectId ? '请选择项目查看操作记录' : '该项目还没有操作记录'"
+    />
+    <el-pagination
+      v-if="projectId && !projectsError && !selectionError"
+      :current-page="page"
+      :page-size="size"
+      :page-sizes="[20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      :total="total"
+      :disabled="loading"
+      @current-change="changePage"
+      @size-change="changeSize"
     />
   </section>
 </template>
 
 <style scoped>
+.activity-panel :deep(.el-pagination) {
+  padding: 16px 0;
+}
 .activity-panel {
   padding: 8px 26px;
 }

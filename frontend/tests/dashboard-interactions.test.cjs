@@ -58,7 +58,10 @@ async function runDashboardLoad({ failProjects = false, failTasks = false, failO
         ? Promise.reject(new Error('project tasks failed'))
         : Promise.resolve({ data: { data: { completionRate: 50 } } })
     },
-    getProjectLogsApi: () => Promise.resolve({ data: { data: [] } }),
+    getProjectLogsApi: (id, params) => {
+      assert.deepEqual({ ...params }, { page: 1, size: 5 })
+      return Promise.resolve({ data: { data: { records: [{ id, createdAt: '2026-10-25T12:00:00' }], total: 150, page: 1, size: 5, pages: 30 } } })
+    },
   })
   vm.runInContext(compiled(`let loadRevision = 0;\n${loadFunction.getText(dashboardAst)}`), context)
   await vm.runInContext('load()', context)
@@ -71,6 +74,8 @@ test('dashboard keeps project data when personal tasks fail and isolates one pro
   assert.equal(state.projectLoadFailed.value, false)
   assert.equal(state.projects.value.length, 6)
   assert.deepEqual(queried, [1, 2, 3, 4, 5])
+  assert.equal(state.activities.value.length, 4)
+  assert.equal(state.activities.value[0].id, 1)
   assert.equal(state.projectProgress.value[1], 50)
   assert.equal(state.projectProgress.value[2], null)
   assert.equal(state.projectProgress.value[3], 50)

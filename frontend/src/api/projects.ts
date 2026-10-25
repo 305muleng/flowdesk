@@ -48,7 +48,5 @@ export const submitAcceptanceApi = (projectId: string | number, payload: SubmitA
   request.post<ApiResult<number>>(`/projects/${projectId}/acceptances`, payload)
 export const getProjectAcceptancesApi = (projectId: string | number) =>
   request.get<ApiResult<ProjectAcceptance[]>>(`/projects/${projectId}/acceptances`)
-export const getProjectLogsApi = (projectId: string | number, limit = 50) =>
-  request.get<ApiResult<OperationLog[]>>(`/projects/${projectId}/operation-logs`, {
-    params: { limit },
-  })
+export const getProjectLogsApi = (projectId: string | number, params: { page?: number; size?: number } = {}) =>
+  request.get<ApiResult<PageResult<OperationLog>>>(`/projects/${projectId}/operation-logs`, { params })

@@ -269,13 +269,13 @@ async function load() {
     }
     const [acceptanceResult, logResult] = await Promise.allSettled([
       getProjectAcceptancesApi(projectId),
-      getProjectLogsApi(projectId, 30),
+      getProjectLogsApi(projectId, { page: 1, size: 30 }),
     ])
     if (revision !== loadRevision) return
     acceptancesLoadFailed.value = acceptanceResult.status === 'rejected'
     logsLoadFailed.value = logResult.status === 'rejected'
     acceptances.value = acceptanceResult.status === 'fulfilled' ? acceptanceResult.value.data.data : []
-    logs.value = logResult.status === 'fulfilled' ? logResult.value.data.data : []
+    logs.value = logResult.status === 'fulfilled' ? logResult.value.data.data.records : []
     requests.value = []
     leaveRequests.value = []
     pendingTransfers.value = []
@@ -670,6 +670,10 @@ onMounted(load)
       ></el-tab-pane>
       <el-tab-pane label="操作记录" name="logs"
         ><div class="timeline">
+          <div class="logs-heading">
+            <span>最近 30 条操作记录</span>
+            <el-button link type="primary" @click="router.push({ name: 'activity', query: { projectId: id } })">查看全部</el-button>
+          </div>
           <el-alert v-if="logsLoadFailed" title="操作记录加载失败，请刷新重试" type="error" :closable="false"
             ><el-button link @click="load">重试</el-button></el-alert
           >
@@ -803,6 +807,14 @@ onMounted(load)
   </section>
 </template>
 <style scoped>
+.logs-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
 .project-hero {
   display: flex;
   align-items: flex-start;

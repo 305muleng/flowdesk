@@ -1,13 +1,13 @@
 package com.flowdesk.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.flowdesk.model.OperationLog;
 import com.flowdesk.vo.OperationLogVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-
-import java.util.List;
 
 @Mapper
 public interface OperationLogMapper extends BaseMapper<OperationLog> {
@@ -21,7 +21,6 @@ public interface OperationLogMapper extends BaseMapper<OperationLog> {
         JOIN `user` actor ON ol.actor_id = actor.id
         WHERE ol.project_id = #{projectId}
         ORDER BY ol.created_at DESC, ol.id DESC
-        LIMIT #{limit}
         """)
-    List<OperationLogVO> selectProjectLogs(@Param("projectId") Long projectId, @Param("limit") int limit);
+    IPage<OperationLogVO> selectProjectLogs(Page<OperationLogVO> page, @Param("projectId") Long projectId);
 }

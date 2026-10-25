@@ -2,6 +2,8 @@ package com.flowdesk.service;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.core.JacksonException;
+import com.flowdesk.common.ListPagination;
+import com.flowdesk.common.PageResult;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.exception.BusinessException;
@@ -13,7 +15,6 @@ import com.flowdesk.vo.OperationLogVO;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 public class OperationLogService {
@@ -35,14 +36,16 @@ public class OperationLogService {
         this.projectMapper = projectMapper;
     }
 
-    public List<OperationLogVO> getProjectLogs(Long projectId, int limit) {
+    public PageResult<OperationLogVO> getProjectLogs(Long projectId, long page, long size) {
+        var pagination = ListPagination.<OperationLogVO>page(page, size);
         projectPermissionService.requireProjectMember(projectId);
         Project project = projectMapper.selectById(projectId);
         if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException(404, "项目不存在");
         }
-        int safeLimit = Math.max(1, Math.min(limit, 200));
-        return operationLogMapper.selectProjectLogs(projectId, safeLimit);
+        var result = operationLogMapper.selectProjectLogs(pagination, projectId);
+        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(),
+                result.getSize(), result.getPages());
     }
 
     public void record(
