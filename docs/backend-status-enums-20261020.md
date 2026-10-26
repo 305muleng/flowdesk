@@ -24,8 +24,8 @@
 ## 映射与兼容
 
 - 每个枚举声明独立、稳定的 `String code`，实现当前 MyBatis-Plus 3.5.17 的 `IEnum<String>`；没有 ordinal 存储。
-- `MybatisPlusConfig.statusTypeHandlers()` 只为这 10 个类型注册 `StatusCodeTypeHandler`，覆盖 BaseMapper、LambdaWrapper、动态参数及手写实体查询的实际解析路径。
-- 当前版本默认 MybatisEnumTypeHandler 对未知编码返回 null，不满足本轮约束。因此使用小型严格处理器：setString 写 code，getString 按原编码查找，合法 SQL NULL 返回 null，未知非空编码抛 SQLException，由 MyBatis 包装为映射异常。没有 UNKNOWN、默认值、大小写修正或猜测回填。
+- `MybatisPlusConfig.statusTypeHandlers()` 只为这 10 个类型注册 `EnumTypeHandler`，覆盖 BaseMapper、LambdaWrapper、动态参数及手写实体查询的实际解析路径。
+- 当前版本默认 MybatisEnumTypeHandler 对未知编码返回 null，不满足本轮约束。因此显式注册 MyBatis 内置 EnumTypeHandler：按名称写入和查找，当前名称与 code 一致；合法 SQL NULL 返回 null，未知非空编码抛 IllegalArgumentException，由 MyBatis 包装为映射异常。没有 UNKNOWN、默认值、大小写修正或猜测回填。
 - `fromCode` 同样严格；null 保留为 null，未知值抛 IllegalArgumentException。聚合投影 TaskStatusCountDTO 保留 String，在 ProjectTaskSummaryService 进入业务统计前转换；非法值和 null 仍返回原有 500“任务状态数据异常”，不会忽略或写缓存。
 - VO、请求筛选仍为 String，实体装配 VO 时显式取 code 并保留 null。`ALL` 是查询筛选哨兵，`EXPIRED` 是时间派生展示值，不是实体持久化状态。
 - 枚举 JSON 使用独立的 `@JsonValue`/`@JsonCreator`；数据库映射不替代 JSON 配置。当前 HTTP 入参没有改成枚举，原有非法筛选的 400 和规范化行为保留。
@@ -72,3 +72,9 @@ mvn.cmd -o -s target/offline-settings.xml -Dmaven.repo.local=D:\mvn_repo
 ## 2026-10-21 最新范围调整
 
 枚举化及原取消权限修复已恢复，JwtUtilTest保留真实签名/解析断言并解除无关Spring依赖。曾在临时专用MySQL/Redis环境实际执行366项全部通过（含截图9项），这是该次运行的历史证据。用户随后明确只要求代码修改、由其自行运行，已撤销新增Compose、测试脚本、共享IDEA配置、README环境说明及test profile连接默认值，恢复原有配置。临时环境验证不证明用户原有环境现已通过；后续以用户运行输出定位代码问题，不再自行扩建或调整环境。
+
+## 2026-10-26：使用框架内置转换器
+
+保留业务枚举，删除自定义转换器，为原有十种状态显式注册 MyBatis 的 EnumTypeHandler。它按枚举名称读写，现有名称与持久化编码一致；后续不得随意重命名这些枚举常量。JSON 编码约定保持不变。未知数据库编码仍会报错，空值仍返回 null。不要使用序号映射，也不要仅依赖 MyBatis-Plus 的 IEnum 自动映射替代这份严格注册。
+
+映射回归测试同时检查名称与编码一致、合法/非法/空值读取，以及有无显式 JDBC 类型时的参数绑定。测试使用真实 MyBatis 配置和 JDBC 替身，不代表真实 MySQL 集成验证。

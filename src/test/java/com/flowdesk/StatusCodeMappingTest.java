@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.flowdesk.config.MybatisPlusConfig;
-import com.flowdesk.config.StatusCodeTypeHandler;
 import com.flowdesk.enums.*;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
@@ -16,6 +15,7 @@ import org.apache.ibatis.executor.resultset.DefaultResultSetHandler;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.session.RowBounds;
+import org.apache.ibatis.type.EnumTypeHandler;
 import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.TypeHandler;
 import org.apache.ibatis.type.UnknownTypeHandler;
@@ -117,14 +117,17 @@ class StatusCodeMappingTest {
     @MethodSource("mappings")
     void allCodesUseActualRegisteredHandlerWithStrictInvalidAndNullReads(Mapping mapping) throws Exception {
         var handler = handler(configuration(), mapping);
-        assertInstanceOf(StatusCodeTypeHandler.class, handler);
+        assertInstanceOf(EnumTypeHandler.class, handler);
         PreparedStatement statement = mock(PreparedStatement.class);
         ResultSet result = mock(ResultSet.class);
         CallableStatement callable = mock(CallableStatement.class);
         for (Enum<?> status : mapping.status().getEnumConstants()) {
             String code = (String) ((IEnum<?>) status).getValue();
-            handler.setParameter(statement, 1, status, JdbcType.VARCHAR);
+            assertEquals(code, status.name(), "Persisted status names must remain equal to their codes");
+            handler.setParameter(statement, 1, status, null);
             verify(statement).setString(1, code);
+            handler.setParameter(statement, 2, status, JdbcType.VARCHAR);
+            verify(statement).setObject(2, code, Types.VARCHAR);
             when(result.getString(mapping.column())).thenReturn(code);
             when(result.getString(1)).thenReturn(code);
             when(callable.getString(1)).thenReturn(code);
@@ -145,7 +148,7 @@ class StatusCodeMappingTest {
             when(result.getString(1)).thenReturn(invalid);
             when(callable.getString(1)).thenReturn(invalid);
             var error = assertThrows(ResultMapException.class, () -> handler.getResult(result, mapping.column()));
-            assertInstanceOf(SQLException.class, error.getCause());
+            assertInstanceOf(IllegalArgumentException.class, error.getCause());
             assertThrows(ResultMapException.class, () -> handler.getResult(result, 1));
             assertThrows(ResultMapException.class, () -> handler.getResult(callable, 1));
         }
@@ -171,7 +174,7 @@ class StatusCodeMappingTest {
             .filter(p -> p.getProperty().equals(mapping.property()))
             .findFirst()
             .orElseThrow();
-        assertInstanceOf(StatusCodeTypeHandler.class, parameter.getTypeHandler());
+        assertInstanceOf(EnumTypeHandler.class, parameter.getTypeHandler());
         PreparedStatement jdbc = mock(PreparedStatement.class);
         configuration.newParameterHandler(statement, entity, sql).setParameters(jdbc);
         int index = sql.getParameterMappings().indexOf(parameter) + 1;
