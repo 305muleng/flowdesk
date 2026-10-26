@@ -3,8 +3,10 @@ import type { ApiResult, PageResult, MyTaskSummary, Task, TaskComment, TaskSubmi
 
 export const updateTaskApi = (id: string | number, payload: UpdateTaskPayload) =>
   request.patch<ApiResult<void>>(`/tasks/${id}`, payload)
+export const adjustTaskDeadlineApi = (id: string | number, payload: { expectedDeadline: string; deadline: string; reason: string }) =>
+  request.patch<ApiResult<void>>(`/tasks/${id}/deadline`, payload)
 export const getTaskApi = (id: string | number) => request.get<ApiResult<Task>>(`/tasks/${id}`)
-export const getMyTasksApi = (params: { page?: number; size?: number; status?: string; keyword?: string } = {}) =>
+export const getMyTasksApi = (params: { page?: number; size?: number; status?: string; keyword?: string; projectScope?: 'CURRENT' | 'HISTORY' | 'ALL' | 'ACTIONABLE' } = {}) =>
   request.get<ApiResult<PageResult<Task>>>('/tasks/my', { params })
 export const getMyTaskSummaryApi = () => request.get<ApiResult<MyTaskSummary>>('/tasks/my/summary')
 export const startTaskApi = (id: string | number) => request.post<ApiResult<void>>(`/tasks/${id}/start`)

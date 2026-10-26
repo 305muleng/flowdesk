@@ -78,14 +78,18 @@ public class TaskQueryService {
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
     }
 
-    public PageResult<TaskVO> getMyTasks(long page, long size, String status, String keyword) {
+    public PageResult<TaskVO> getMyTasks(long page, long size, String status, String keyword, String projectScope) {
         var taskPage = ListPagination.<TaskVO>page(page, size);
         String normalizedStatus = normalizeTaskStatusFilter(status);
+        String normalizedProjectScope = projectScope.trim().toUpperCase(Locale.ROOT);
+        if (!java.util.Set.of("CURRENT", "HISTORY", "ALL", "ACTIONABLE").contains(normalizedProjectScope)) {
+            throw new BusinessException(400, "项目范围只能是 CURRENT、HISTORY、ALL 或 ACTIONABLE");
+        }
         String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
         if (!SystemRole.USER.matches(UserContext.get().getSystemRole())) {
             return new PageResult<>(List.of(), 0, page, size, 0);
         }
-        var result = taskMapper.selectMyTasks(taskPage, UserContext.get().getUserId(), normalizedStatus, normalizedKeyword);
+        var result = taskMapper.selectMyTasks(taskPage, UserContext.get().getUserId(), normalizedStatus, normalizedKeyword, normalizedProjectScope);
         return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
     }
 

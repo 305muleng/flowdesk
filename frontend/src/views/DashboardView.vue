@@ -8,6 +8,7 @@ import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getMyProjectsApi, getProjectLogsApi, getProjectTaskSummaryApi } from '@/api/projects'
 import { getMyTasksApi, getMyTaskSummaryApi } from '@/api/tasks'
+import { isActionableTask } from '@/utils/taskWork'
 import { formatDateTime } from '@/utils/format'
 import type { OperationLog, Project, Task, MyTaskSummary } from '@/types/api'
 
@@ -26,7 +27,7 @@ const recentProjects = computed(() => projects.value.slice(0, 5))
 const activeProjects = computed(() =>
   projects.value.filter((item) => ['PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE'].includes(item.status)),
 )
-const openTasks = computed(() => tasks.value.filter((item) => !['DONE', 'CANCELLED'].includes(item.status)))
+const openTasks = computed(() => tasks.value.filter(isActionableTask))
 const currentTaskCount = computed(() => myTaskSummary.value?.nonCancelledTaskCount ?? null)
 
 const taskOption = computed<EChartsCoreOption>(() => ({
@@ -83,7 +84,7 @@ async function load() {
   try {
     const [projectResult, taskResult, summaryResult] = await Promise.allSettled([
       getMyProjectsApi(),
-      getMyTasksApi(),
+      getMyTasksApi({ projectScope: 'ACTIONABLE', size: 5 }),
       getMyTaskSummaryApi(),
     ])
     if (revision !== loadRevision) return
@@ -150,8 +151,8 @@ onMounted(load)
       /></MetricCard>
       <MetricCard
         label="我的待办"
-        :value="myTaskSummary?.unfinishedTaskCount ?? '—'"
-        :note="myTaskSummary ? `${myTaskSummary.dueSoonTaskCount} 项三天内到期` : '统计暂不可用'"
+        :value="myTaskSummary?.actionableTaskCount ?? '—'"
+        :note="myTaskSummary ? `${myTaskSummary.dueSoonTaskCount} 项三天内到期 · ${myTaskSummary.awaitingReviewTaskCount} 项等待审核` : '统计暂不可用'"
         tone="amber"
         ><List
       /></MetricCard>
@@ -174,8 +175,8 @@ onMounted(load)
       <article class="surface-card chart-panel">
         <div class="panel-head">
           <div>
-            <h3>任务状态分布</h3>
-            <p>当前分配给你的任务</p>
+            <h3>累计任务状态分布</h3>
+            <p>包含有权查看的历史任务，不含已取消任务</p>
           </div>
           <span>{{ myTaskSummary ? `${currentTaskCount} 项` : '统计暂不可用' }}</span>
         </div>
@@ -200,7 +201,7 @@ onMounted(load)
         <div class="panel-head">
           <div>
             <h3>优先处理</h3>
-            <p>最近 20 项任务中的未完成项，按截止时间排列</p>
+            <p>进行中项目的待处理任务，按截止时间排列</p>
           </div>
           <el-button link type="primary" @click="$router.push('/tasks')">查看全部</el-button>
         </div>
@@ -220,7 +221,7 @@ onMounted(load)
           </div>
           <StatusTag :value="task.status" />
         </button>
-        <el-empty v-if="!taskLoadFailed && !openTasks.length" description="最近任务中暂无待处理项" :image-size="72" />
+        <el-empty v-if="!taskLoadFailed && !openTasks.length" description="当前暂无待处理任务" :image-size="72" />
       </article>
       <article class="surface-card list-panel">
         <div class="panel-head">

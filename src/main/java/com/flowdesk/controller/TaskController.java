@@ -27,6 +27,13 @@ public class TaskController {
         return Result.success("任务资料已更新", null);
     }
 
+    @Operation(summary = "调整任务截止时间", description = "项目负责人调整进行中任务的截止时间，须提供原时间和调整原因")
+    @PatchMapping("/{taskId}/deadline")
+    public Result<Void> adjustTaskDeadline(@PathVariable Long taskId, @Valid @RequestBody AdjustTaskDeadlineDTO dto) {
+        taskService.adjustTaskDeadline(taskId, dto);
+        return Result.success("截止时间已调整", null);
+    }
+
     @Operation(summary = "开始任务", description = "任务负责人开始执行任务，使任务从 TODO 进入 IN_PROGRESS")
     @PostMapping("/{taskId}/start")
     public Result<Void> startTask(@PathVariable Long taskId) {

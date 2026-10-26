@@ -32,6 +32,8 @@ export interface MyTaskSummary {
   unfinishedTaskCount: number
   nonCancelledTaskCount: number
   dueSoonTaskCount: number
+  actionableTaskCount: number
+  awaitingReviewTaskCount: number
 }
 
 export type SystemRole = 'SYSTEM_ADMIN' | 'USER'
@@ -112,6 +114,8 @@ export interface UpdateTaskPayload {
 export interface Task {
   id: number
   projectId: number
+  projectName: string
+  projectStatus: ProjectStatus
   creatorId: number
   creatorName?: string
   assigneeId?: number

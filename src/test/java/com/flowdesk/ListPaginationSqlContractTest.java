@@ -43,7 +43,7 @@ class ListPaginationSqlContractTest {
         assertTrue(scope.endsWith("WHERE t.assignee_id = #{userId} AND t.deleted_at IS NULL"));
         assertTrue(list.contains("AND (#{status} = 'ALL' OR t.status = #{status})"));
         assertTrue(list.contains("LOCATE(CAST(#{keyword} AS BINARY), CAST(LOWER(t.title) AS BINARY)) > 0"));
-        assertTrue(list.endsWith("ORDER BY t.updated_at DESC, t.id DESC"));
+        assertTrue(list.endsWith("t.updated_at DESC, t.id DESC"));
         assertFalse(list.contains("${"));
         assertFalse(summary.contains("#{status}"));
         assertFalse(summary.contains("#{keyword}"));

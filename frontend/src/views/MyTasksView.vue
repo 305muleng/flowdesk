@@ -1,35 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getMyTasksApi } from '@/api/tasks'
-import { getMyProjectsApi } from '@/api/projects'
 import PageHeader from '@/components/PageHeader.vue'
 import { usePagedList } from '@/composables/usePagedList'
 import StatusTag from '@/components/StatusTag.vue'
-import type { Project, Task, TaskStatus } from '@/types/api'
+import type { Task, TaskStatus } from '@/types/api'
+import { isActionableTask, taskWorkLabel } from '@/utils/taskWork'
 import { formatDateTime, isOverdue } from '@/utils/format'
 
 const router = useRouter()
 const listing = usePagedList<Task>()
 const { records: tasks, page, size, total, loading, error } = listing
-const projects = ref<Project[]>([])
-const projectMap = computed(() => new Map(projects.value.map((item) => [item.id, item.name])))
+const projectScope = ref<'CURRENT' | 'HISTORY' | 'ALL'>('CURRENT')
 const filter = ref<'ALL' | TaskStatus>('ALL')
 const keyword = ref('')
 
 async function load() {
   const status = filter.value
   const title = keyword.value
-  await Promise.all([
-    listing.load((page, size) => getMyTasksApi({ page, size, status, keyword: title }).then((r) => r.data.data)),
-    getMyProjectsApi()
-      .then((r) => {
-        projects.value = r.data.data
-      })
-      .catch(() => {
-        projects.value = []
-      }),
-  ])
+  const scope = projectScope.value
+  await listing.load((page, size) => getMyTasksApi({ page, size, status, keyword: title, projectScope: scope }).then((r) => r.data.data))
 }
 function changePage(value: number) {
   if (page.value !== value) {
@@ -42,7 +33,7 @@ function changeSize(value: number) {
   listing.reset()
   void load()
 }
-watch([filter, keyword], () => {
+watch([filter, keyword, projectScope], () => {
   listing.reset()
   void load()
 })
@@ -54,6 +45,9 @@ onMounted(load)
     <template #actions><el-button @click="load">刷新</el-button></template>
   </PageHeader>
   <section class="filters">
+    <el-segmented v-model="projectScope" :options="[
+      { label: '当前项目', value: 'CURRENT' }, { label: '历史项目', value: 'HISTORY' }, { label: '全部项目', value: 'ALL' },
+    ]" />
     <el-input v-model="keyword" clearable placeholder="搜索任务名称" style="max-width: 280px" />
     <el-segmented
       v-model="filter"
@@ -77,18 +71,18 @@ onMounted(load)
       <div class="task-main">
         <div class="task-title">
           <h3>{{ task.title }}</h3>
-          <StatusTag :value="task.status" />
+          <StatusTag :value="task.status" /><el-tag type="info">{{ taskWorkLabel(task) }}</el-tag>
         </div>
         <p>{{ task.description || task.goal || '暂无任务说明' }}</p>
       </div>
       <div class="meta">
-        <span>所属项目</span><strong>{{ projectMap.get(task.projectId) || '项目 #' + task.projectId }}</strong>
+        <span>所属项目</span><strong>{{ task.projectName }}</strong><StatusTag :value="task.projectStatus" />
       </div>
       <div class="meta">
         <span>截止时间</span
         ><strong
           :class="{
-            overdue: isOverdue(task.deadline) && !['DONE', 'CANCELLED'].includes(task.status),
+            overdue: isOverdue(task.deadline) && isActionableTask(task),
           }"
           >{{ formatDateTime(task.deadline) }}</strong
         >
@@ -110,6 +104,7 @@ onMounted(load)
 <style scoped>
 .filters {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;

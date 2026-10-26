@@ -16,6 +16,7 @@ import {
   startTaskApi,
   submitTaskApi,
   updateTaskApi,
+  adjustTaskDeadlineApi,
 } from '@/api/tasks'
 import StatusTag from '@/components/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -74,6 +75,49 @@ const isManager = computed(() => myMembership.value?.role === 'PROJECT_MANAGER')
 const isAssignee = computed(() => task.value?.assigneeId === auth.user?.userId)
 const projectAllowsPlanning = computed(() => ['PREPARING', 'IN_PROGRESS'].includes(project.value?.status || ''))
 const projectIsRunning = computed(() => project.value?.status === 'IN_PROGRESS')
+
+const deadlineVisible = ref(false)
+const deadlineSaving = ref(false)
+const deadlineForm = ref({ expectedDeadline: '', deadline: '', reason: '' })
+const canAdjustDeadline = computed(() => isManager.value && projectIsRunning.value && task.value?.status === 'IN_PROGRESS')
+
+function openDeadlineEdit() {
+  if (!canAdjustDeadline.value || !task.value || deadlineSaving.value) return
+  deadlineForm.value = { expectedDeadline: task.value.deadline, deadline: task.value.deadline, reason: '' }
+  deadlineVisible.value = true
+}
+
+async function saveDeadline() {
+  if (deadlineSaving.value || actionBusy.value || !canAdjustDeadline.value) return
+  const form = deadlineForm.value
+  if (!form.reason.trim() || !form.deadline || !Number.isFinite(Date.parse(form.deadline)) || Date.parse(form.deadline) <= Date.now()) {
+    ElMessage.warning('请填写调整原因，并选择晚于当前时间的新截止时间')
+    return
+  }
+  if (Date.parse(form.deadline) === Date.parse(form.expectedDeadline)) {
+    ElMessage.warning('新截止时间不能与原时间相同')
+    return
+  }
+  const taskId = id.value
+  deadlineSaving.value = true
+  actionBusy.value = true
+  try {
+    await adjustTaskDeadlineApi(taskId, { ...form, reason: form.reason.trim() })
+    if (id.value !== taskId) return
+    deadlineVisible.value = false
+    ElMessage.success('截止时间已调整')
+    await load()
+  } catch (error) {
+    if (id.value === taskId && (error as { response?: { status?: number } }).response?.status === 409) {
+      deadlineVisible.value = false
+      await load()
+    }
+    throw error
+  } finally {
+    deadlineSaving.value = false
+    actionBusy.value = false
+  }
+}
 
 const editTaskVisible = ref(false)
 const editTaskSaving = ref(false)
@@ -283,6 +327,7 @@ async function addComment() {
 
 watch(id, () => {
   editTaskVisible.value = false
+  deadlineVisible.value = false
   void load()
 })
 onMounted(load)
@@ -309,6 +354,7 @@ onMounted(load)
           <p>{{ task.description || '暂无任务描述' }}</p>
         </div>
         <div class="actions">
+          <el-button v-if="canAdjustDeadline" :disabled="actionBusy || deadlineSaving" @click="openDeadlineEdit">调整截止时间</el-button>
           <el-button v-if="canEditTask" :disabled="editTaskSaving || actionBusy" @click="openTaskEdit">编辑资料</el-button>
           <el-button
             v-if="isManager && projectAllowsPlanning && task.status === 'IN_PROGRESS' && disabledAssignee"
@@ -440,6 +486,14 @@ onMounted(load)
       </div>
     </template>
 
+    <el-dialog v-model="deadlineVisible" title="调整截止时间" width="min(92vw,520px)" :close-on-click-modal="!deadlineSaving" :close-on-press-escape="!deadlineSaving" :show-close="!deadlineSaving">
+      <el-form label-position="top">
+        <el-form-item label="原截止时间"><span>{{ formatDateTime(deadlineForm.expectedDeadline) }}</span></el-form-item>
+        <el-form-item label="新截止时间" required><el-date-picker v-model="deadlineForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" /></el-form-item>
+        <el-form-item label="调整原因" required><el-input v-model="deadlineForm.reason" type="textarea" :rows="3" :maxlength="500" show-word-limit /></el-form-item>
+      </el-form>
+      <template #footer><el-button :disabled="deadlineSaving" @click="deadlineVisible = false">取消</el-button><el-button type="primary" :loading="deadlineSaving" @click="saveDeadline">保存调整</el-button></template>
+    </el-dialog>
     <el-dialog v-model="editTaskVisible" title="编辑任务资料" width="min(92vw,600px)" :close-on-click-modal="!editTaskSaving">
       <el-form label-position="top">
         <el-form-item label="任务标题" required><el-input v-model="editTaskForm.title" :maxlength="200" show-word-limit /></el-form-item>

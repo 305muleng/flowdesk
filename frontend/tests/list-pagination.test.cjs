@@ -216,17 +216,17 @@ test('member task locator sends server filters and each view resets page on filt
   assert.match(source, /watch\(focusedAssignee,[\s\S]*?taskListing.reset\(\)/)
   assert.doesNotMatch(source, /visibleTasks|tasks.value.filter/)
   for (const [view, filters] of [
-    ['MyTasksView', 'filter, keyword'],
+    ['MyTasksView', 'filter, keyword, projectScope'],
     ['NotificationsView', 'readFilter, categoryFilter'],
   ]) {
     const text = script(view)
     const watchPattern = new RegExp(
-      `watch\\(\\s*\\[${filters.replace(', ', ',\\s*')}\\],\\s*\\(\\)\\s*=>\\s*\\{\\s*listing.reset\\(\\)`,
+      `watch\\(\\s*\\[${filters.replaceAll(', ', ',\\s*')}\\],\\s*\\(\\)\\s*=>\\s*\\{\\s*listing.reset\\(\\)`,
     )
     assert.match(text, watchPattern)
     assert.match(text, /function changeSize[\s\S]*?listing.reset\(\)/)
   }
-  assert.match(script('MyTasksView'), /getMyTasksApi\(\{\s*page,\s*size,\s*status,\s*keyword: title,?\s*\}/)
+  assert.match(script('MyTasksView'), /getMyTasksApi\(\{\s*page,\s*size,\s*status,\s*keyword: title,\s*projectScope: scope,?\s*\}/)
   stop()
 })
 
@@ -282,6 +282,6 @@ test('dashboard/profile totals and project progress use full summaries and calle
   assert.match(project, /taskSummary.value\?\.completionRate \?\? null/)
   assert.match(project, /getProjectTaskSummaryApi\(projectId\)/)
   assert.doesNotMatch(dashboard, /getProjectTasksApi/)
-  assert.match(dashboard, /最近\s*20\s*项任务/)
+  assert.match(dashboard, /进行中项目的待处理任务/)
   for (const file of ['api/projects.ts', 'api/tasks.ts', 'api/notifications.ts']) assert.match(read(file), /PageResult</)
 })

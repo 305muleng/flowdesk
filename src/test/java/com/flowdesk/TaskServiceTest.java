@@ -940,8 +940,8 @@ public class TaskServiceTest {
     void systemAdminHasNoPersonalTaskWorklist() {
         UserContext.set(new CurrentUser(99L, "SYSTEM_ADMIN"));
 
-        assertEquals(List.of(), taskQueries.getMyTasks(1, 20, "ALL", null).getRecords());
-        verify(taskMapper, never()).selectMyTasks(any(), anyLong(), anyString(), anyString());
+        assertEquals(List.of(), taskQueries.getMyTasks(1, 20, "ALL", null, "CURRENT").getRecords());
+        verify(taskMapper, never()).selectMyTasks(any(), anyLong(), anyString(), anyString(), eq("CURRENT"));
     }
 
     @ParameterizedTest

@@ -43,7 +43,7 @@ class ListPaginationWebTest {
         when(taskQueries.getProjectTasks(7L, "ALL", "ALL", 1, 20, null, false)).thenReturn(
             new PageResult<>(List.of(new TaskVO()), 41, 1, 20, 3)
         );
-        when(taskQueries.getMyTasks(1, 20, "ALL", null)).thenReturn(new PageResult<>(List.of(new TaskVO()), 41, 1, 20, 3));
+        when(taskQueries.getMyTasks(1, 20, "ALL", null, "CURRENT")).thenReturn(new PageResult<>(List.of(new TaskVO()), 41, 1, 20, 3));
         when(notifications.getMyNotifications(1, 20, "ALL", "ALL")).thenReturn(
             new PageResult<>(List.of(new NotificationVO()), 41, 1, 20, 3)
         );
@@ -72,7 +72,7 @@ class ListPaginationWebTest {
         ).andExpect(status().isOk());
         verify(taskQueries).getProjectTasks(7L, "MINE", "DONE", 2, 100, 3L, true);
         mvc.perform(get("/tasks/my").param("status", "TODO").param("keyword", "%_标题")).andExpect(status().isOk());
-        verify(taskQueries).getMyTasks(1, 20, "TODO", "%_标题");
+        verify(taskQueries).getMyTasks(1, 20, "TODO", "%_标题", "CURRENT");
         mvc.perform(get("/notifications").param("readFilter", "READ").param("category", "TASK")).andExpect(status().isOk());
         verify(notifications).getMyNotifications(1, 20, "READ", "TASK");
         when(taskQueries.getMyTaskSummary()).thenReturn(MyTaskSummaryVO.empty());

@@ -103,6 +103,47 @@ public class TaskService {
         operationLogService.record(projectId, "TASK", taskId, "UPDATE_TASK_DETAILS", "修改任务资料", before, taskDetailsData(task));
     }
 
+    @Transactional
+    public void adjustTaskDeadline(Long taskId, AdjustTaskDeadlineDTO dto) {
+        Task original = taskMapper.selectById(taskId);
+        if (original == null || original.getDeletedAt() != null) {
+            throw new BusinessException(404, "任务不存在");
+        }
+        Long projectId = original.getProjectId();
+        Project project = projectMapper.selectByIdForUpdate(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+        if (project.getStatus() != ProjectStatus.IN_PROGRESS) {
+            throw new BusinessException(409, "只有进行中的项目可以调整任务截止时间");
+        }
+        Task task = taskMapper.selectByIdForUpdate(taskId);
+        if (task == null || task.getDeletedAt() != null || !projectId.equals(task.getProjectId())) {
+            throw new BusinessException(404, "任务不存在");
+        }
+        if (task.getStatus() != TaskStatus.IN_PROGRESS) {
+            throw new BusinessException(409, "只有进行中的任务可以调整截止时间");
+        }
+        if (!Objects.equals(task.getDeadline(), dto.expectedDeadline())) {
+            throw new BusinessException(409, "截止时间已发生变化，请刷新后重试");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime deadline = dto.deadline().withNano(0);
+        if (!deadline.isAfter(now)) {
+            throw new BusinessException(400, "新截止时间必须晚于当前时间");
+        }
+        if (deadline.equals(task.getDeadline())) {
+            throw new BusinessException(400, "新截止时间不能与原时间相同");
+        }
+        if (taskMapper.adjustDeadlineIfCurrent(taskId, projectId, dto.expectedDeadline(), deadline, now) != 1) {
+            throw new BusinessException(409, "任务已发生变化，请刷新后重试");
+        }
+        taskReminderService.syncTask(taskId);
+        operationLogService.record(projectId, "TASK", taskId, "ADJUST_TASK_DEADLINE", "调整任务截止时间",
+            Map.of("deadline", task.getDeadline()), Map.of("deadline", deadline, "reason", dto.reason().trim()));
+    }
+
     private Map<String, Object> taskDetailsData(Task task) {
         Map<String, Object> values = new HashMap<>();
         values.put("title", task.getTitle());

@@ -108,7 +108,7 @@ class ListPaginationServiceTest {
                 taskService.getProjectTasks(7L, "ALL", "ALL", page, size, null, false)
             ).getCode()
         );
-        assertEquals(400, assertThrows(BusinessException.class, () -> taskService.getMyTasks(page, size, "ALL", null)).getCode());
+        assertEquals(400, assertThrows(BusinessException.class, () -> taskService.getMyTasks(page, size, "ALL", null, "CURRENT")).getCode());
         assertEquals(
             400,
             assertThrows(BusinessException.class, () ->
@@ -134,25 +134,25 @@ class ListPaginationServiceTest {
     void projectAndPersonalTaskFiltersNormalizeIndependentlyOfDefaultLocale() {
         when(tasks.selectProjectTasks(any(), eq(7L), eq("ALL"), eq(9L), eq("IN_PROGRESS"), isNull(), eq(false)))
             .thenAnswer(call -> call.<Page<TaskVO>>getArgument(0).setTotal(0).setRecords(List.of()));
-        when(tasks.selectMyTasks(any(), eq(9L), eq("IN_PROGRESS"), eq("")))
+        when(tasks.selectMyTasks(any(), eq(9L), eq("IN_PROGRESS"), eq(""), eq("CURRENT")))
             .thenAnswer(call -> call.<Page<TaskVO>>getArgument(0).setTotal(0).setRecords(List.of()));
         Locale original = Locale.getDefault();
         try {
             Locale.setDefault(Locale.forLanguageTag("tr-TR"));
             taskService.getProjectTasks(7L, "ALL", " in_progress ", 1, 20, null, false);
-            taskService.getMyTasks(1, 20, " in_progress ", null);
+            taskService.getMyTasks(1, 20, " in_progress ", null, "CURRENT");
         } finally {
             Locale.setDefault(original);
         }
         verify(tasks).selectProjectTasks(any(), eq(7L), eq("ALL"), eq(9L), eq("IN_PROGRESS"), isNull(), eq(false));
-        verify(tasks).selectMyTasks(any(), eq(9L), eq("IN_PROGRESS"), eq(""));
+        verify(tasks).selectMyTasks(any(), eq(9L), eq("IN_PROGRESS"), eq(""), eq("CURRENT"));
     }
 
     @Test
     void unknownTaskStatusIsRejectedBeforeEitherTaskQuery() {
         for (boolean personal : List.of(true, false)) {
             BusinessException failure = assertThrows(BusinessException.class, () -> {
-                if (personal) taskService.getMyTasks(1, 20, "UNKNOWN", null);
+                if (personal) taskService.getMyTasks(1, 20, "UNKNOWN", null, "CURRENT");
                 else taskService.getProjectTasks(7L, "ALL", "UNKNOWN", 1, 20, null, false);
             });
             assertEquals(400, failure.getCode());
@@ -163,24 +163,24 @@ class ListPaginationServiceTest {
 
     @Test
     void myTaskStatusAndLiteralTitleKeywordAreNormalizedBeforePaging() {
-        when(tasks.selectMyTasks(any(), eq(9L), eq("IN_PROGRESS"), eq("%_abc\\"))).thenAnswer(call ->
+        when(tasks.selectMyTasks(any(), eq(9L), eq("IN_PROGRESS"), eq("%_abc\\"), eq("CURRENT"))).thenAnswer(call ->
             call.<Page<TaskVO>>getArgument(0).setTotal(22).setRecords(List.of())
         );
-        var result = taskService.getMyTasks(1, 20, " in_progress ", "  %_ABC\\  ");
+        var result = taskService.getMyTasks(1, 20, " in_progress ", "  %_ABC\\  ", "CURRENT");
         assertEquals(22, result.getTotal());
         assertEquals(2, result.getPages());
     }
 
     @Test
     void summaryUsesCurrentUserThreeDayWindowAndNoCacheOrPagedTaskRead() {
-        var summary = new MyTaskSummaryVO(80, 20, 10, 5, 40, 35, 75, 7);
+        var summary = new MyTaskSummaryVO(80, 20, 10, 5, 40, 35, 75, 7, 0, 0);
         when(tasks.selectMyTaskSummary(eq(9L), any(), any())).thenAnswer(call -> {
             assertEquals(Duration.ofDays(3), Duration.between(call.getArgument(1), call.getArgument(2)));
             return summary;
         });
         assertSame(summary, taskService.getMyTaskSummary());
         verifyNoInteractions(cache);
-        verify(tasks, never()).selectMyTasks(any(), anyLong(), anyString(), anyString());
+        verify(tasks, never()).selectMyTasks(any(), anyLong(), anyString(), anyString(), eq("CURRENT"));
         UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
         assertEquals(MyTaskSummaryVO.empty(), taskService.getMyTaskSummary());
         verify(tasks, times(1)).selectMyTaskSummary(anyLong(), any(), any());

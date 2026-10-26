@@ -38,6 +38,7 @@ class ListPaginationPluginTest {
         params.put("assigneeId", 13L);
         params.put("unfinishedOnly", true);
         params.put("keyword", "%_literal");
+        params.put("projectScope", "CURRENT");
         BoundSql sql = statement.getBoundSql(params);
         Executor executor = mock(Executor.class);
         when(executor.createCacheKey(any(), any(), any(), any())).thenReturn(new CacheKey());

@@ -48,6 +48,7 @@ async function submit() {
     :show-close="!submitting"
     @update:model-value="emit('update:modelValue', $event)"
   >
+    <el-alert title="至少有一项任务完成并通过审核，且没有未完成任务或待处理任务申请，才能提交验收。" type="info" :closable="false" show-icon />
     <el-form label-position="top">
       <el-form-item label="验收说明" required>
         <el-input v-model="form.submissionNote" type="textarea" :rows="3" placeholder="说明交付范围、测试情况与验收依据" />

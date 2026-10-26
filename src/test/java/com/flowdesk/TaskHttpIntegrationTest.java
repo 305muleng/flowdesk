@@ -57,6 +57,42 @@ class TaskHttpIntegrationTest {
         }
     }
 
+    @Test
+    void deadlineEndpointChecksRoleStaleValuesAndSubmittedState() throws Exception {
+        try (var f = ProjectFixture.create(jdbc)) {
+            LocalDateTime old = LocalDateTime.now().plusDays(1).withNano(0);
+            LocalDateTime next = old.plusDays(1);
+            long task = f.task(f.developer, old);
+            jdbc.update("UPDATE task SET status='IN_PROGRESS' WHERE id=?", task);
+            String manager = login(f.manager);
+            String developer = login(f.developer);
+            String body = mapper.writeValueAsString(Map.of("expectedDeadline", old.toString(), "deadline", next.toString(), "reason", "调整交付计划"));
+            assertEquals(401, send("PATCH", "/tasks/" + task + "/deadline", null, body).statusCode());
+            assertEquals(403, send("PATCH", "/tasks/" + task + "/deadline", developer, body).statusCode());
+            assertEquals(200, send("PATCH", "/tasks/" + task + "/deadline", manager, body).statusCode());
+            assertEquals(next, jdbc.queryForObject("SELECT deadline FROM task WHERE id=?", LocalDateTime.class, task));
+            assertEquals(409, send("PATCH", "/tasks/" + task + "/deadline", manager, body).statusCode());
+            assertEquals(400, send("GET", "/tasks/my?projectScope=UNKNOWN", developer, null).statusCode());
+            var summary = mapper.readTree(send("GET", "/tasks/my/summary", developer, null).body()).get("data");
+            assertEquals(1, summary.get("actionableTaskCount").asInt());
+            assertEquals(200, send("POST", "/tasks/" + task + "/submit", developer,
+                "{\"completionNote\":\"完成\",\"testNote\":\"已验证\"}").statusCode());
+            String afterSubmit = mapper.writeValueAsString(Map.of("expectedDeadline", next.toString(), "deadline", next.plusDays(1).toString(), "reason", "过期页面"));
+            assertEquals(409, send("PATCH", "/tasks/" + task + "/deadline", manager, afterSubmit).statusCode());
+            summary = mapper.readTree(send("GET", "/tasks/my/summary", developer, null).body()).get("data");
+            assertEquals(0, summary.get("actionableTaskCount").asInt());
+            assertEquals(1, summary.get("awaitingReviewTaskCount").asInt());
+            assertEquals(0, summary.get("dueSoonTaskCount").asInt());
+        }
+    }
+
+    private String login(long userId) throws Exception {
+        String username = jdbc.queryForObject("SELECT username FROM user WHERE id=?", String.class, userId);
+        var result = send("POST", "/users/login", null, mapper.writeValueAsString(Map.of("username", username, "password", "test-only")));
+        assertEquals(200, result.statusCode());
+        return mapper.readTree(result.body()).get("data").get("token").asString();
+    }
+
     private HttpResponse<String> send(String method, String path, String token, String body) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
             .timeout(Duration.ofSeconds(10)).header("Content-Type", "application/json");

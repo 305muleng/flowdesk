@@ -21,12 +21,13 @@ public class TaskQueryController {
         @RequestParam(defaultValue = "1") long page,
         @RequestParam(defaultValue = "20") long size,
         @RequestParam(defaultValue = "ALL") String status,
-        @RequestParam(required = false) String keyword
+        @RequestParam(required = false) String keyword,
+        @RequestParam(defaultValue = "CURRENT") String projectScope
     ) {
-        return Result.success(taskQueryService.getMyTasks(page, size, status, keyword));
+        return Result.success(taskQueryService.getMyTasks(page, size, status, keyword, projectScope));
     }
 
-    @Operation(summary = "我的任务汇总", description = "统计当前登录用户有权访问的全部任务，不受分页或列表筛选影响")
+    @Operation(summary = "我的任务汇总", description = "汇总有权访问的历史任务；待办和催办仅统计进行中项目，待审核单独计数，不受列表筛选影响")
     @GetMapping("/tasks/my/summary")
     public Result<MyTaskSummaryVO> getMyTaskSummary() {
         return Result.success(taskQueryService.getMyTaskSummary());
