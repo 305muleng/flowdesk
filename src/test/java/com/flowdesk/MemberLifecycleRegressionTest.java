@@ -89,19 +89,7 @@ class MemberLifecycleRegressionTest {
             ProjectMember.class
         );
         UserContext.set(new CurrentUser(1L, "USER"));
-        taskService = new TaskService(
-            tasks,
-            projects,
-            members,
-            permissions,
-            submissions,
-            comments,
-            logs,
-            notifications,
-            users,
-            taskSummaryCache,
-            mock(com.flowdesk.service.TaskReminderService.class)
-        );
+        taskService = new TaskService(tasks, projects, members, permissions, submissions, logs, notifications, users, taskSummaryCache, mock(com.flowdesk.service.TaskReminderService.class));
         requestService = new TaskRequestService(
             requests,
             projects,
@@ -340,7 +328,7 @@ class MemberLifecycleRegressionTest {
         pendingRequest(2L);
         ProjectMember m = developer();
         m.setRole("PROJECT_MANAGER");
-        when(members.selectOne(any())).thenReturn(m);
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(m);
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("APPROVE");
         assertEquals(409, assertThrows(BusinessException.class, () -> requestService.reviewTaskRequest(4L, 12L, dto)).getCode());
@@ -350,7 +338,7 @@ class MemberLifecycleRegressionTest {
     @Test
     void nonDeveloperCannotHaveRequestRejectedEither() {
         pendingRequest(2L);
-        when(members.selectOne(any())).thenReturn(null);
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(null);
         ReviewTaskRequestDTO dto = new ReviewTaskRequestDTO();
         dto.setAction("REJECT");
         assertEquals(409, assertThrows(BusinessException.class, () -> requestService.reviewTaskRequest(4L, 12L, dto)).getCode());
@@ -369,9 +357,10 @@ class MemberLifecycleRegressionTest {
         t.setOldManagerAction("STAY");
         t.setExpiresAt(LocalDateTime.now().plusDays(1));
         when(transfers.selectById(20L)).thenReturn(t);
+        when(transfers.selectByIdForUpdate(20L)).thenReturn(t);
         when(projects.selectByIdForUpdate(4L)).thenReturn(project());
         when(users.selectByIdForUpdate(2L)).thenReturn(user());
-        when(members.selectOne(any())).thenReturn(developer());
+        when(members.selectMemberForUpdate(4L, 2L)).thenReturn(developer());
         when(transfers.acceptIfPending(eq(20L), eq(4L), eq(2L), any(), any())).thenReturn(1);
         when(members.promoteDeveloperToManager(eq(4L), eq(2L), any())).thenReturn(1);
         when(members.demoteManagerToDeveloper(eq(4L), eq(1L), any())).thenReturn(1);

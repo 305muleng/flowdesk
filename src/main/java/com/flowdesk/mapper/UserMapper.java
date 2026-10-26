@@ -8,6 +8,10 @@ import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface UserMapper extends BaseMapper<User> {
+    // 账号仅用于校验，共享锁读取当前状态。
+    @Select("SELECT * FROM user WHERE id = #{userId} FOR SHARE")
+    User selectByIdForShare(@Param("userId") Long userId);
+
     @Select("""
         SELECT u.id AS userId, u.username, u.real_name AS realName, u.status AS userStatus,
           CASE

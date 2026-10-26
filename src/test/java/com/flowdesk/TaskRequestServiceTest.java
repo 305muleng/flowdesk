@@ -86,7 +86,7 @@ public class TaskRequestServiceTest {
     @BeforeEach
     void setUpActiveUsers() {
         lenient()
-            .when(userMapper.selectById(anyLong()))
+            .when(userMapper.selectByIdForShare(anyLong()))
             .thenAnswer(invocation -> {
                 User user = new User();
                 user.setId(invocation.getArgument(0));
@@ -109,8 +109,14 @@ public class TaskRequestServiceTest {
         lenient()
             .when(taskRequestMapper.cancelIfPending(anyLong(), anyLong(), anyLong(), any()))
             .thenReturn(1);
+        lenient().when(projectPermissionService.requireProjectMemberForUpdate(anyLong())).thenAnswer(invocation -> {
+            ProjectMember member = new ProjectMember();
+            member.setRole("DEVELOPER");
+            member.setStatus(ProjectMemberStatus.ACTIVE);
+            return member;
+        });
         lenient()
-            .when(projectMemberMapper.selectOne(any()))
+            .when(projectMemberMapper.selectMemberForUpdate(anyLong(), anyLong()))
             .thenAnswer(invocation -> {
                 ProjectMember member = new ProjectMember();
                 member.setProjectId(4L);
@@ -382,7 +388,7 @@ public class TaskRequestServiceTest {
         disabled.setId(1L);
         disabled.setStatus(UserStatus.DISABLED);
         disabled.setSystemRole("USER");
-        when(userMapper.selectById(1L)).thenReturn(accountMissing ? null : disabled);
+        when(userMapper.selectByIdForShare(1L)).thenReturn(accountMissing ? null : disabled);
         UserContext.set(new CurrentUser(2L, "USER"));
         CreateTaskRequestDTO dto = new CreateTaskRequestDTO();
         dto.setTitle("增加统计");
@@ -480,7 +486,7 @@ public class TaskRequestServiceTest {
         jack.setStatus(ProjectMemberStatus.ACTIVE);
         jack.setRole("DEVELOPER");
 
-        when(projectMemberMapper.selectOne(any())).thenReturn(jack);
+        when(projectMemberMapper.selectMemberForUpdate(anyLong(), anyLong())).thenReturn(jack);
 
         // 模拟 Task insert 后生成 id = 99
         doAnswer(invocation -> {
@@ -556,7 +562,7 @@ public class TaskRequestServiceTest {
         rose.setStatus(ProjectMemberStatus.ACTIVE);
         rose.setRole("DEVELOPER");
 
-        when(projectMemberMapper.selectOne(any())).thenReturn(rose);
+        when(projectMemberMapper.selectMemberForUpdate(anyLong(), anyLong())).thenReturn(rose);
 
         // 模拟生成正式 Task id = 99
         doAnswer(invocation -> {
@@ -622,7 +628,7 @@ public class TaskRequestServiceTest {
         UserContext.set(new CurrentUser(1L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
         when(taskRequestMapper.selectById(10L)).thenReturn(request);
-        when(userMapper.selectById(2L)).thenReturn(disabled);
+        when(userMapper.selectByIdForShare(2L)).thenReturn(disabled);
 
         BusinessException exception = assertThrows(BusinessException.class, () ->
             taskRequestService.reviewTaskRequest(4L, 10L, dto)

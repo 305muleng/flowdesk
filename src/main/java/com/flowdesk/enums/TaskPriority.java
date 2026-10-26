@@ -2,22 +2,16 @@ package com.flowdesk.enums;
 
 /** 正式任务的优先级定义，与其他领域的高低等级分开维护。 */
 public enum TaskPriority {
-    LOW("LOW"),
-    MEDIUM("MEDIUM"),
-    HIGH("HIGH");
-
-    private final String code;
-
-    TaskPriority(String code) {
-        this.code = code;
-    }
+    LOW,
+    MEDIUM,
+    HIGH;
 
     public String getCode() {
-        return code;
+        return name();
     }
 
     public boolean matches(String code) {
-        return this.code.equals(code);
+        return name().equals(code);
     }
 
     public static boolean isKnownCode(String code) {

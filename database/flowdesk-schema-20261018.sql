@@ -63,12 +63,11 @@ CREATE TABLE `notification` (
   `project_id` bigint DEFAULT NULL,
   `target_type` varchar(50) NOT NULL,
   `target_id` bigint NOT NULL,
-  `is_read` tinyint(1) NOT NULL DEFAULT '0',
   `read_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_notification_recipient_created` (`recipient_id`,`created_at`),
-  KEY `idx_notification_recipient_read` (`recipient_id`,`is_read`),
+  KEY `idx_notification_recipient_read` (`recipient_id`,`read_at`,`created_at`),
   KEY `idx_notification_target` (`target_type`,`target_id`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;

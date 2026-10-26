@@ -4,6 +4,8 @@ import com.flowdesk.enums.UserStatus;
 
 import com.flowdesk.controller.AdminProjectAcceptanceController;
 import com.flowdesk.controller.TaskController;
+import com.flowdesk.controller.TaskQueryController;
+import com.flowdesk.controller.TaskCommentController;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.interceptor.LoginInterceptor;
 import com.flowdesk.interceptor.SystemAdminInterceptor;
@@ -11,6 +13,8 @@ import com.flowdesk.mapper.UserMapper;
 import com.flowdesk.model.User;
 import com.flowdesk.service.ProjectAcceptanceService;
 import com.flowdesk.service.TaskService;
+import com.flowdesk.service.TaskQueryService;
+import com.flowdesk.service.TaskCommentService;
 import com.flowdesk.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 public class SecurityInterceptorWebTest {
+    TaskCommentService taskComments = org.mockito.Mockito.mock(TaskCommentService.class);
+    TaskQueryService taskQueries = org.mockito.Mockito.mock(TaskQueryService.class);
 
     private MockMvc mockMvc;
 
@@ -55,7 +61,7 @@ public class SecurityInterceptorWebTest {
         SystemAdminInterceptor systemAdminInterceptor = new SystemAdminInterceptor();
 
         // 4. 搭建 MockMvc 环境
-        mockMvc = MockMvcBuilders.standaloneSetup(taskController, adminController)
+        mockMvc = MockMvcBuilders.standaloneSetup(new com.flowdesk.controller.TaskQueryController(taskQueries), new com.flowdesk.controller.TaskCommentController(taskComments), taskController, adminController)
             .addInterceptors(loginInterceptor, systemAdminInterceptor)
             .build();
     }

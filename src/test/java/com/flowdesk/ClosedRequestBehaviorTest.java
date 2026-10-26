@@ -122,6 +122,7 @@ class ClosedRequestBehaviorTest {
         request.setApplicantId(2L);
         request.setStatus(MemberLeaveRequestStatus.CLOSED);
         when(leaves.selectById(11L)).thenReturn(request);
+        when(leaves.selectByIdForUpdate(11L)).thenReturn(request);
         ReviewMemberLeaveRequestDTO dto = new ReviewMemberLeaveRequestDTO();
         dto.setAction("APPROVE");
         conflict(() -> leaveService.reviewLeaveRequest(4L, 11L, dto));

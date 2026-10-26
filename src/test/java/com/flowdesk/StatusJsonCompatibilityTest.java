@@ -4,9 +4,13 @@ import com.flowdesk.common.Result;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.controller.TaskController;
+import com.flowdesk.controller.TaskQueryController;
+import com.flowdesk.controller.TaskCommentController;
 import com.flowdesk.enums.*;
 import com.flowdesk.exception.GlobalExceptionHandler;
 import com.flowdesk.service.TaskService;
+import com.flowdesk.service.TaskQueryService;
+import com.flowdesk.service.TaskCommentService;
 import com.flowdesk.vo.*;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.junit.jupiter.api.Test;
@@ -25,6 +29,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class StatusJsonCompatibilityTest {
+    TaskCommentService taskComments = org.mockito.Mockito.mock(TaskCommentService.class);
+    TaskQueryService taskQueries = org.mockito.Mockito.mock(TaskQueryService.class);
 
     private final JsonMapper mapper = JsonMapper.builder().build();
 
@@ -54,7 +60,6 @@ class StatusJsonCompatibilityTest {
             Object status = expected.type().getEnumConstants()[i];
             String code = codes.get(i);
             assertEquals(code, expected.type().getMethod("getCode").invoke(status));
-            assertEquals(code, expected.type().getMethod("getValue").invoke(status));
             assertEquals("\"" + code + "\"", mapper.writeValueAsString(status));
             assertSame(status, mapper.readValue("\"" + code + "\"", expected.type()));
             assertSame(status, expected.type().getMethod("fromCode", String.class).invoke(null, code));
@@ -124,11 +129,12 @@ class StatusJsonCompatibilityTest {
     @Test
     void httpTaskOutputStaysStringAndInvalidFilterStillReturns400FromRealValidation() throws Exception {
         // 只让非法筛选进入真实校验；没有初始化 Mapper，也不会加载应用或外部环境。
-        TaskService service = mock(TaskService.class, CALLS_REAL_METHODS);
+        TaskService service = mock(TaskService.class);
+        TaskQueryService taskQueries = mock(TaskQueryService.class, CALLS_REAL_METHODS);
         TaskVO task = new TaskVO();
         task.setStatus(TaskStatus.REVIEW.getCode());
-        doReturn(task).when(service).getTaskDetail(7L);
-        var mvc = MockMvcBuilders.standaloneSetup(new TaskController(service))
+        doReturn(task).when(taskQueries).getTaskDetail(7L);
+        var mvc = MockMvcBuilders.standaloneSetup(new com.flowdesk.controller.TaskQueryController(taskQueries), new com.flowdesk.controller.TaskCommentController(taskComments), new TaskController(service))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
         try {

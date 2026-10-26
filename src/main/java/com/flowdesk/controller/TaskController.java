@@ -1,19 +1,13 @@
 package com.flowdesk.controller;
 
 import com.flowdesk.common.Result;
-import com.flowdesk.common.PageResult;
 import com.flowdesk.dto.*;
 import com.flowdesk.service.TaskService;
-import com.flowdesk.vo.TaskCommentVO;
-import com.flowdesk.vo.TaskSubmissionVO;
-import com.flowdesk.vo.TaskVO;
-import com.flowdesk.vo.MyTaskSummaryVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 @Tag(name = "任务管理", description = "任务详情、负责人分配、执行、提交、审核、取消以及评论相关接口")
 @RestController
@@ -24,22 +18,6 @@ public class TaskController {
 
     public TaskController(TaskService taskService) {
         this.taskService = taskService;
-    }
-
-    @GetMapping("/my")
-    public Result<PageResult<TaskVO>> getMyTasks(
-        @RequestParam(defaultValue = "1") long page,
-        @RequestParam(defaultValue = "20") long size,
-        @RequestParam(defaultValue = "ALL") String status,
-        @RequestParam(required = false) String keyword
-    ) {
-        return Result.success(taskService.getMyTasks(page, size, status, keyword));
-    }
-
-    @Operation(summary = "我的任务汇总", description = "统计当前登录用户有权访问的全部任务，不受分页或列表筛选影响")
-    @GetMapping("/my/summary")
-    public Result<MyTaskSummaryVO> getMyTaskSummary() {
-        return Result.success(taskService.getMyTaskSummary());
     }
 
     @Operation(summary = "编辑任务资料", description = "项目负责人编辑准备中或进行中项目的 TODO 任务，不修改负责人或状态")
@@ -70,13 +48,6 @@ public class TaskController {
         return Result.success("任务审核完成", null);
     }
 
-    @Operation(summary = "查看任务提交记录", description = "查看任务历次提交及审核结果")
-    @GetMapping("/{taskId}/submissions")
-    public Result<List<TaskSubmissionVO>> getTaskSubmissions(@PathVariable Long taskId) {
-        List<TaskSubmissionVO> submissions = taskService.getTaskSubmissions(taskId);
-        return Result.success(submissions);
-    }
-
     @Operation(summary = "分配任务负责人", description = "项目负责人为 TODO 状态的任务分配或重新分配负责人")
     @PatchMapping("/{taskId}/assignee")
     public Result<Void> assignTask(@PathVariable Long taskId, @Valid @RequestBody AssignTaskDTO dto) {
@@ -89,27 +60,6 @@ public class TaskController {
     public Result<Void> handoverTask(@PathVariable Long taskId, @Valid @RequestBody HandoverTaskDTO dto) {
         taskService.handoverDisabledAssignee(taskId, dto);
         return Result.success("任务已交接，等待新任务负责人开始", null);
-    }
-
-    @Operation(summary = "查看任务详情", description = "项目成员查看指定任务的详细信息")
-    @GetMapping("/{taskId}")
-    public Result<TaskVO> getTaskDetail(@PathVariable Long taskId) {
-        TaskVO taskVO = taskService.getTaskDetail(taskId);
-        return Result.success(taskVO);
-    }
-
-    @Operation(summary = "新增任务评论", description = "项目成员对任务发表评论，也可以通过 parentId 回复已有评论")
-    @PostMapping("/{taskId}/comments")
-    public Result<Long> addTaskComment(@PathVariable Long taskId, @Valid @RequestBody AddTaskCommentDTO dto) {
-        Long commentId = taskService.addTaskComment(taskId, dto);
-        return Result.success("评论发表成功", commentId);
-    }
-
-    @Operation(summary = "查看任务评论", description = "项目成员查看指定任务的历史评论")
-    @GetMapping("/{taskId}/comments")
-    public Result<List<TaskCommentVO>> getTaskComments(@PathVariable Long taskId) {
-        List<TaskCommentVO> comments = taskService.getTaskComments(taskId);
-        return Result.success(comments);
     }
 
     @Operation(summary = "取消任务", description = "项目负责人取消 TODO 或 IN_PROGRESS 状态的任务，并填写取消原因")

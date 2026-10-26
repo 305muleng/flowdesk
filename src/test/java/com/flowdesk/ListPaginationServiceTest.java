@@ -35,19 +35,7 @@ class ListPaginationServiceTest {
     ProjectPermissionService permissions = mock(ProjectPermissionService.class);
     ProjectTaskSummaryCache cache = mock(ProjectTaskSummaryCache.class);
     NotificationMapper notifications = mock(NotificationMapper.class);
-    TaskService taskService = new TaskService(
-        tasks,
-        projects,
-        mock(ProjectMemberMapper.class),
-        permissions,
-        mock(TaskSubmissionMapper.class),
-        mock(TaskCommentMapper.class),
-        mock(OperationLogService.class),
-        mock(NotificationService.class),
-        mock(UserMapper.class),
-        cache,
-        mock(com.flowdesk.service.TaskReminderService.class)
-    );
+    TaskQueryService taskService = new TaskQueryService(tasks, projects, permissions, mock(TaskSubmissionMapper.class), mock(TaskCommentMapper.class));
     NotificationService notificationService = new NotificationService(notifications, mock(UserMapper.class));
 
     @BeforeEach

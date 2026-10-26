@@ -14,6 +14,19 @@ import java.time.LocalDateTime;
 
 @Mapper
 public interface MemberLeaveRequestMapper extends BaseMapper<MemberLeaveRequest> {
+
+    @Select("""
+        SELECT id FROM member_leave_request
+        WHERE project_id = #{projectId} AND applicant_id = #{applicantId}
+          AND status = 'PENDING' AND expires_at > #{now}
+        LIMIT 1 FOR UPDATE
+        """)
+    Long selectPendingForApplicantForUpdate(@Param("projectId") Long projectId,
+        @Param("applicantId") Long applicantId, @Param("now") LocalDateTime now);
+
+    @Select("SELECT * FROM member_leave_request WHERE id = #{id} FOR UPDATE")
+    MemberLeaveRequest selectByIdForUpdate(@Param("id") Long id);
+
     @Update("""
         UPDATE member_leave_request
         SET status = 'CLOSED', closed_at = #{closedAt}, close_reason = #{closeReason}

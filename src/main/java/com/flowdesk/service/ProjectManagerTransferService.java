@@ -14,7 +14,6 @@ import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.CreateProjectManagerTransferDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
-import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.*;
 import com.flowdesk.vo.ProjectManagerTransferVO;
 import org.springframework.beans.factory.annotation.Value;
@@ -107,7 +106,7 @@ public class ProjectManagerTransferService {
         }
 
         // 4. 再次确认当前负责人密码
-        User currentManager = userMapper.selectById(currentUser.getUserId());
+        User currentManager = userMapper.selectByIdForShare(currentUser.getUserId());
 
         if (currentManager == null) {
             throw new BusinessException(401, "当前登录用户不存在");
@@ -129,7 +128,7 @@ public class ProjectManagerTransferService {
         // 6. 查询目标用户
         String targetUsername = dto.getTargetUsername().trim();
 
-        User targetUser = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, targetUsername));
+        User targetUser = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, targetUsername).last("FOR SHARE"));
 
         if (targetUser == null) {
             throw new BusinessException(404, "目标用户不存在");
@@ -151,25 +150,18 @@ public class ProjectManagerTransferService {
         }
 
         // 10. 一个项目同时最多一个有效 PENDING 转让
-        Long pendingCount = transferMapper.selectCount(
-            new LambdaQueryWrapper<ProjectManagerTransfer>()
-                .eq(ProjectManagerTransfer::getProjectId, projectId)
-                .eq(ProjectManagerTransfer::getStatus, ProjectManagerTransferStatus.PENDING)
-                .gt(ProjectManagerTransfer::getExpiresAt, now)
-        );
+        Long pendingTransfer = transferMapper.selectPendingForProjectForUpdate(projectId, now);
 
-        if (pendingCount > 0) {
+        if (pendingTransfer != null) {
             throw new BusinessException(409, "该项目已经存在待处理的负责人转让");
         }
 
         // 11. 如果原负责人选择转让后退出，
         // 必须保证自己没有未完成任务
         if ("LEAVE".equals(oldManagerAction)) {
-            Long unfinishedTaskCount = taskMapper.selectCount(
-                TaskQueryConditions.unfinishedForAssignee(projectId, currentUser.getUserId())
-            );
+            Long unfinishedTask = taskMapper.selectUnfinishedForAssigneeForUpdate(projectId, currentUser.getUserId());
 
-            if (unfinishedTaskCount > 0) {
+            if (unfinishedTask != null) {
                 throw new BusinessException(409, "你仍有未完成任务，请先完成或重新分配后再选择退出项目");
             }
         }
@@ -263,6 +255,15 @@ public class ProjectManagerTransferService {
             throw new BusinessException(404, "项目不存在");
         }
 
+        transfer = transferMapper.selectByIdForUpdate(transferId);
+        now = LocalDateTime.now();
+        if (transfer == null || !projectId.equals(transfer.getProjectId())
+            || !currentUser.getUserId().equals(transfer.getToUserId())
+            || transfer.getStatus() != ProjectManagerTransferStatus.PENDING
+            || !transfer.getExpiresAt().isAfter(now)) {
+            throw new BusinessException(409, "负责人转让已失效，请刷新后重试");
+        }
+
         // 6. 项目状态仍然必须允许负责人变更
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许转让项目负责人");
@@ -286,21 +287,15 @@ public class ProjectManagerTransferService {
         // 8. 如果旧负责人选择 LEAVE，
         // 接受时必须再次检查他的任务
         if ("LEAVE".equals(transfer.getOldManagerAction())) {
-            Long unfinishedTaskCount = taskMapper.selectCount(
-                TaskQueryConditions.unfinishedForAssignee(projectId, transfer.getFromUserId())
-            );
+            Long unfinishedTask = taskMapper.selectUnfinishedForAssigneeForUpdate(projectId, transfer.getFromUserId());
 
-            if (unfinishedTaskCount > 0) {
+            if (unfinishedTask != null) {
                 throw new BusinessException(409, "原负责人新增了未完成任务，请先完成或重新分配后再接受转让");
             }
         }
 
         // 9. 查询目标用户在项目中的历史成员关系
-        ProjectMember targetMember = projectMemberMapper.selectOne(
-            new LambdaQueryWrapper<ProjectMember>()
-                .eq(ProjectMember::getProjectId, projectId)
-                .eq(ProjectMember::getUserId, currentUser.getUserId())
-        );
+        ProjectMember targetMember = projectMemberMapper.selectMemberForUpdate(projectId, currentUser.getUserId());
 
         if (
             targetMember != null &&

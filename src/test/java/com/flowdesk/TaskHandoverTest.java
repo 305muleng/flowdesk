@@ -38,19 +38,7 @@ class TaskHandoverTest {
     NotificationService notifications = mock(NotificationService.class);
     ProjectTaskSummaryCache cache = mock(ProjectTaskSummaryCache.class);
     com.flowdesk.service.TaskReminderService reminders = mock(com.flowdesk.service.TaskReminderService.class);
-    TaskService service = new TaskService(
-        tasks,
-        projects,
-        members,
-        permissions,
-        submissions,
-        comments,
-        logs,
-        notifications,
-        users,
-        cache,
-        reminders
-    );
+    TaskService service = new TaskService(tasks, projects, members, permissions, submissions, logs, notifications, users, cache, reminders);
     HandoverTaskDTO dto = new HandoverTaskDTO(2L, 3L, "  账号禁用，交接开发  ");
 
     @BeforeEach

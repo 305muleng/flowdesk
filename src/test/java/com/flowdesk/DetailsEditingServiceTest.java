@@ -53,8 +53,7 @@ class DetailsEditingServiceTest {
         projectService = new ProjectService(projects, members, permissions, logs, tasks, mock(TaskRequestMapper.class),
                 mock(MemberLeaveRequestMapper.class), mock(NotificationService.class), mock(UserMapper.class),
                 mock(ProjectRequestClosureService.class));
-        taskService = new TaskService(tasks, projects, members, permissions, mock(TaskSubmissionMapper.class),
-                mock(TaskCommentMapper.class), logs, mock(NotificationService.class), mock(UserMapper.class), cache, reminders);
+        taskService = new TaskService(tasks, projects, members, permissions, mock(TaskSubmissionMapper.class), logs, mock(NotificationService.class), mock(UserMapper.class), cache, reminders);
         UserContext.set(new CurrentUser(1L, "USER"));
         project = new Project();
         project.setId(4L);

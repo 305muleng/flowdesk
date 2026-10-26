@@ -1,6 +1,5 @@
 package com.flowdesk;
 
-import com.baomidou.mybatisplus.annotation.IEnum;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
@@ -15,7 +14,6 @@ import org.apache.ibatis.executor.resultset.DefaultResultSetHandler;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.session.RowBounds;
-import org.apache.ibatis.type.EnumTypeHandler;
 import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.TypeHandler;
 import org.apache.ibatis.type.UnknownTypeHandler;
@@ -104,7 +102,6 @@ class StatusCodeMappingTest {
     static MybatisConfiguration configuration() {
         var configuration = new MybatisConfiguration();
         configuration.setMapUnderscoreToCamelCase(true);
-        new MybatisPlusConfig().statusTypeHandlers().customize(configuration);
         return configuration;
     }
 
@@ -117,13 +114,11 @@ class StatusCodeMappingTest {
     @MethodSource("mappings")
     void allCodesUseActualRegisteredHandlerWithStrictInvalidAndNullReads(Mapping mapping) throws Exception {
         var handler = handler(configuration(), mapping);
-        assertInstanceOf(EnumTypeHandler.class, handler);
         PreparedStatement statement = mock(PreparedStatement.class);
         ResultSet result = mock(ResultSet.class);
         CallableStatement callable = mock(CallableStatement.class);
         for (Enum<?> status : mapping.status().getEnumConstants()) {
-            String code = (String) ((IEnum<?>) status).getValue();
-            assertEquals(code, status.name(), "持久化状态的枚举名称必须与原有编码一致");
+            String code = ((Enum<?>) status).name();
             handler.setParameter(statement, 1, status, null);
             verify(statement).setString(1, code);
             handler.setParameter(statement, 2, status, JdbcType.VARCHAR);
@@ -174,11 +169,10 @@ class StatusCodeMappingTest {
             .filter(p -> p.getProperty().equals(mapping.property()))
             .findFirst()
             .orElseThrow();
-        assertInstanceOf(EnumTypeHandler.class, parameter.getTypeHandler());
         PreparedStatement jdbc = mock(PreparedStatement.class);
         configuration.newParameterHandler(statement, entity, sql).setParameters(jdbc);
         int index = sql.getParameterMappings().indexOf(parameter) + 1;
-        verify(jdbc).setString(index, (String) ((IEnum<?>) status).getValue());
+        verify(jdbc).setString(index, ((Enum<?>) status).name());
 
         var update = configuration.getMappedStatement(mapping.mapper().getName() + ".updateById");
         var updateParams = Map.of(Constants.ENTITY, entity);
@@ -195,7 +189,7 @@ class StatusCodeMappingTest {
         configuration.newParameterHandler(update, updateParams, updateSql).setParameters(updateJdbc);
         verify(updateJdbc).setString(
             updateSql.getParameterMappings().indexOf(updateParameter) + 1,
-            (String) ((IEnum<?>) status).getValue()
+            ((Enum<?>) status).name()
         );
     }
 
@@ -207,7 +201,7 @@ class StatusCodeMappingTest {
         for (String select : List.of("selectById", mapping.select())) {
             var statement = configuration.getMappedStatement(mapping.mapper().getName() + "." + select);
             for (Enum<?> status : mapping.status().getEnumConstants()) {
-                Object entity = readOne(configuration, statement, mapping.column(), (String) ((IEnum<?>) status).getValue());
+                Object entity = readOne(configuration, statement, mapping.column(), ((Enum<?>) status).name());
                 assertSame(
                     status,
                     mapping

@@ -23,6 +23,8 @@ import com.flowdesk.service.NotificationService;
 import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.TaskService;
+import com.flowdesk.service.TaskQueryService;
+import com.flowdesk.service.TaskCommentService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +48,10 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class TaskServiceTest {
+    @org.mockito.InjectMocks
+    TaskQueryService taskQueries;
+    @org.mockito.InjectMocks
+    TaskCommentService taskComments;
 
     @Mock
     private TaskMapper taskMapper;
@@ -905,7 +911,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectById(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> taskService.getTaskDetail(10L));
+        BusinessException exception = assertThrows(BusinessException.class, () -> taskQueries.getTaskDetail(10L));
 
         assertEquals(404, exception.getCode());
         verify(taskMapper, never()).selectTaskDetail(anyLong());
@@ -924,7 +930,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> taskService.addTaskComment(10L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () -> taskComments.addTaskComment(10L, dto));
 
         assertEquals(409, exception.getCode());
         verify(taskCommentMapper, never()).insert(any(com.flowdesk.model.TaskComment.class));
@@ -934,7 +940,7 @@ public class TaskServiceTest {
     void systemAdminHasNoPersonalTaskWorklist() {
         UserContext.set(new CurrentUser(99L, "SYSTEM_ADMIN"));
 
-        assertEquals(List.of(), taskService.getMyTasks(1, 20, "ALL", null).getRecords());
+        assertEquals(List.of(), taskQueries.getMyTasks(1, 20, "ALL", null).getRecords());
         verify(taskMapper, never()).selectMyTasks(any(), anyLong(), anyString(), anyString());
     }
 
@@ -1035,7 +1041,7 @@ public class TaskServiceTest {
     @Test
     void addingTaskCommentHasTransactionalBoundary() throws Exception {
         assertNotNull(
-            TaskService.class
+            TaskCommentService.class
                 .getMethod("addTaskComment", Long.class, AddTaskCommentDTO.class)
                 .getAnnotation(org.springframework.transaction.annotation.Transactional.class)
         );
@@ -1134,7 +1140,7 @@ public class TaskServiceTest {
             case "COMMENT" -> {
                 AddTaskCommentDTO dto = new AddTaskCommentDTO();
                 dto.setContent(" 评论内容 ");
-                taskService.addTaskComment(10L, dto);
+                taskComments.addTaskComment(10L, dto);
             }
             default -> throw new IllegalArgumentException(operation);
         }

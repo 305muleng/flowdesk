@@ -1,7 +1,6 @@
 package com.flowdesk.controller;
 
 import com.flowdesk.common.Result;
-import com.flowdesk.common.PageResult;
 import com.flowdesk.dto.*;
 import com.flowdesk.service.ProjectInvitationService;
 import com.flowdesk.service.ProjectService;
@@ -10,7 +9,6 @@ import com.flowdesk.service.TaskService;
 import com.flowdesk.vo.ProjectMemberVO;
 import com.flowdesk.vo.ProjectTaskSummaryVO;
 import com.flowdesk.vo.ProjectVO;
-import com.flowdesk.vo.TaskVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -91,21 +89,6 @@ public class ProjectController {
     public Result<Long> createTask(@PathVariable Long projectId, @Valid @RequestBody CreateTaskDTO dto) {
         Long taskId = taskService.createTask(projectId, dto);
         return Result.success("任务创建成功", taskId);
-    }
-
-    @Operation(summary = "查看项目任务", description = "查看项目中的任务列表，可通过 scope 和 status 进行筛选")
-    @GetMapping("/{projectId}/tasks")
-    public Result<PageResult<TaskVO>> getProjectTasks(
-        @PathVariable Long projectId,
-        @RequestParam(defaultValue = "ALL") String scope,
-        @RequestParam(defaultValue = "ALL") String status,
-        @RequestParam(defaultValue = "1") long page,
-        @RequestParam(defaultValue = "20") long size,
-        @RequestParam(required = false) Long assigneeId,
-        @RequestParam(defaultValue = "false") boolean unfinishedOnly
-    ) {
-        var tasks = taskService.getProjectTasks(projectId, scope, status, page, size, assigneeId, unfinishedOnly);
-        return Result.success(tasks);
     }
 
     @Operation(summary = "启动项目", description = "项目负责人将准备中的项目从 PREPARING 启动为 IN_PROGRESS")

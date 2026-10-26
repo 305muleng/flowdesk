@@ -20,6 +20,15 @@ import java.util.List;
 
 @Mapper
 public interface TaskMapper extends BaseMapper<Task> {
+
+    @Select("""
+        SELECT id FROM task
+        WHERE project_id = #{projectId} AND assignee_id = #{assigneeId}
+          AND status IN ('TODO', 'IN_PROGRESS', 'REVIEW') AND deleted_at IS NULL
+        LIMIT 1 FOR UPDATE
+        """)
+    Long selectUnfinishedForAssigneeForUpdate(@Param("projectId") Long projectId, @Param("assigneeId") Long assigneeId);
+
     @Update("""
         UPDATE task SET title = #{task.title}, description = #{task.description}, goal = #{task.goal},
             priority = #{task.priority}, deadline = #{task.deadline}, updated_at = #{task.updatedAt}

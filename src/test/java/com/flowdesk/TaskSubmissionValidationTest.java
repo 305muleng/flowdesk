@@ -1,9 +1,13 @@
 package com.flowdesk;
 
 import com.flowdesk.controller.TaskController;
+import com.flowdesk.controller.TaskQueryController;
+import com.flowdesk.controller.TaskCommentController;
 import com.flowdesk.dto.SubmitTaskDTO;
 import com.flowdesk.exception.GlobalExceptionHandler;
 import com.flowdesk.service.TaskService;
+import com.flowdesk.service.TaskQueryService;
+import com.flowdesk.service.TaskCommentService;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -22,6 +26,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class TaskSubmissionValidationTest {
+    TaskCommentService taskComments = org.mockito.Mockito.mock(TaskCommentService.class);
+    TaskQueryService taskQueries = org.mockito.Mockito.mock(TaskQueryService.class);
     static Stream<Arguments> resultUrls() {
         return Stream.of(Arguments.of((String) null, true), Arguments.of("", true),
                 Arguments.of(url(500), true), Arguments.of(url(501), false), Arguments.of(url(2000), false));
@@ -31,7 +37,7 @@ class TaskSubmissionValidationTest {
     @MethodSource("resultUrls")
     void resultUrlLengthIsCheckedBeforeCallingService(String resultUrl, boolean valid) throws Exception {
         TaskService service = mock(TaskService.class);
-        var mvc = MockMvcBuilders.standaloneSetup(new TaskController(service))
+        var mvc = MockMvcBuilders.standaloneSetup(new com.flowdesk.controller.TaskQueryController(taskQueries), new com.flowdesk.controller.TaskCommentController(taskComments), new TaskController(service))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
         Map<String, Object> body = new HashMap<>();
         body.put("completionNote", "已完成实现");
