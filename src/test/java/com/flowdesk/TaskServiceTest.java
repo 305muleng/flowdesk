@@ -23,6 +23,8 @@ import com.flowdesk.service.NotificationService;
 import com.flowdesk.service.OperationLogService;
 import com.flowdesk.service.ProjectPermissionService;
 import com.flowdesk.service.TaskService;
+import com.flowdesk.service.TaskQueryService;
+import com.flowdesk.service.TaskCommentService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +48,10 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class TaskServiceTest {
+    @org.mockito.InjectMocks
+    TaskQueryService taskQueries;
+    @org.mockito.InjectMocks
+    TaskCommentService taskComments;
 
     @Mock
     private TaskMapper taskMapper;
@@ -67,6 +73,9 @@ public class TaskServiceTest {
 
     @Mock
     private OperationLogService operationLogService;
+
+    @Mock
+    private com.flowdesk.service.TaskReminderService taskReminderService;
 
     @InjectMocks
     private TaskService taskService;
@@ -182,6 +191,7 @@ public class TaskServiceTest {
         Long taskId = taskService.createTask(4L, dto);
 
         assertEquals(9L, taskId);
+        verify(taskReminderService).syncTask(9L);
 
         ArgumentCaptor<CreateNotificationDTO> captor = ArgumentCaptor.forClass(CreateNotificationDTO.class);
 
@@ -279,6 +289,7 @@ public class TaskServiceTest {
         when(projectMemberMapper.selectMemberForUpdate(4L, 1L)).thenReturn(manager);
 
         taskService.assignTask(9L, dto);
+        verify(taskReminderService).syncTask(9L);
 
         verify(taskMapper).reassignTodoIfCurrent(eq(9L), isNull(), eq(1L), any());
         verify(notificationService, never()).createNotification(any(CreateNotificationDTO.class));
@@ -714,6 +725,7 @@ public class TaskServiceTest {
         when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
 
         taskService.reviewTask(10L, dto);
+        verify(taskReminderService).syncTask(10L);
 
         // 顺便确认业务状态真的改了
         assertEquals(TaskStatus.DONE, task.getStatus());
@@ -899,7 +911,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectById(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> taskService.getTaskDetail(10L));
+        BusinessException exception = assertThrows(BusinessException.class, () -> taskQueries.getTaskDetail(10L));
 
         assertEquals(404, exception.getCode());
         verify(taskMapper, never()).selectTaskDetail(anyLong());
@@ -918,7 +930,7 @@ public class TaskServiceTest {
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> taskService.addTaskComment(10L, dto));
+        BusinessException exception = assertThrows(BusinessException.class, () -> taskComments.addTaskComment(10L, dto));
 
         assertEquals(409, exception.getCode());
         verify(taskCommentMapper, never()).insert(any(com.flowdesk.model.TaskComment.class));
@@ -928,8 +940,8 @@ public class TaskServiceTest {
     void systemAdminHasNoPersonalTaskWorklist() {
         UserContext.set(new CurrentUser(99L, "SYSTEM_ADMIN"));
 
-        assertEquals(List.of(), taskService.getMyTasks(1, 20, "ALL", null).getRecords());
-        verify(taskMapper, never()).selectMyTasks(any(), anyLong(), anyString(), anyString());
+        assertEquals(List.of(), taskQueries.getMyTasks(1, 20, "ALL", null, "CURRENT").getRecords());
+        verify(taskMapper, never()).selectMyTasks(any(), anyLong(), anyString(), anyString(), eq("CURRENT"));
     }
 
     @ParameterizedTest
@@ -1029,7 +1041,7 @@ public class TaskServiceTest {
     @Test
     void addingTaskCommentHasTransactionalBoundary() throws Exception {
         assertNotNull(
-            TaskService.class
+            TaskCommentService.class
                 .getMethod("addTaskComment", Long.class, AddTaskCommentDTO.class)
                 .getAnnotation(org.springframework.transaction.annotation.Transactional.class)
         );
@@ -1128,7 +1140,7 @@ public class TaskServiceTest {
             case "COMMENT" -> {
                 AddTaskCommentDTO dto = new AddTaskCommentDTO();
                 dto.setContent(" 评论内容 ");
-                taskService.addTaskComment(10L, dto);
+                taskComments.addTaskComment(10L, dto);
             }
             default -> throw new IllegalArgumentException(operation);
         }

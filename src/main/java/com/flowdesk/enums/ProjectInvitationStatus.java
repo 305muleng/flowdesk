@@ -1,29 +1,17 @@
 package com.flowdesk.enums;
 
-import com.baomidou.mybatisplus.annotation.IEnum;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
-public enum ProjectInvitationStatus implements IEnum<String> {
-    PENDING("PENDING"),
-    ACCEPTED("ACCEPTED"),
-    REJECTED("REJECTED"),
-    CLOSED("CLOSED");
-
-    private final String code;
-
-    ProjectInvitationStatus(String code) {
-        this.code = code;
-    }
+public enum ProjectInvitationStatus {
+    PENDING,
+    ACCEPTED,
+    REJECTED,
+    CLOSED;
 
     @JsonValue
     public String getCode() {
-        return code;
-    }
-
-    @Override
-    public String getValue() {
-        return code;
+        return name();
     }
 
     @JsonCreator
@@ -31,11 +19,6 @@ public enum ProjectInvitationStatus implements IEnum<String> {
         if (code == null) {
             return null;
         }
-        for (ProjectInvitationStatus status : values()) {
-            if (status.code.equals(code)) {
-                return status;
-            }
-        }
-        throw new IllegalArgumentException("Invalid ProjectInvitationStatus code: " + code);
+        return valueOf(code);
     }
 }

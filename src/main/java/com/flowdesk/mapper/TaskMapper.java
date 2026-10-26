@@ -20,12 +20,33 @@ import java.util.List;
 
 @Mapper
 public interface TaskMapper extends BaseMapper<Task> {
+
+    @Select("""
+        SELECT id FROM task
+        WHERE project_id = #{projectId} AND assignee_id = #{assigneeId}
+          AND status IN ('TODO', 'IN_PROGRESS', 'REVIEW') AND deleted_at IS NULL
+        LIMIT 1 FOR UPDATE
+        """)
+    Long selectUnfinishedForAssigneeForUpdate(@Param("projectId") Long projectId, @Param("assigneeId") Long assigneeId);
+
     @Update("""
         UPDATE task SET title = #{task.title}, description = #{task.description}, goal = #{task.goal},
             priority = #{task.priority}, deadline = #{task.deadline}, updated_at = #{task.updatedAt}
         WHERE id = #{task.id} AND project_id = #{task.projectId} AND status = 'TODO' AND deleted_at IS NULL
         """)
     int updateDetailsIfTodo(@Param("task") Task task);
+
+    @Update("""
+        UPDATE task SET deadline = #{deadline}, updated_at = #{now}
+        WHERE id = #{taskId} AND project_id = #{projectId} AND status = 'IN_PROGRESS'
+          AND deadline = #{expectedDeadline} AND deleted_at IS NULL
+        """)
+    int adjustDeadlineIfCurrent(@Param("taskId") Long taskId, @Param("projectId") Long projectId,
+        @Param("expectedDeadline") LocalDateTime expectedDeadline, @Param("deadline") LocalDateTime deadline,
+        @Param("now") LocalDateTime now);
+
+    @Select("SELECT COUNT(*) FROM task WHERE project_id = #{projectId} AND status = 'DONE' AND deleted_at IS NULL")
+    long selectCompletedCount(@Param("projectId") Long projectId);
 
     // 列表与个人汇总共用权限范围；汇总不应用列表状态或标题筛选。
     String MY_TASK_SCOPE = """
@@ -116,6 +137,7 @@ public interface TaskMapper extends BaseMapper<Task> {
         SELECT
             t.id AS id,
             t.project_id AS projectId,
+            p.name AS projectName, p.status AS projectStatus,
 
             t.creator_id AS creatorId,
             creator.real_name AS creatorName,
@@ -136,6 +158,7 @@ public interface TaskMapper extends BaseMapper<Task> {
             t.updated_at AS updatedAt
 
         FROM task t
+        JOIN project p ON p.id = t.project_id AND p.deleted_at IS NULL
 
         JOIN `user` creator
             ON t.creator_id = creator.id
@@ -175,6 +198,7 @@ public interface TaskMapper extends BaseMapper<Task> {
         SELECT
             t.id AS id,
             t.project_id AS projectId,
+            p.name AS projectName, p.status AS projectStatus,
 
             t.creator_id AS creatorId,
             creator.real_name AS creatorName,
@@ -195,6 +219,7 @@ public interface TaskMapper extends BaseMapper<Task> {
             t.updated_at AS updatedAt
 
         FROM task t
+        JOIN project p ON p.id = t.project_id AND p.deleted_at IS NULL
 
         JOIN `user` creator
             ON t.creator_id = creator.id
@@ -210,21 +235,26 @@ public interface TaskMapper extends BaseMapper<Task> {
     TaskVO selectTaskDetail(@Param("taskId") Long taskId);
 
     @Select("""
-    SELECT t.id, t.project_id AS projectId, t.creator_id AS creatorId,
+    SELECT t.id, t.project_id AS projectId, p.name AS projectName, p.status AS projectStatus, t.creator_id AS creatorId,
            creator.real_name AS creatorName, t.assignee_id AS assigneeId,
            assignee.real_name AS assigneeName, t.title, t.description, t.goal,
            t.status, t.priority, t.deadline, t.completed_at AS completedAt,
            t.created_at AS createdAt, t.updated_at AS updatedAt
     """ + MY_TASK_SCOPE + """
+    AND ((#{projectScope} = 'CURRENT' AND p.status IN ('PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE'))
+      OR (#{projectScope} = 'HISTORY' AND p.status IN ('COMPLETED', 'ARCHIVED', 'CANCELLED'))
+      OR (#{projectScope} = 'ACTIONABLE' AND p.status = 'IN_PROGRESS' AND t.status IN ('TODO', 'IN_PROGRESS'))
+      OR #{projectScope} = 'ALL')
     AND (#{status} = 'ALL' OR t.status = #{status})
     AND (#{keyword} = '' OR LOCATE(CAST(#{keyword} AS BINARY), CAST(LOWER(t.title) AS BINARY)) > 0)
-    ORDER BY t.updated_at DESC, t.id DESC
+    ORDER BY CASE WHEN #{projectScope} = 'ACTIONABLE' THEN t.deadline END ASC, t.updated_at DESC, t.id DESC
     """)
     IPage<TaskVO> selectMyTasks(
         Page<TaskVO> page,
         @Param("userId") Long userId,
         @Param("status") String status,
-        @Param("keyword") String keyword
+        @Param("keyword") String keyword,
+        @Param("projectScope") String projectScope
     );
 
     @Select("""
@@ -235,8 +265,10 @@ public interface TaskMapper extends BaseMapper<Task> {
                COALESCE(SUM(t.status = 'DONE'), 0) AS doneTaskCount,
                COALESCE(SUM(t.status NOT IN ('DONE', 'CANCELLED')), 0) AS unfinishedTaskCount,
                COALESCE(SUM(t.status != 'CANCELLED'), 0) AS nonCancelledTaskCount,
-               COALESCE(SUM(t.status NOT IN ('DONE', 'CANCELLED') AND t.deadline >= #{now}
-                   AND t.deadline < #{dueBefore}), 0) AS dueSoonTaskCount
+               COALESCE(SUM(p.status = 'IN_PROGRESS' AND t.status IN ('TODO', 'IN_PROGRESS') AND t.deadline >= #{now}
+                   AND t.deadline < #{dueBefore}), 0) AS dueSoonTaskCount,
+               COALESCE(SUM(p.status = 'IN_PROGRESS' AND t.status IN ('TODO', 'IN_PROGRESS')), 0) AS actionableTaskCount,
+               COALESCE(SUM(p.status = 'IN_PROGRESS' AND t.status = 'REVIEW'), 0) AS awaitingReviewTaskCount
         """ + MY_TASK_SCOPE)
     MyTaskSummaryVO selectMyTaskSummary(
         @Param("userId") Long userId,

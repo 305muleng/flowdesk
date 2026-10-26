@@ -106,6 +106,10 @@ public class ProjectAcceptanceService {
             throw new BusinessException(409, "项目仍有待处理的任务申请，不能提交验收");
         }
 
+        if (taskMapper.selectCompletedCount(projectId) == 0) {
+            throw new BusinessException(409, "至少完成并审核通过一项任务后才能提交项目验收");
+        }
+
         String repositoryUrl = trimToNull(dto.getRepositoryUrl());
         String deployUrl = trimToNull(dto.getDeployUrl());
         String documentUrl = trimToNull(dto.getDocumentUrl());

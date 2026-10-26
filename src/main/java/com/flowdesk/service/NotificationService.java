@@ -72,7 +72,8 @@ public class NotificationService {
         switch (normalizedCategory) {
             case "ALL" -> {
             }
-            case "TASK" -> query.apply("CAST(type AS BINARY) = CAST({0} AS BINARY)", "TASK_ASSIGNED");
+            case "TASK" -> query.apply("CAST(type AS BINARY) IN (CAST({0} AS BINARY), CAST({1} AS BINARY), CAST({2} AS BINARY))",
+                "TASK_ASSIGNED", "TASK_DUE_SOON", "TASK_OVERDUE");
             case "PROJECT_INVITATION", "TASK_REQUEST", "TASK_SUBMISSION", "PROJECT_ACCEPTANCE" -> query.apply(
                 "CAST(LEFT(type, {0}) AS BINARY) = CAST({1} AS BINARY)",
                 normalizedCategory.length(),

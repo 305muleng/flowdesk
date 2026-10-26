@@ -16,7 +16,6 @@ import com.flowdesk.dto.UpdateProjectDTO;
 import com.flowdesk.dto.RemoveProjectMemberDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
-import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
 import com.flowdesk.model.User;
@@ -391,14 +390,9 @@ public class ProjectService {
         }
 
         // 4. 查询目标成员
-        ProjectMember targetMember = projectMemberMapper.selectOne(
-            new LambdaQueryWrapper<ProjectMember>()
-                .eq(ProjectMember::getProjectId, projectId)
-                .eq(ProjectMember::getUserId, userId)
-                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
-        );
+        ProjectMember targetMember = projectMemberMapper.selectMemberForUpdate(projectId, userId);
 
-        if (targetMember == null) {
+        if (targetMember == null || targetMember.getStatus() != ProjectMemberStatus.ACTIVE) {
             throw new BusinessException(404, "该用户不是当前项目的有效成员");
         }
 
@@ -408,11 +402,9 @@ public class ProjectService {
         }
 
         // 6. 检查未完成任务
-        Long unfinishedTaskCount = taskMapper.selectCount(
-            TaskQueryConditions.unfinishedForAssignee(projectId, userId)
-        );
+        Long unfinishedTask = taskMapper.selectUnfinishedForAssigneeForUpdate(projectId, userId);
 
-        if (unfinishedTaskCount > 0) {
+        if (unfinishedTask != null) {
             throw new BusinessException(409, "该成员仍有未完成任务，请先完成或重新分配任务");
         }
 

@@ -1,9 +1,13 @@
 package com.flowdesk;
 
 import com.flowdesk.controller.TaskController;
+import com.flowdesk.controller.TaskQueryController;
+import com.flowdesk.controller.TaskCommentController;
 import com.flowdesk.dto.HandoverTaskDTO;
 import com.flowdesk.exception.GlobalExceptionHandler;
 import com.flowdesk.service.TaskService;
+import com.flowdesk.service.TaskQueryService;
+import com.flowdesk.service.TaskCommentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -15,13 +19,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class TaskHandoverWebTest {
+    TaskCommentService taskComments = org.mockito.Mockito.mock(TaskCommentService.class);
+    TaskQueryService taskQueries = org.mockito.Mockito.mock(TaskQueryService.class);
 
     TaskService service = mock(TaskService.class);
     MockMvc mvc;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(new TaskController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new com.flowdesk.controller.TaskQueryController(taskQueries), new com.flowdesk.controller.TaskCommentController(taskComments), new TaskController(service))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
     }

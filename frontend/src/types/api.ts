@@ -32,10 +32,12 @@ export interface MyTaskSummary {
   unfinishedTaskCount: number
   nonCancelledTaskCount: number
   dueSoonTaskCount: number
+  actionableTaskCount: number
+  awaitingReviewTaskCount: number
 }
 
 export type SystemRole = 'SYSTEM_ADMIN' | 'USER'
-export type UserStatus = 'ACTIVE' | 'DISABLED' | string
+export type UserStatus = 'ACTIVE' | 'DISABLED'
 export type ProjectRole = 'PROJECT_MANAGER' | 'DEVELOPER'
 export type ProjectStatus = 'PREPARING' | 'IN_PROGRESS' | 'PENDING_ACCEPTANCE' | 'COMPLETED' | 'ARCHIVED' | 'CANCELLED'
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE' | 'CANCELLED'
@@ -112,6 +114,8 @@ export interface UpdateTaskPayload {
 export interface Task {
   id: number
   projectId: number
+  projectName: string
+  projectStatus: ProjectStatus
   creatorId: number
   creatorName?: string
   assigneeId?: number

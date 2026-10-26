@@ -8,6 +8,8 @@ import com.flowdesk.service.ProjectService;
 import com.flowdesk.service.ProjectInvitationService;
 import com.flowdesk.service.ProjectTaskSummaryService;
 import com.flowdesk.service.TaskService;
+import com.flowdesk.service.TaskQueryService;
+import com.flowdesk.service.TaskCommentService;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -32,6 +34,8 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class CreateTaskDTOValidationTest {
+    TaskCommentService taskComments = org.mockito.Mockito.mock(TaskCommentService.class);
+    TaskQueryService taskQueries = org.mockito.Mockito.mock(TaskQueryService.class);
 
     @Test
     void missingDescriptionAndGoalShouldFailValidation() {
@@ -95,7 +99,7 @@ class CreateTaskDTOValidationTest {
     }
 
     private MockMvc mvc(TaskService service) {
-        return MockMvcBuilders.standaloneSetup(new ProjectController(
+        return MockMvcBuilders.standaloneSetup(new com.flowdesk.controller.TaskQueryController(taskQueries), new com.flowdesk.controller.TaskCommentController(taskComments), new ProjectController(
                         mock(ProjectService.class), mock(ProjectInvitationService.class), service,
                         mock(ProjectTaskSummaryService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();

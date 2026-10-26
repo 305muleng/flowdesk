@@ -12,6 +12,17 @@ import java.time.LocalDateTime;
 
 @Mapper
 public interface ProjectManagerTransferMapper extends BaseMapper<ProjectManagerTransfer> {
+
+    @Select("""
+        SELECT id FROM project_manager_transfer
+        WHERE project_id = #{projectId} AND status = 'PENDING' AND expires_at > #{now}
+        LIMIT 1 FOR UPDATE
+        """)
+    Long selectPendingForProjectForUpdate(@Param("projectId") Long projectId, @Param("now") LocalDateTime now);
+
+    @Select("SELECT * FROM project_manager_transfer WHERE id = #{id} FOR UPDATE")
+    ProjectManagerTransfer selectByIdForUpdate(@Param("id") Long id);
+
     @Update("""
         UPDATE project_manager_transfer
         SET status = 'CLOSED', closed_at = #{closedAt}, close_reason = #{closeReason}

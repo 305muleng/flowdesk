@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -35,24 +35,39 @@ const statusNames: Record<string, string> = {
   EXPIRED: '已过期',
   CLOSED: '已关闭',
 }
+let loadRevision = 0
+onScopeDispose(() => { loadRevision += 1 })
+
 async function load() {
+  const revision = ++loadRevision
+  const project = projectId.value
+  const id = recordId.value
+  const loadingLeave = isLeave.value
   busy.value = true
   leave.value = undefined
   transfer.value = undefined
   error.value = ''
   try {
-    if (isLeave.value) leave.value = (await leaveDetailApi(projectId.value, recordId.value)).data.data
-    else transfer.value = (await transferDetailApi(projectId.value, recordId.value)).data.data
+    const result = loadingLeave
+      ? await leaveDetailApi(project, id)
+      : await transferDetailApi(project, id)
+    if (revision !== loadRevision) return
+    if (loadingLeave) leave.value = result.data.data as LeaveRequest
+    else transfer.value = result.data.data as ManagerTransfer
   } catch {
-    error.value = '记录无法加载，请确认你是业务参与人或当前项目负责人。'
+    if (revision === loadRevision) error.value = '记录无法加载，请确认你是业务参与人或当前项目负责人。'
   } finally {
-    busy.value = false
+    if (revision === loadRevision) busy.value = false
   }
 }
 async function act(action: string) {
+  const project = projectId.value
+  const id = recordId.value
+  const actingOnLeave = isLeave.value
+  const revision = loadRevision
   let note = ''
   try {
-    if (isLeave.value && action !== 'cancel') {
+    if (actingOnLeave && action !== 'cancel') {
       const result = await ElMessageBox.prompt('填写审批意见', action === 'APPROVE' ? '批准退出' : '拒绝退出', {
         inputType: 'textarea',
         ...(action === 'REJECT' ? { inputPattern: /\S+/, inputErrorMessage: '请填写拒绝原因' } : {}),
@@ -63,14 +78,16 @@ async function act(action: string) {
     if (error === 'cancel' || error === 'close') return
     throw error
   }
+  if (revision !== loadRevision) return
   busy.value = true
   try {
-    if (isLeave.value) await leaveActionApi(projectId.value, recordId.value, action, note)
-    else await transferActionApi(projectId.value, recordId.value, action)
+    if (actingOnLeave) await leaveActionApi(project, id, action, note)
+    else await transferActionApi(project, id, action)
+    if (revision !== loadRevision) return
     ElMessage.success('操作成功')
     await load()
   } finally {
-    busy.value = false
+    if (revision === loadRevision) busy.value = false
   }
 }
 watch(() => route.fullPath, load, { immediate: true })

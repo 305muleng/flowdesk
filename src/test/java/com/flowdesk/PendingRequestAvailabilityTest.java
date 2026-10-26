@@ -46,7 +46,7 @@ class PendingRequestAvailabilityTest {
         users,
         logs,
         mock(com.flowdesk.cache.ProjectTaskSummaryCache.class)
-    );
+    , mock(com.flowdesk.service.TaskReminderService.class));
     ProjectInvitationService invitationService = new ProjectInvitationService(
         invitations,
         members,

@@ -169,12 +169,12 @@ watch(acceptanceId, load, { immediate: true })
             <span>已取消任务数</span><strong>{{ detail.cancelledTaskCount }}</strong>
           </div>
           <div>
-            <span>验收完成占比</span><strong>{{ detail.completionRate }}%</strong>
+            <span>任务完成占比</span><strong>{{ detail.completionRate }}%</strong>
           </div>
         </div>
       </section>
 
-      <p class="muted">验收完成占比 = DONE / (DONE + CANCELLED)，分母为零时为 0；表示已结束任务的完成与取消比例。</p>
+      <p class="muted">任务完成占比 = DONE / (DONE + CANCELLED)，分母为零时为 0；按任务数量计算，表示已结束任务中完成的比例，不代表工作量或交付质量。</p>
       <section class="surface-card detail-section">
         <h2>{{ presentation.prefix }}成员贡献（含历史成员）</h2>
         <p class="muted">{{ presentation.memberDescription }}</p>

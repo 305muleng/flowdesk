@@ -15,6 +15,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ListPaginationWebTest {
+    TaskCommentService taskComments = org.mockito.Mockito.mock(TaskCommentService.class);
+    TaskQueryService taskQueries = org.mockito.Mockito.mock(TaskQueryService.class);
 
     TaskService tasks = mock(TaskService.class);
     NotificationService notifications = mock(NotificationService.class);
@@ -22,7 +24,7 @@ class ListPaginationWebTest {
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(
+        mvc = MockMvcBuilders.standaloneSetup(new com.flowdesk.controller.TaskQueryController(taskQueries), new com.flowdesk.controller.TaskCommentController(taskComments),
             new TaskController(tasks),
             new NotificationController(notifications),
             new ProjectController(
@@ -38,10 +40,10 @@ class ListPaginationWebTest {
 
     @Test
     void allThreeRoutesBindDefaultPaginationAndReturnPageResult() throws Exception {
-        when(tasks.getProjectTasks(7L, "ALL", "ALL", 1, 20, null, false)).thenReturn(
+        when(taskQueries.getProjectTasks(7L, "ALL", "ALL", 1, 20, null, false)).thenReturn(
             new PageResult<>(List.of(new TaskVO()), 41, 1, 20, 3)
         );
-        when(tasks.getMyTasks(1, 20, "ALL", null)).thenReturn(new PageResult<>(List.of(new TaskVO()), 41, 1, 20, 3));
+        when(taskQueries.getMyTasks(1, 20, "ALL", null, "CURRENT")).thenReturn(new PageResult<>(List.of(new TaskVO()), 41, 1, 20, 3));
         when(notifications.getMyNotifications(1, 20, "ALL", "ALL")).thenReturn(
             new PageResult<>(List.of(new NotificationVO()), 41, 1, 20, 3)
         );
@@ -68,16 +70,16 @@ class ListPaginationWebTest {
                 .param("assigneeId", "3")
                 .param("unfinishedOnly", "true")
         ).andExpect(status().isOk());
-        verify(tasks).getProjectTasks(7L, "MINE", "DONE", 2, 100, 3L, true);
+        verify(taskQueries).getProjectTasks(7L, "MINE", "DONE", 2, 100, 3L, true);
         mvc.perform(get("/tasks/my").param("status", "TODO").param("keyword", "%_标题")).andExpect(status().isOk());
-        verify(tasks).getMyTasks(1, 20, "TODO", "%_标题");
+        verify(taskQueries).getMyTasks(1, 20, "TODO", "%_标题", "CURRENT");
         mvc.perform(get("/notifications").param("readFilter", "READ").param("category", "TASK")).andExpect(status().isOk());
         verify(notifications).getMyNotifications(1, 20, "READ", "TASK");
-        when(tasks.getMyTaskSummary()).thenReturn(MyTaskSummaryVO.empty());
+        when(taskQueries.getMyTaskSummary()).thenReturn(MyTaskSummaryVO.empty());
         mvc.perform(get("/tasks/my/summary").param("userId", "12345"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.totalTaskCount").value(0));
-        verify(tasks).getMyTaskSummary(); // 额外参数不传入业务层，身份仅来自 UserContext。
+        verify(taskQueries).getMyTaskSummary(); // 额外参数不传入业务层，身份仅来自 UserContext。
     }
 
     @Test

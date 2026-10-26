@@ -21,18 +21,8 @@ class TaskProjectScopeTest {
     TaskMapper tasks = mock(TaskMapper.class);
     ProjectMapper projects = mock(ProjectMapper.class);
     ProjectMemberMapper members = mock(ProjectMemberMapper.class);
-    TaskService service = new TaskService(
-        tasks,
-        projects,
-        members,
-        new ProjectPermissionService(members),
-        mock(TaskSubmissionMapper.class),
-        mock(TaskCommentMapper.class),
-        mock(OperationLogService.class),
-        mock(NotificationService.class),
-        mock(UserMapper.class),
-        mock(ProjectTaskSummaryCache.class)
-    );
+    TaskService service = new TaskService(tasks, projects, members, new ProjectPermissionService(members), mock(TaskSubmissionMapper.class), mock(OperationLogService.class), mock(NotificationService.class), mock(UserMapper.class), mock(ProjectTaskSummaryCache.class), mock(com.flowdesk.service.TaskReminderService.class));
+    TaskQueryService taskQueries = new TaskQueryService(tasks, projects, new ProjectPermissionService(members), mock(TaskSubmissionMapper.class), mock(TaskCommentMapper.class));
 
     @BeforeEach
     void setup() {
@@ -56,10 +46,10 @@ class TaskProjectScopeTest {
     void nonMemberCannotQueryProjectTasksOrTaskDetailsOrHandover() {
         assertEquals(
             403,
-            assertThrows(BusinessException.class, () -> service.getProjectTasks(4L, "ALL", "ALL", 1, 20, null, false)).getCode()
+            assertThrows(BusinessException.class, () -> taskQueries.getProjectTasks(4L, "ALL", "ALL", 1, 20, null, false)).getCode()
         );
         when(tasks.selectById(10L)).thenReturn(task());
-        assertEquals(403, assertThrows(BusinessException.class, () -> service.getTaskDetail(10L)).getCode());
+        assertEquals(403, assertThrows(BusinessException.class, () -> taskQueries.getTaskDetail(10L)).getCode());
         assertEquals(
             403,
             assertThrows(BusinessException.class, () ->
@@ -77,7 +67,7 @@ class TaskProjectScopeTest {
         UserContext.set(new CurrentUser(1L, "SYSTEM_ADMIN"));
         assertEquals(
             403,
-            assertThrows(BusinessException.class, () -> service.getProjectTasks(4L, "ALL", "ALL", 1, 20, null, false)).getCode()
+            assertThrows(BusinessException.class, () -> taskQueries.getProjectTasks(4L, "ALL", "ALL", 1, 20, null, false)).getCode()
         );
         verifyNoInteractions(tasks, projects, members);
     }

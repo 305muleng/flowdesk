@@ -6,6 +6,8 @@ public class TaskVO {
 
     private Long id;
     private Long projectId;
+    private String projectName;
+    private String projectStatus;
 
     private Long creatorId;
     private String creatorName;
@@ -40,6 +42,14 @@ public class TaskVO {
     public void setProjectId(Long projectId) {
         this.projectId = projectId;
     }
+
+    public String getProjectName() { return projectName; }
+
+    public void setProjectName(String projectName) { this.projectName = projectName; }
+
+    public String getProjectStatus() { return projectStatus; }
+
+    public void setProjectStatus(String projectStatus) { this.projectStatus = projectStatus; }
 
     public Long getCreatorId() {
         return creatorId;

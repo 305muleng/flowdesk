@@ -96,7 +96,7 @@ test('project progress and personal totals use full summaries, not paged tasks',
   assert.ok(dashboardScript.includes('getProjectTaskSummaryApi(project.id)'))
   assert.ok(!dashboardScript.includes('getProjectTasksApi('))
   const dashboardTemplate = fs.readFileSync(path.join(__dirname, '../src/views/DashboardView.vue'), 'utf8')
-  assert.ok(dashboardTemplate.includes('myTaskSummary?.unfinishedTaskCount'))
+  assert.ok(dashboardTemplate.includes('myTaskSummary?.actionableTaskCount'))
   assert.ok(dashboardTemplate.includes('myTaskSummary?.doneTaskCount'))
   assert.ok(dashboardScript.includes('?? null'))
 })

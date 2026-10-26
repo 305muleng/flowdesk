@@ -46,7 +46,7 @@ function isManagerTransferNotification(type: string): boolean {
 
 function categoryFor(type: string): Exclude<CategoryFilter, 'ALL'> | 'OTHER' {
   if (type.startsWith('PROJECT_INVITATION')) return 'PROJECT_INVITATION'
-  if (type === 'TASK_ASSIGNED') return 'TASK'
+  if (['TASK_ASSIGNED', 'TASK_DUE_SOON', 'TASK_OVERDUE'].includes(type)) return 'TASK'
   if (type.startsWith('TASK_REQUEST')) return 'TASK_REQUEST'
   if (type.startsWith('TASK_SUBMISSION')) return 'TASK_SUBMISSION'
   if (type.startsWith('PROJECT_ACCEPTANCE')) return 'PROJECT_ACCEPTANCE'

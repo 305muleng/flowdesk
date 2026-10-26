@@ -8,9 +8,11 @@ public record MyTaskSummaryVO(
     long doneTaskCount,
     long unfinishedTaskCount,
     long nonCancelledTaskCount,
-    long dueSoonTaskCount
+    long dueSoonTaskCount,
+    long actionableTaskCount,
+    long awaitingReviewTaskCount
 ) {
     public static MyTaskSummaryVO empty() {
-        return new MyTaskSummaryVO(0, 0, 0, 0, 0, 0, 0, 0);
+        return new MyTaskSummaryVO(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 }

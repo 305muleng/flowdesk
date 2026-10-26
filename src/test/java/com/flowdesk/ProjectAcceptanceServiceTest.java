@@ -101,6 +101,7 @@ public class ProjectAcceptanceServiceTest {
 
     @BeforeEach
     void setUpAtomicTransitionsAndManager() {
+        lenient().when(taskMapper.selectCompletedCount(anyLong())).thenReturn(1L);
         lenient().when(userMapper.selectById(anyLong())).thenAnswer(call -> {
             User user = new User(); user.setId(call.getArgument(0)); user.setRealName("Test submitter"); return user;
         });

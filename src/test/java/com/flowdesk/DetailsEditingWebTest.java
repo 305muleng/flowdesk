@@ -3,6 +3,8 @@ package com.flowdesk;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.flowdesk.controller.ProjectController;
 import com.flowdesk.controller.TaskController;
+import com.flowdesk.controller.TaskQueryController;
+import com.flowdesk.controller.TaskCommentController;
 import com.flowdesk.dto.UpdateProjectDTO;
 import com.flowdesk.dto.UpdateTaskDTO;
 import com.flowdesk.exception.GlobalExceptionHandler;
@@ -32,6 +34,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class DetailsEditingWebTest {
+    TaskCommentService taskComments = org.mockito.Mockito.mock(TaskCommentService.class);
+    TaskQueryService taskQueries = org.mockito.Mockito.mock(TaskQueryService.class);
     ProjectService projects;
     TaskService tasks;
     MockMvc mvc;
@@ -40,7 +44,7 @@ class DetailsEditingWebTest {
     void setup() {
         projects = mock(ProjectService.class);
         tasks = mock(TaskService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new TaskController(tasks),
+        mvc = MockMvcBuilders.standaloneSetup(new com.flowdesk.controller.TaskQueryController(taskQueries), new com.flowdesk.controller.TaskCommentController(taskComments), new TaskController(tasks),
                 new ProjectController(projects, mock(ProjectInvitationService.class), tasks, mock(ProjectTaskSummaryService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }

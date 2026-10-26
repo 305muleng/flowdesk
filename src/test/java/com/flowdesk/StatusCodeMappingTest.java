@@ -1,11 +1,9 @@
 package com.flowdesk;
 
-import com.baomidou.mybatisplus.annotation.IEnum;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.flowdesk.config.MybatisPlusConfig;
-import com.flowdesk.config.StatusCodeTypeHandler;
 import com.flowdesk.enums.*;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
@@ -32,7 +30,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-// 实际 MyBatis 配置、参数处理器及结果处理器；JDBC 对象为替身，不连接数据库。
+// JDBC 使用 mock，不连接数据库。
 class StatusCodeMappingTest {
 
     record Mapping(
@@ -104,7 +102,6 @@ class StatusCodeMappingTest {
     static MybatisConfiguration configuration() {
         var configuration = new MybatisConfiguration();
         configuration.setMapUnderscoreToCamelCase(true);
-        new MybatisPlusConfig().statusTypeHandlers().customize(configuration);
         return configuration;
     }
 
@@ -117,14 +114,15 @@ class StatusCodeMappingTest {
     @MethodSource("mappings")
     void allCodesUseActualRegisteredHandlerWithStrictInvalidAndNullReads(Mapping mapping) throws Exception {
         var handler = handler(configuration(), mapping);
-        assertInstanceOf(StatusCodeTypeHandler.class, handler);
         PreparedStatement statement = mock(PreparedStatement.class);
         ResultSet result = mock(ResultSet.class);
         CallableStatement callable = mock(CallableStatement.class);
         for (Enum<?> status : mapping.status().getEnumConstants()) {
-            String code = (String) ((IEnum<?>) status).getValue();
-            handler.setParameter(statement, 1, status, JdbcType.VARCHAR);
+            String code = ((Enum<?>) status).name();
+            handler.setParameter(statement, 1, status, null);
             verify(statement).setString(1, code);
+            handler.setParameter(statement, 2, status, JdbcType.VARCHAR);
+            verify(statement).setObject(2, code, Types.VARCHAR);
             when(result.getString(mapping.column())).thenReturn(code);
             when(result.getString(1)).thenReturn(code);
             when(callable.getString(1)).thenReturn(code);
@@ -145,7 +143,7 @@ class StatusCodeMappingTest {
             when(result.getString(1)).thenReturn(invalid);
             when(callable.getString(1)).thenReturn(invalid);
             var error = assertThrows(ResultMapException.class, () -> handler.getResult(result, mapping.column()));
-            assertInstanceOf(SQLException.class, error.getCause());
+            assertInstanceOf(IllegalArgumentException.class, error.getCause());
             assertThrows(ResultMapException.class, () -> handler.getResult(result, 1));
             assertThrows(ResultMapException.class, () -> handler.getResult(callable, 1));
         }
@@ -171,11 +169,10 @@ class StatusCodeMappingTest {
             .filter(p -> p.getProperty().equals(mapping.property()))
             .findFirst()
             .orElseThrow();
-        assertInstanceOf(StatusCodeTypeHandler.class, parameter.getTypeHandler());
         PreparedStatement jdbc = mock(PreparedStatement.class);
         configuration.newParameterHandler(statement, entity, sql).setParameters(jdbc);
         int index = sql.getParameterMappings().indexOf(parameter) + 1;
-        verify(jdbc).setString(index, (String) ((IEnum<?>) status).getValue());
+        verify(jdbc).setString(index, ((Enum<?>) status).name());
 
         var update = configuration.getMappedStatement(mapping.mapper().getName() + ".updateById");
         var updateParams = Map.of(Constants.ENTITY, entity);
@@ -186,13 +183,13 @@ class StatusCodeMappingTest {
             .filter(p -> p.getProperty().equals(Constants.ENTITY + "." + mapping.property()))
             .findFirst()
             .orElseThrow();
-        // updateById 的 et 来自 Map，构建阶段类型为 Object；实际绑定时再按枚举类型查注册表。
+        // et 来自 Map，绑定参数时才确定具体类型。
         assertInstanceOf(UnknownTypeHandler.class, updateParameter.getTypeHandler());
         PreparedStatement updateJdbc = mock(PreparedStatement.class);
         configuration.newParameterHandler(update, updateParams, updateSql).setParameters(updateJdbc);
         verify(updateJdbc).setString(
             updateSql.getParameterMappings().indexOf(updateParameter) + 1,
-            (String) ((IEnum<?>) status).getValue()
+            ((Enum<?>) status).name()
         );
     }
 
@@ -204,7 +201,7 @@ class StatusCodeMappingTest {
         for (String select : List.of("selectById", mapping.select())) {
             var statement = configuration.getMappedStatement(mapping.mapper().getName() + "." + select);
             for (Enum<?> status : mapping.status().getEnumConstants()) {
-                Object entity = readOne(configuration, statement, mapping.column(), (String) ((IEnum<?>) status).getValue());
+                Object entity = readOne(configuration, statement, mapping.column(), ((Enum<?>) status).name());
                 assertSame(
                     status,
                     mapping

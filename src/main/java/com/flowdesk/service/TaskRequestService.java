@@ -1,6 +1,5 @@
 package com.flowdesk.service;
 
-import com.flowdesk.enums.TaskPriority;
 import com.flowdesk.enums.ReviewAction;
 import com.flowdesk.enums.ProjectRole;
 import com.flowdesk.enums.SystemRole;
@@ -48,6 +47,7 @@ public class TaskRequestService {
     private final UserMapper userMapper;
     private final OperationLogService operationLogService;
     private final ProjectTaskSummaryCache taskSummaryCache;
+    private final TaskReminderService taskReminderService;
 
     public TaskRequestService(
         TaskRequestMapper taskRequestMapper,
@@ -58,7 +58,8 @@ public class TaskRequestService {
         NotificationService notificationService,
         UserMapper userMapper,
         OperationLogService operationLogService,
-        ProjectTaskSummaryCache taskSummaryCache
+        ProjectTaskSummaryCache taskSummaryCache,
+        TaskReminderService taskReminderService
     ) {
         this.taskRequestMapper = taskRequestMapper;
         this.projectMapper = projectMapper;
@@ -69,6 +70,7 @@ public class TaskRequestService {
         this.userMapper = userMapper;
         this.operationLogService = operationLogService;
         this.taskSummaryCache = taskSummaryCache;
+        this.taskReminderService = taskReminderService;
     }
 
     @Transactional
@@ -91,6 +93,11 @@ public class TaskRequestService {
 
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许提交任务申请");
+        }
+
+        member = projectPermissionService.requireProjectMemberForUpdate(projectId);
+        if (!ProjectRole.DEVELOPER.matches(member.getRole())) {
+            throw new BusinessException(403, "只有开发人员可以提交任务申请");
         }
 
         // 4. 如果填写了建议截止时间，必须在未来
@@ -235,14 +242,9 @@ public class TaskRequestService {
         if (currentUser.getUserId().equals(request.getRequesterId())) {
             throw new BusinessException(403, "不能审批自己的任务申请");
         }
-        ProjectMember requesterMembership = projectMemberMapper.selectOne(
-            new LambdaQueryWrapper<ProjectMember>()
-                .eq(ProjectMember::getProjectId, projectId)
-                .eq(ProjectMember::getUserId, request.getRequesterId())
-                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
-        );
+        ProjectMember requesterMembership = projectMemberMapper.selectMemberForUpdate(projectId, request.getRequesterId());
         if (
-            requesterMembership == null ||
+            requesterMembership == null || requesterMembership.getStatus() != ProjectMemberStatus.ACTIVE ||
             !ProjectRole.DEVELOPER.matches(requesterMembership.getRole()) ||
             !isActiveOrdinaryUser(request.getRequesterId())
         ) {
@@ -314,28 +316,13 @@ public class TaskRequestService {
         }
 
         // 6. 校验优先级 priority
-        String priority = dto.getPriority();
-
-        if (priority == null || priority.isBlank()) {
-            priority = TaskPriority.MEDIUM.getCode();
-        } else {
-            priority = priority.trim().toUpperCase();
-
-            if (!TaskPriority.isKnownCode(priority)) {
-                throw new BusinessException(400, "任务优先级只能是 LOW、MEDIUM 或 HIGH");
-            }
-        }
+        String priority = TaskRules.normalizePriority(dto.getPriority());
 
         // 7. 如果指定负责人，必须是项目 ACTIVE 成员
         if (dto.getAssigneeId() != null) {
-            ProjectMember assignee = projectMemberMapper.selectOne(
-                new LambdaQueryWrapper<ProjectMember>()
-                    .eq(ProjectMember::getProjectId, projectId)
-                    .eq(ProjectMember::getUserId, dto.getAssigneeId())
-                    .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
-            );
+            ProjectMember assignee = projectMemberMapper.selectMemberForUpdate(projectId, dto.getAssigneeId());
 
-            if (assignee == null || !isActiveOrdinaryUser(dto.getAssigneeId())) {
+            if (assignee == null || assignee.getStatus() != ProjectMemberStatus.ACTIVE || !isActiveOrdinaryUser(dto.getAssigneeId())) {
                 throw new BusinessException(409, "任务负责人不是该项目的有效成员");
             }
         }
@@ -371,6 +358,7 @@ public class TaskRequestService {
         task.setDeadline(dto.getDeadline());
 
         taskMapper.insert(task);
+        taskReminderService.syncTask(task.getId());
 
         // 9. 更新申请
         request.setStatus(TaskRequestStatus.APPROVED);
@@ -439,7 +427,7 @@ public class TaskRequestService {
     }
 
     private boolean isActiveOrdinaryUser(Long userId) {
-        User user = userMapper.selectById(userId);
+        User user = userMapper.selectByIdForShare(userId);
         return user != null && user.isActiveOrdinaryUser();
     }
 

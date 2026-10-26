@@ -1,6 +1,5 @@
 package com.flowdesk.service;
 
-import com.flowdesk.enums.TaskPriority;
 import com.flowdesk.enums.ReviewAction;
 import com.flowdesk.enums.ProjectRole;
 import com.flowdesk.enums.SystemRole;
@@ -12,18 +11,12 @@ import com.flowdesk.enums.UserStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.flowdesk.cache.ProjectTaskSummaryCache;
-import com.flowdesk.common.ListPagination;
-import com.flowdesk.common.PageResult;
 import com.flowdesk.context.CurrentUser;
 import com.flowdesk.context.UserContext;
 import com.flowdesk.dto.*;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
-import com.flowdesk.vo.TaskCommentVO;
-import com.flowdesk.vo.TaskSubmissionVO;
-import com.flowdesk.vo.TaskVO;
-import com.flowdesk.vo.MyTaskSummaryVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,11 +31,11 @@ public class TaskService {
     private final ProjectMemberMapper projectMemberMapper;
     private final ProjectPermissionService projectPermissionService;
     private final TaskSubmissionMapper taskSubmissionMapper;
-    private final TaskCommentMapper taskCommentMapper;
     private final OperationLogService operationLogService;
     private final NotificationService notificationService;
     private final UserMapper userMapper;
     private final ProjectTaskSummaryCache taskSummaryCache;
+    private final TaskReminderService taskReminderService;
 
     public TaskService(
         TaskMapper taskMapper,
@@ -50,22 +43,22 @@ public class TaskService {
         ProjectMemberMapper projectMemberMapper,
         ProjectPermissionService projectPermissionService,
         TaskSubmissionMapper taskSubmissionMapper,
-        TaskCommentMapper taskCommentMapper,
         OperationLogService operationLogService,
         NotificationService notificationService,
         UserMapper userMapper,
-        ProjectTaskSummaryCache taskSummaryCache
+        ProjectTaskSummaryCache taskSummaryCache,
+        TaskReminderService taskReminderService
     ) {
         this.taskMapper = taskMapper;
         this.projectMapper = projectMapper;
         this.projectMemberMapper = projectMemberMapper;
         this.projectPermissionService = projectPermissionService;
         this.taskSubmissionMapper = taskSubmissionMapper;
-        this.taskCommentMapper = taskCommentMapper;
         this.operationLogService = operationLogService;
         this.notificationService = notificationService;
         this.userMapper = userMapper;
         this.taskSummaryCache = taskSummaryCache;
+        this.taskReminderService = taskReminderService;
     }
 
     @Transactional
@@ -95,11 +88,7 @@ public class TaskService {
         if (!dto.getDeadline().isAfter(now)) {
             throw new BusinessException(400, "任务截止时间必须晚于当前时间");
         }
-        String priority = dto.getPriority();
-        priority = priority == null || priority.isBlank() ? TaskPriority.MEDIUM.getCode() : priority.trim().toUpperCase(Locale.ROOT);
-        if (!TaskPriority.isKnownCode(priority)) {
-            throw new BusinessException(400, "任务优先级只能是 LOW、MEDIUM 或 HIGH");
-        }
+        String priority = TaskRules.normalizePriority(dto.getPriority());
         Map<String, Object> before = taskDetailsData(task);
         task.setTitle(dto.getTitle().trim());
         task.setDescription(dto.getDescription());
@@ -110,7 +99,49 @@ public class TaskService {
         if (taskMapper.updateDetailsIfTodo(task) != 1) {
             throw new BusinessException(409, "任务状态已发生变化，请刷新后重试");
         }
+        taskReminderService.syncTask(taskId);
         operationLogService.record(projectId, "TASK", taskId, "UPDATE_TASK_DETAILS", "修改任务资料", before, taskDetailsData(task));
+    }
+
+    @Transactional
+    public void adjustTaskDeadline(Long taskId, AdjustTaskDeadlineDTO dto) {
+        Task original = taskMapper.selectById(taskId);
+        if (original == null || original.getDeletedAt() != null) {
+            throw new BusinessException(404, "任务不存在");
+        }
+        Long projectId = original.getProjectId();
+        Project project = projectMapper.selectByIdForUpdate(projectId);
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        projectPermissionService.requireProjectManagerForUpdate(projectId);
+        if (project.getStatus() != ProjectStatus.IN_PROGRESS) {
+            throw new BusinessException(409, "只有进行中的项目可以调整任务截止时间");
+        }
+        Task task = taskMapper.selectByIdForUpdate(taskId);
+        if (task == null || task.getDeletedAt() != null || !projectId.equals(task.getProjectId())) {
+            throw new BusinessException(404, "任务不存在");
+        }
+        if (task.getStatus() != TaskStatus.IN_PROGRESS) {
+            throw new BusinessException(409, "只有进行中的任务可以调整截止时间");
+        }
+        if (!Objects.equals(task.getDeadline(), dto.expectedDeadline())) {
+            throw new BusinessException(409, "截止时间已发生变化，请刷新后重试");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime deadline = dto.deadline().withNano(0);
+        if (!deadline.isAfter(now)) {
+            throw new BusinessException(400, "新截止时间必须晚于当前时间");
+        }
+        if (deadline.equals(task.getDeadline())) {
+            throw new BusinessException(400, "新截止时间不能与原时间相同");
+        }
+        if (taskMapper.adjustDeadlineIfCurrent(taskId, projectId, dto.expectedDeadline(), deadline, now) != 1) {
+            throw new BusinessException(409, "任务已发生变化，请刷新后重试");
+        }
+        taskReminderService.syncTask(taskId);
+        operationLogService.record(projectId, "TASK", taskId, "ADJUST_TASK_DEADLINE", "调整任务截止时间",
+            Map.of("deadline", task.getDeadline()), Map.of("deadline", deadline, "reason", dto.reason().trim()));
     }
 
     private Map<String, Object> taskDetailsData(Task task) {
@@ -149,17 +180,7 @@ public class TaskService {
         }
 
         // 4. 检查优先级
-        String priority = dto.getPriority();
-
-        if (priority == null || priority.isBlank()) {
-            priority = TaskPriority.MEDIUM.getCode();
-        } else {
-            priority = priority.trim().toUpperCase();
-
-            if (!TaskPriority.isKnownCode(priority)) {
-                throw new BusinessException(400, "任务优先级只能是 LOW、MEDIUM 或 HIGH");
-            }
-        }
+        String priority = TaskRules.normalizePriority(dto.getPriority());
 
         // 5. 如果指定负责人，负责人必须是项目 ACTIVE 成员
         if (dto.getAssigneeId() != null) {
@@ -190,6 +211,7 @@ public class TaskService {
         task.setDeadline(dto.getDeadline());
 
         taskMapper.insert(task);
+        taskReminderService.syncTask(task.getId());
 
         Map<String, Object> afterData = new HashMap<>();
 
@@ -226,61 +248,6 @@ public class TaskService {
         taskSummaryCache.evictAfterCommit(projectId);
 
         return task.getId();
-    }
-
-    public PageResult<TaskVO> getProjectTasks(
-        Long projectId,
-        String scope,
-        String status,
-        long page,
-        long size,
-        Long assigneeId,
-        boolean unfinishedOnly
-    ) {
-        projectPermissionService.requireProjectMember(projectId);
-        requireExistingProject(projectId);
-        var taskPage = ListPagination.<TaskVO>page(page, size);
-        if (assigneeId != null && assigneeId <= 0) {
-            throw new BusinessException(400, "assigneeId 必须为正数");
-        }
-
-        String normalizedScope = scope.trim().toUpperCase();
-
-        if (!"ALL".equals(normalizedScope) && !"MINE".equals(normalizedScope)) {
-            throw new BusinessException(400, "任务查看范围只能是 ALL 或 MINE");
-        }
-
-        String normalizedStatus = normalizeTaskStatusFilter(status);
-
-        CurrentUser currentUser = UserContext.get();
-
-        var result = taskMapper.selectProjectTasks(
-            taskPage,
-            projectId,
-            normalizedScope,
-            currentUser.getUserId(),
-            normalizedStatus,
-            assigneeId,
-            unfinishedOnly
-        );
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
-    }
-
-    public PageResult<TaskVO> getMyTasks(long page, long size, String status, String keyword) {
-        var taskPage = ListPagination.<TaskVO>page(page, size);
-        String normalizedStatus = normalizeTaskStatusFilter(status);
-        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
-        if (!SystemRole.USER.matches(UserContext.get().getSystemRole())) {
-            return new PageResult<>(List.of(), 0, page, size, 0);
-        }
-        var result = taskMapper.selectMyTasks(taskPage, UserContext.get().getUserId(), normalizedStatus, normalizedKeyword);
-        return new PageResult<>(result.getRecords(), result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
-    }
-
-    public MyTaskSummaryVO getMyTaskSummary() {
-        if (!SystemRole.USER.matches(UserContext.get().getSystemRole())) return MyTaskSummaryVO.empty();
-        LocalDateTime now = LocalDateTime.now();
-        return taskMapper.selectMyTaskSummary(UserContext.get().getUserId(), now, now.plusDays(3));
     }
 
     @Transactional
@@ -355,6 +322,7 @@ public class TaskService {
             beforeData,
             afterData
         );
+        taskReminderService.syncTask(taskId);
         taskSummaryCache.evictAfterCommit(task.getProjectId());
     }
 
@@ -496,6 +464,7 @@ public class TaskService {
 
             notificationService.createNotification(notificationDTO);
         }
+        taskReminderService.syncTask(taskId);
         taskSummaryCache.evictAfterCommit(task.getProjectId());
 
         return submission.getId();
@@ -701,20 +670,8 @@ public class TaskService {
 
             notificationService.createNotification(notificationDTO);
         }
+        taskReminderService.syncTask(taskId);
         taskSummaryCache.evictAfterCommit(task.getProjectId());
-    }
-
-    public List<TaskSubmissionVO> getTaskSubmissions(Long taskId) {
-        Task task = taskMapper.selectById(taskId);
-
-        if (task == null || task.getDeletedAt() != null) {
-            throw new BusinessException(404, "任务不存在");
-        }
-
-        projectPermissionService.requireProjectMember(task.getProjectId());
-        requireExistingProject(task.getProjectId());
-
-        return taskSubmissionMapper.selectTaskSubmissions(taskId);
     }
 
     @Transactional
@@ -787,6 +744,7 @@ public class TaskService {
         }
         task.setAssigneeId(dto.getAssigneeId());
         task.setUpdatedAt(now);
+        taskReminderService.syncTask(taskId);
 
         // 7. 准备审计日志的修改前数据
         Map<String, Object> beforeData = new HashMap<>();
@@ -904,6 +862,7 @@ public class TaskService {
         ) {
             throw new BusinessException(409, "任务状态或负责人已发生变化，请刷新后重试");
         }
+        taskReminderService.syncTask(taskId);
         Long actorId = UserContext.get().getUserId();
         operationLogService.record(
             projectId,
@@ -937,118 +896,9 @@ public class TaskService {
         taskSummaryCache.evictAfterCommit(projectId);
     }
 
-    private String normalizeTaskStatusFilter(String status) {
-        String normalized = status.trim().toUpperCase(Locale.ROOT);
-        // ALL 仅属于查询筛选，不能作为任务状态写入数据库。
-        if (!"ALL".equals(normalized)) {
-            try {
-                TaskStatus.fromCode(normalized);
-            } catch (IllegalArgumentException exception) {
-                throw new BusinessException(400, "任务状态筛选条件不正确");
-            }
-        }
-        return normalized;
-    }
-
     private boolean isActiveOrdinaryUser(Long userId) {
         User user = userMapper.selectById(userId);
         return user != null && user.isActiveOrdinaryUser();
-    }
-
-    private Project requireExistingProject(Long projectId) {
-        Project project = projectMapper.selectById(projectId);
-        if (project == null || project.getDeletedAt() != null) {
-            throw new BusinessException(404, "项目不存在");
-        }
-        return project;
-    }
-
-    public TaskVO getTaskDetail(Long taskId) {
-        // 1. 先找到任务
-        Task task = taskMapper.selectById(taskId);
-
-        if (task == null || task.getDeletedAt() != null) {
-            throw new BusinessException(404, "任务不存在");
-        }
-
-        // 2. 当前用户必须是这个任务所属项目的成员
-        projectPermissionService.requireProjectMember(task.getProjectId());
-        requireExistingProject(task.getProjectId());
-
-        // 3. 查询前端需要的详细信息
-        TaskVO taskVO = taskMapper.selectTaskDetail(taskId);
-
-        if (taskVO == null) {
-            throw new BusinessException(404, "任务不存在");
-        }
-
-        return taskVO;
-    }
-
-    @Transactional
-    public Long addTaskComment(Long taskId, AddTaskCommentDTO dto) {
-        // 1. 任务必须存在
-        Task task = taskMapper.selectById(taskId);
-
-        if (task == null || task.getDeletedAt() != null) {
-            throw new BusinessException(404, "任务不存在");
-        }
-
-        // 2. 当前用户必须是该项目有效成员
-        projectPermissionService.requireProjectMember(task.getProjectId());
-
-        Project project = projectMapper.selectByIdForUpdate(task.getProjectId());
-
-        if (project == null || project.getDeletedAt() != null) {
-            throw new BusinessException(404, "项目不存在");
-        }
-
-        // 等待项目锁期间成员可能已退出或被移除，必须使用锁定读取重新授权。
-        projectPermissionService.requireProjectMemberForUpdate(task.getProjectId());
-
-        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
-            throw new BusinessException(409, "当前项目状态不允许新增评论");
-        }
-
-        // 3. 如果这是“回复”，检查被回复评论是否合法
-        if (dto.getParentId() != null) {
-            TaskComment parentComment = taskCommentMapper.selectById(dto.getParentId());
-
-            if (parentComment == null || parentComment.getDeletedAt() != null) {
-                throw new BusinessException(404, "被回复的评论不存在");
-            }
-
-            if (!taskId.equals(parentComment.getTaskId())) {
-                throw new BusinessException(400, "不能回复其他任务的评论");
-            }
-        }
-
-        CurrentUser currentUser = UserContext.get();
-
-        // 4. 创建评论
-        TaskComment comment = new TaskComment();
-
-        comment.setTaskId(taskId);
-        comment.setAuthorId(currentUser.getUserId());
-        comment.setParentId(dto.getParentId());
-        comment.setContent(dto.getContent().trim());
-
-        taskCommentMapper.insert(comment);
-
-        return comment.getId();
-    }
-
-    public List<TaskCommentVO> getTaskComments(Long taskId) {
-        Task task = taskMapper.selectById(taskId);
-
-        if (task == null || task.getDeletedAt() != null) {
-            throw new BusinessException(404, "任务不存在");
-        }
-
-        projectPermissionService.requireProjectMember(task.getProjectId());
-        requireExistingProject(task.getProjectId());
-
-        return taskCommentMapper.selectTaskComments(taskId);
     }
 
     @Transactional
@@ -1127,6 +977,7 @@ public class TaskService {
             beforeData,
             afterData
         );
+        taskReminderService.syncTask(taskId);
         taskSummaryCache.evictAfterCommit(task.getProjectId());
     }
 }

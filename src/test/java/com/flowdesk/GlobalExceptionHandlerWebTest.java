@@ -1,10 +1,14 @@
 package com.flowdesk;
 
 import com.flowdesk.controller.TaskController;
+import com.flowdesk.controller.TaskQueryController;
+import com.flowdesk.controller.TaskCommentController;
 import com.flowdesk.controller.UserController;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.exception.GlobalExceptionHandler;
 import com.flowdesk.service.TaskService;
+import com.flowdesk.service.TaskQueryService;
+import com.flowdesk.service.TaskCommentService;
 import com.flowdesk.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +23,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 public class GlobalExceptionHandlerWebTest {
+    TaskCommentService taskComments = org.mockito.Mockito.mock(TaskCommentService.class);
+    TaskQueryService taskQueries = org.mockito.Mockito.mock(TaskQueryService.class);
 
     private MockMvc mockMvc;
 
@@ -37,7 +43,7 @@ public class GlobalExceptionHandlerWebTest {
         TaskController taskController = new TaskController(taskService);
 
         // 3. 建立一个假的 Spring MVC HTTP 环境
-        mockMvc = MockMvcBuilders.standaloneSetup(userController, taskController)
+        mockMvc = MockMvcBuilders.standaloneSetup(new com.flowdesk.controller.TaskQueryController(taskQueries), new com.flowdesk.controller.TaskCommentController(taskComments), userController, taskController)
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
     }
@@ -83,7 +89,7 @@ public class GlobalExceptionHandlerWebTest {
 
     @Test
     void businessNotFoundShouldReturn404() throws Exception {
-        when(taskService.getTaskDetail(999L)).thenThrow(new BusinessException(404, "任务不存在"));
+        when(taskQueries.getTaskDetail(999L)).thenThrow(new BusinessException(404, "任务不存在"));
 
         mockMvc
             .perform(get("/tasks/999"))

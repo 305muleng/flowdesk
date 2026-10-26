@@ -27,7 +27,7 @@ class TaskCommentAuthorizationTest {
     private ProjectMapper projects;
     private ProjectMemberMapper members;
     private TaskCommentMapper comments;
-    private TaskService service;
+    private TaskCommentService service;
     private Project project;
     private ProjectMember currentMembership;
 
@@ -37,9 +37,7 @@ class TaskCommentAuthorizationTest {
         projects = mock(ProjectMapper.class);
         members = mock(ProjectMemberMapper.class);
         comments = mock(TaskCommentMapper.class);
-        service = new TaskService(tasks, projects, members, new ProjectPermissionService(members),
-                mock(TaskSubmissionMapper.class), comments, mock(OperationLogService.class),
-                mock(NotificationService.class), mock(UserMapper.class), mock(ProjectTaskSummaryCache.class));
+        service = new TaskCommentService(tasks, projects, new ProjectPermissionService(members), comments);
         UserContext.set(new CurrentUser(2L, "USER"));
         Task task = new Task();
         task.setId(10L);

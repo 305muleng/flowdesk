@@ -37,6 +37,7 @@ class DetailsEditingServiceTest {
     ProjectTaskSummaryCache cache;
     ProjectService projectService;
     TaskService taskService;
+    TaskReminderService reminders = mock(TaskReminderService.class);
     Project project;
     Task currentTask;
     ProjectMember manager;
@@ -52,8 +53,7 @@ class DetailsEditingServiceTest {
         projectService = new ProjectService(projects, members, permissions, logs, tasks, mock(TaskRequestMapper.class),
                 mock(MemberLeaveRequestMapper.class), mock(NotificationService.class), mock(UserMapper.class),
                 mock(ProjectRequestClosureService.class));
-        taskService = new TaskService(tasks, projects, members, permissions, mock(TaskSubmissionMapper.class),
-                mock(TaskCommentMapper.class), logs, mock(NotificationService.class), mock(UserMapper.class), cache);
+        taskService = new TaskService(tasks, projects, members, permissions, mock(TaskSubmissionMapper.class), logs, mock(NotificationService.class), mock(UserMapper.class), cache, reminders);
         UserContext.set(new CurrentUser(1L, "USER"));
         project = new Project();
         project.setId(4L);
@@ -116,6 +116,7 @@ class DetailsEditingServiceTest {
     void taskEditUsesCurrentTaskAndKeepsAssigneeAndStatus(String status) {
         project.setStatus(ProjectStatus.fromCode(status));
         taskService.updateTaskDetails(10L, taskDto());
+        verify(reminders).syncTask(10L);
         assertEquals("新任务", currentTask.getTitle());
         assertEquals("HIGH", currentTask.getPriority());
         assertEquals(2L, currentTask.getAssigneeId());

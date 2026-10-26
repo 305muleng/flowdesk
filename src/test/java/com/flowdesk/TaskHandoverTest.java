@@ -37,18 +37,8 @@ class TaskHandoverTest {
     OperationLogService logs = mock(OperationLogService.class);
     NotificationService notifications = mock(NotificationService.class);
     ProjectTaskSummaryCache cache = mock(ProjectTaskSummaryCache.class);
-    TaskService service = new TaskService(
-        tasks,
-        projects,
-        members,
-        permissions,
-        submissions,
-        comments,
-        logs,
-        notifications,
-        users,
-        cache
-    );
+    com.flowdesk.service.TaskReminderService reminders = mock(com.flowdesk.service.TaskReminderService.class);
+    TaskService service = new TaskService(tasks, projects, members, permissions, submissions, logs, notifications, users, cache, reminders);
     HandoverTaskDTO dto = new HandoverTaskDTO(2L, 3L, "  账号禁用，交接开发  ");
 
     @BeforeEach
@@ -102,6 +92,7 @@ class TaskHandoverTest {
     @Test
     void successfulHandoverRecordsHistoryNotifiesAndInvalidatesAfterCommit() {
         service.handoverDisabledAssignee(10L, dto);
+        verify(reminders).syncTask(10L);
         var before = ArgumentCaptor.forClass(Object.class);
         var after = ArgumentCaptor.forClass(Object.class);
         verify(logs).record(

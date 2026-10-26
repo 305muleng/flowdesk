@@ -14,7 +14,6 @@ import com.flowdesk.dto.CreateNotificationDTO;
 import com.flowdesk.dto.ReviewMemberLeaveRequestDTO;
 import com.flowdesk.exception.BusinessException;
 import com.flowdesk.mapper.*;
-import com.flowdesk.query.TaskQueryConditions;
 import com.flowdesk.model.MemberLeaveRequest;
 import com.flowdesk.model.Project;
 import com.flowdesk.model.ProjectMember;
@@ -84,6 +83,11 @@ public class MemberLeaveRequestService {
             throw new BusinessException(404, "项目不存在");
         }
 
+        member = projectPermissionService.requireProjectMemberForUpdate(projectId);
+        if (!ProjectRole.DEVELOPER.matches(member.getRole())) {
+            throw new BusinessException(403, "只有开发人员可以申请退出项目");
+        }
+
         // 4. 只有 PREPARING / IN_PROGRESS 可以申请退出
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许申请退出");
@@ -94,24 +98,16 @@ public class MemberLeaveRequestService {
         LocalDateTime now = LocalDateTime.now();
 
         // 5. 有未完成任务时不能申请退出
-        Long unfinishedTaskCount = taskMapper.selectCount(
-            TaskQueryConditions.unfinishedForAssignee(projectId, userId)
-        );
+        Long unfinishedTask = taskMapper.selectUnfinishedForAssigneeForUpdate(projectId, userId);
 
-        if (unfinishedTaskCount > 0) {
+        if (unfinishedTask != null) {
             throw new BusinessException(409, "当前仍有未完成任务，请先完成或重新分配任务");
         }
 
         // 6. 不能重复提交仍然有效的 PENDING 退出申请
-        Long pendingCount = memberLeaveRequestMapper.selectCount(
-            new LambdaQueryWrapper<MemberLeaveRequest>()
-                .eq(MemberLeaveRequest::getProjectId, projectId)
-                .eq(MemberLeaveRequest::getApplicantId, userId)
-                .eq(MemberLeaveRequest::getStatus, MemberLeaveRequestStatus.PENDING)
-                .gt(MemberLeaveRequest::getExpiresAt, now)
-        );
+        Long pendingRequest = memberLeaveRequestMapper.selectPendingForApplicantForUpdate(projectId, userId, now);
 
-        if (pendingCount > 0) {
+        if (pendingRequest != null) {
             throw new BusinessException(409, "你已有待处理的退出申请");
         }
 
@@ -284,7 +280,7 @@ public class MemberLeaveRequestService {
         }
 
         // 4. 查询申请
-        MemberLeaveRequest request = memberLeaveRequestMapper.selectById(requestId);
+        MemberLeaveRequest request = memberLeaveRequestMapper.selectByIdForUpdate(requestId);
 
         if (request == null || !projectId.equals(request.getProjectId())) {
             throw new BusinessException(404, "退出申请不存在");
@@ -368,24 +364,17 @@ public class MemberLeaveRequestService {
         // ==========================
 
         // 7. 申请人必须还是 ACTIVE DEVELOPER
-        ProjectMember applicantMember = projectMemberMapper.selectOne(
-            new LambdaQueryWrapper<ProjectMember>()
-                .eq(ProjectMember::getProjectId, projectId)
-                .eq(ProjectMember::getUserId, request.getApplicantId())
-                .eq(ProjectMember::getRole, ProjectRole.DEVELOPER.getCode())
-                .eq(ProjectMember::getStatus, ProjectMemberStatus.ACTIVE)
-        );
+        ProjectMember applicantMember = projectMemberMapper.selectMemberForUpdate(projectId, request.getApplicantId());
 
-        if (applicantMember == null) {
+        if (applicantMember == null || applicantMember.getStatus() != ProjectMemberStatus.ACTIVE
+            || !ProjectRole.DEVELOPER.matches(applicantMember.getRole())) {
             throw new BusinessException(409, "申请人已不是当前项目的有效开发成员");
         }
 
         // 8. 再次检查有没有未完成任务
-        Long unfinishedTaskCount = taskMapper.selectCount(
-            TaskQueryConditions.unfinishedForAssignee(projectId, request.getApplicantId())
-        );
+        Long unfinishedTask = taskMapper.selectUnfinishedForAssigneeForUpdate(projectId, request.getApplicantId());
 
-        if (unfinishedTaskCount > 0) {
+        if (unfinishedTask != null) {
             throw new BusinessException(409, "该成员仍有未完成任务，暂时不能退出项目");
         }
 
