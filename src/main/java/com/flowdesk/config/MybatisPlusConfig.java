@@ -15,8 +15,8 @@ public class MybatisPlusConfig {
     @Bean
     public ConfigurationCustomizer statusTypeHandlers() {
         return configuration -> {
-            // These status names are persisted codes: keep names stable when refactoring enums.
-            // Explicit registration also overrides MyBatis-Plus IEnum auto-mapping for strict reads.
+            // 这些状态的枚举名称就是数据库编码，重构时必须保持名称稳定。
+            // 显式注册以覆盖 MyBatis-Plus 的 IEnum 自动映射，确保读取非法编码时报错。
             var registry = configuration.getTypeHandlerRegistry();
             registry.register(ProjectStatus.class, new EnumTypeHandler<>(ProjectStatus.class));
             registry.register(TaskStatus.class, new EnumTypeHandler<>(TaskStatus.class));

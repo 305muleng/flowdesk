@@ -123,7 +123,7 @@ class StatusCodeMappingTest {
         CallableStatement callable = mock(CallableStatement.class);
         for (Enum<?> status : mapping.status().getEnumConstants()) {
             String code = (String) ((IEnum<?>) status).getValue();
-            assertEquals(code, status.name(), "Persisted status names must remain equal to their codes");
+            assertEquals(code, status.name(), "持久化状态的枚举名称必须与原有编码一致");
             handler.setParameter(statement, 1, status, null);
             verify(statement).setString(1, code);
             handler.setParameter(statement, 2, status, JdbcType.VARCHAR);
