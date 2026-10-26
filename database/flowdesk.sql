@@ -1,32 +1,7 @@
--- FlowDesk 数据库结构初始化脚本
--- 结构基线：2026-10-18，来源 MySQL 9.7.0
--- 仅用于已创建、已选中的空数据库，不包含业务数据。
--- 不用于升级已有数据库；已有库变更应使用单独的增量脚本。
--- 已包含项目任务统计覆盖索引，无需重复创建。
--- 本文件不会由应用自动执行。
--- MySQL 结构导出工具：10.13，发行版 9.7.0，运行平台 Linux（x86_64）
---
--- 主机：localhost    数据库：flowdesk
--- ------------------------------------------------------
--- 服务器版本：9.7.0
+-- FlowDesk 完整数据库结构，共 15 张表。
+-- 在已选择的空数据库中执行，不包含账号或业务数据。
+SET NAMES utf8mb4;
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!50503 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- 表结构：`member_leave_request`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `member_leave_request` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `project_id` bigint NOT NULL,
@@ -45,14 +20,7 @@ CREATE TABLE `member_leave_request` (
   KEY `idx_leave_project_status` (`project_id`,`status`),
   KEY `idx_leave_applicant_status` (`applicant_id`,`status`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`notification`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `notification` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `recipient_id` bigint NOT NULL,
@@ -70,14 +38,7 @@ CREATE TABLE `notification` (
   KEY `idx_notification_recipient_read` (`recipient_id`,`read_at`,`created_at`),
   KEY `idx_notification_target` (`target_type`,`target_id`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`operation_log`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `operation_log` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `project_id` bigint NOT NULL,
@@ -94,14 +55,7 @@ CREATE TABLE `operation_log` (
   KEY `idx_log_target_time` (`target_type`,`target_id`,`created_at`),
   KEY `idx_log_actor` (`actor_id`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`project`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `project` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `creator_id` bigint NOT NULL,
@@ -122,14 +76,7 @@ CREATE TABLE `project` (
   `document_url` varchar(500) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`project_acceptance`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `project_acceptance` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `project_id` bigint NOT NULL,
@@ -148,14 +95,7 @@ CREATE TABLE `project_acceptance` (
   KEY `idx_acceptance_project_time` (`project_id`,`submitted_at`),
   KEY `idx_acceptance_reviewer_status` (`reviewer_id`,`review_status`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`project_invitation`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `project_invitation` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `project_id` bigint NOT NULL,
@@ -171,14 +111,7 @@ CREATE TABLE `project_invitation` (
   KEY `idx_invitation_project_invitee` (`project_id`,`invitee_id`),
   KEY `idx_invitation_invitee_status` (`invitee_id`,`status`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`project_manager_transfer`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `project_manager_transfer` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `project_id` bigint NOT NULL,
@@ -196,14 +129,7 @@ CREATE TABLE `project_manager_transfer` (
   KEY `idx_transfer_project_status` (`project_id`,`status`),
   KEY `idx_transfer_to_user_status` (`to_user_id`,`status`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`project_member`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `project_member` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `project_id` bigint NOT NULL,
@@ -217,14 +143,7 @@ CREATE TABLE `project_member` (
   UNIQUE KEY `uk_project_user` (`project_id`,`user_id`),
   KEY `idx_project_member_user` (`user_id`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`task`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `task` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `project_id` bigint NOT NULL,
@@ -248,14 +167,7 @@ CREATE TABLE `task` (
   KEY `idx_task_project_deadline` (`project_id`,`deadline`),
   KEY `idx_task_project_deleted_status` (`project_id`,`deleted_at`,`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`task_comment`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `task_comment` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `task_id` bigint NOT NULL,
@@ -269,14 +181,7 @@ CREATE TABLE `task_comment` (
   KEY `idx_comment_task_time` (`task_id`,`created_at`),
   KEY `idx_comment_parent` (`parent_id`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`task_request`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `task_request` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `project_id` bigint NOT NULL,
@@ -298,14 +203,7 @@ CREATE TABLE `task_request` (
   KEY `idx_task_request_project_status` (`project_id`,`status`),
   KEY `idx_task_request_requester` (`requester_id`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`task_submission`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `task_submission` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `task_id` bigint NOT NULL,
@@ -324,14 +222,7 @@ CREATE TABLE `task_submission` (
   KEY `idx_submission_task_time` (`task_id`,`submitted_at`),
   KEY `idx_submission_reviewer_status` (`reviewer_id`,`review_status`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 表结构：`user`
---
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `user` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `username` varchar(50) NOT NULL,
@@ -344,27 +235,8 @@ CREATE TABLE `user` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_username` (`username`)
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- 导出数据库 flowdesk 的事件
---
-
---
--- 导出数据库 flowdesk 的存储例程
---
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- 到期提醒：仅建表，不修改既有业务数据；由维护者在确认目标库后执行。
-CREATE TABLE IF NOT EXISTS task_reminder_plan (
+CREATE TABLE task_reminder_plan (
   task_id BIGINT NOT NULL PRIMARY KEY,
   project_id BIGINT NOT NULL,
   deadline DATETIME NOT NULL,
@@ -374,7 +246,7 @@ CREATE TABLE IF NOT EXISTS task_reminder_plan (
   KEY idx_reminder_project (project_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS task_reminder_event (
+CREATE TABLE task_reminder_event (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   task_id BIGINT NOT NULL,
   project_id BIGINT NOT NULL,
@@ -389,5 +261,3 @@ CREATE TABLE IF NOT EXISTS task_reminder_event (
   UNIQUE KEY uk_reminder_event (task_id, plan_revision, kind),
   KEY idx_reminder_publish (state, next_publish_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 导出完成
