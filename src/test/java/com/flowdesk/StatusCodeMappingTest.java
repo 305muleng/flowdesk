@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-// 实际 MyBatis 配置、参数处理器及结果处理器；JDBC 对象为替身，不连接数据库。
+// JDBC 使用 mock，不连接数据库。
 class StatusCodeMappingTest {
 
     record Mapping(
@@ -189,7 +189,7 @@ class StatusCodeMappingTest {
             .filter(p -> p.getProperty().equals(Constants.ENTITY + "." + mapping.property()))
             .findFirst()
             .orElseThrow();
-        // updateById 的 et 来自 Map，构建阶段类型为 Object；实际绑定时再按枚举类型查注册表。
+        // et 来自 Map，绑定参数时才确定具体类型。
         assertInstanceOf(UnknownTypeHandler.class, updateParameter.getTypeHandler());
         PreparedStatement updateJdbc = mock(PreparedStatement.class);
         configuration.newParameterHandler(update, updateParams, updateSql).setParameters(updateJdbc);
