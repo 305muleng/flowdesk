@@ -63,9 +63,9 @@ watch(acceptanceId, load, { immediate: true })
 </script>
 
 <template>
-  <PageHeader eyebrow="SYSTEM ADMIN" title="项目验收详情" description="按验收轮次查看交付资料、成员贡献与审核进展。">
+  <PageHeader title="项目验收详情" description="按验收轮次查看交付资料、成员贡献与审核进展。">
     <el-button @click="$router.push({ name: 'admin-acceptances' })">返回列表</el-button>
-    <el-button :icon="Refresh" circle :loading="loading" @click="load" />
+    <el-button :icon="Refresh" circle aria-label="刷新验收详情" title="刷新验收详情" :loading="loading" @click="load" />
   </PageHeader>
 
   <div v-loading="loading" class="detail-page">
@@ -73,13 +73,11 @@ watch(acceptanceId, load, { immediate: true })
       <template #extra><el-button type="primary" @click="load">重试</el-button></template>
     </el-result>
     <template v-else-if="detail">
-      <el-alert
-        :title="presentation.notice"
-        :type="presentation.isSnapshot ? 'info' : 'warning'"
-        :closable="false"
-        show-icon
-      />
-      <p class="muted"><strong>{{ presentation.label }}</strong><span v-if="presentation.isSnapshot"> · 快照时间：{{ date(detail.snapshotCapturedAt) }}</span></p>
+      <el-alert :title="presentation.notice" :type="presentation.isSnapshot ? 'info' : 'warning'" :closable="false" show-icon />
+      <p class="muted">
+        <strong>{{ presentation.label }}</strong
+        ><span v-if="presentation.isSnapshot"> · 快照时间：{{ date(detail.snapshotCapturedAt) }}</span>
+      </p>
       <section class="surface-card detail-section">
         <h2>{{ presentation.prefix }}项目资料</h2>
         <div class="info-grid">
@@ -174,7 +172,10 @@ watch(acceptanceId, load, { immediate: true })
         </div>
       </section>
 
-      <p class="muted">任务完成占比 = DONE / (DONE + CANCELLED)，分母为零时为 0；按任务数量计算，表示已结束任务中完成的比例，不代表工作量或交付质量。</p>
+      <p class="muted">
+        任务完成占比 = DONE / (DONE + CANCELLED)，分母为零时为
+        0；按任务数量计算，表示已结束任务中完成的比例，不代表工作量或交付质量。
+      </p>
       <section class="surface-card detail-section">
         <h2>{{ presentation.prefix }}成员贡献（含历史成员）</h2>
         <p class="muted">{{ presentation.memberDescription }}</p>

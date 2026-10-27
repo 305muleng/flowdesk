@@ -124,7 +124,7 @@ onMounted(load)
 <style scoped>
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
   gap: 22px;
   min-height: 280px;
 }
@@ -135,6 +135,8 @@ onMounted(load)
   border-radius: 20px;
 }
 .project-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
   min-height: 260px;
   padding: 22px;
   background: #fff;

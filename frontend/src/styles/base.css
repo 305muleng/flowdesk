@@ -39,6 +39,19 @@ textarea {
 a {
   color: inherit;
 }
+h1,
+h2,
+h3 {
+  overflow-wrap: anywhere;
+}
+.el-segmented {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.el-pagination {
+  max-width: 100%;
+  overflow-x: auto;
+}
 #app {
   min-height: 100vh;
 }
@@ -76,6 +89,7 @@ a {
 }
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 18px;

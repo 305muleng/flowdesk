@@ -50,7 +50,7 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader eyebrow="SYSTEM ADMIN" title="项目验收审核" description="复核项目最终交付，形成明确、可审计的验收结论。">
+  <PageHeader title="项目验收审核" description="复核项目最终交付，形成明确、可审计的验收结论。">
     <el-button :icon="Refresh" circle aria-label="刷新验收列表" @click="load" />
   </PageHeader>
   <section class="toolbar">
@@ -174,6 +174,8 @@ onMounted(load)
 }
 .acceptance-card footer {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-end;
   margin-top: 20px;
 }

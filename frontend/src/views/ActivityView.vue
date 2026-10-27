@@ -30,9 +30,11 @@ const targetNames: Record<string, string> = {
 async function loadLogs() {
   const currentProjectId = projectId.value
   logs.value = []
-  await listing.load((page, size) => currentProjectId
-    ? getProjectLogsApi(currentProjectId, { page, size }).then((result) => result.data.data)
-    : Promise.resolve({ records: [], total: 0, page: 1, size, pages: 0 }))
+  await listing.load((page, size) =>
+    currentProjectId
+      ? getProjectLogsApi(currentProjectId, { page, size }).then((result) => result.data.data)
+      : Promise.resolve({ records: [], total: 0, page: 1, size, pages: 0 }),
+  )
 }
 
 function selectProjectFromRoute() {
@@ -86,13 +88,16 @@ watch(projectId, () => {
   total.value = 0
   void loadLogs()
 })
-watch(() => route.query.projectId, () => {
-  if (!projectsLoading.value && !projectsError.value) selectProjectFromRoute()
-})
+watch(
+  () => route.query.projectId,
+  () => {
+    if (!projectsLoading.value && !projectsError.value) selectProjectFromRoute()
+  },
+)
 </script>
 
 <template>
-  <PageHeader eyebrow="ACTIVITY LOG" title="项目操作记录" description="查看项目中的关键操作记录。">
+  <PageHeader title="项目操作记录" description="查看项目中的关键操作记录。">
     <el-select :model-value="projectId" @change="changeProject" placeholder="选择项目" filterable style="width: 220px"
       ><el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id"
     /></el-select>
@@ -168,6 +173,7 @@ watch(() => route.query.projectId, () => {
 }
 .log-content > div {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }

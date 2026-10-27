@@ -113,8 +113,8 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader eyebrow="SYSTEM ADMIN" title="用户管理" description="查询系统用户并管理账号可用状态。角色变更不在当前版本范围内。">
-    <el-button :icon="Refresh" circle :loading="loading" @click="load" />
+  <PageHeader title="用户管理" description="查询系统用户并管理账号可用状态。角色变更不在当前版本范围内。">
+    <el-button :icon="Refresh" circle aria-label="刷新用户列表" title="刷新用户列表" :loading="loading" @click="load" />
   </PageHeader>
 
   <section class="surface-card filter-panel">

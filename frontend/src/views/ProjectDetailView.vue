@@ -488,7 +488,7 @@ onMounted(load)
       </div>
       <div class="hero-actions">
         <el-button v-if="canEditProject" :disabled="editProjectSaving || actionBusy" @click="openProjectEdit">编辑资料</el-button>
-        <el-button :icon="Refresh" circle @click="load" /><el-button
+        <el-button :icon="Refresh" circle aria-label="刷新项目详情" title="刷新项目详情" @click="load" /><el-button
           v-if="isManager && project.status === 'PREPARING'"
           type="primary"
           :loading="actionBusy"
@@ -712,7 +712,9 @@ onMounted(load)
         ><div class="timeline">
           <div class="logs-heading">
             <span>最近 30 条操作记录</span>
-            <el-button link type="primary" @click="router.push({ name: 'activity', query: { projectId: id } })">查看全部</el-button>
+            <el-button link type="primary" @click="router.push({ name: 'activity', query: { projectId: id } })"
+              >查看全部</el-button
+            >
           </div>
           <el-alert v-if="logsLoadFailed" title="操作记录加载失败，请刷新重试" type="error" :closable="false"
             ><el-button link @click="load">重试</el-button></el-alert
@@ -727,20 +729,34 @@ onMounted(load)
           <el-empty v-if="!logsLoadFailed && !logs.length" description="还没有操作记录" /></div
       ></el-tab-pane>
     </el-tabs>
-    <el-dialog v-model="editProjectVisible" title="编辑项目资料" width="min(92vw,600px)" :close-on-click-modal="!editProjectSaving">
+    <el-dialog
+      v-model="editProjectVisible"
+      title="编辑项目资料"
+      width="min(92vw,600px)"
+      :close-on-click-modal="!editProjectSaving"
+    >
       <el-form label-position="top">
-        <el-form-item label="项目名称" required><el-input v-model="editProjectForm.name" :maxlength="100" show-word-limit /></el-form-item>
+        <el-form-item label="项目名称" required
+          ><el-input v-model="editProjectForm.name" :maxlength="100" show-word-limit
+        /></el-form-item>
         <el-form-item label="项目描述"><el-input v-model="editProjectForm.description" type="textarea" :rows="3" /></el-form-item>
         <el-form-item label="项目目标"><el-input v-model="editProjectForm.goal" type="textarea" :rows="3" /></el-form-item>
-        <el-form-item label="预计结束时间"><el-date-picker v-model="editProjectForm.expectedEndTime" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" clearable /></el-form-item>
+        <el-form-item label="预计结束时间"
+          ><el-date-picker v-model="editProjectForm.expectedEndTime" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" clearable
+        /></el-form-item>
       </el-form>
-      <template #footer><el-button :disabled="editProjectSaving" @click="editProjectVisible = false">取消</el-button><el-button type="primary" :loading="editProjectSaving" @click="saveProjectEdit">保存修改</el-button></template>
+      <template #footer
+        ><el-button :disabled="editProjectSaving" @click="editProjectVisible = false">取消</el-button
+        ><el-button type="primary" :loading="editProjectSaving" @click="saveProjectEdit">保存修改</el-button></template
+      >
     </el-dialog>
     <el-dialog v-model="taskDialog" title="新建正式任务" width="min(92vw,600px)"
       ><el-form ref="taskFormRef" :model="taskForm" :rules="taskRules" label-position="top"
         ><el-form-item label="任务标题" prop="title"
           ><el-input v-model="taskForm.title" maxlength="200" show-word-limit /></el-form-item
-        ><el-form-item label="任务描述" prop="description"><el-input v-model="taskForm.description" type="textarea" :rows="3" /></el-form-item>
+        ><el-form-item label="任务描述" prop="description"
+          ><el-input v-model="taskForm.description" type="textarea" :rows="3"
+        /></el-form-item>
         <el-form-item label="任务目标" prop="goal"><el-input v-model="taskForm.goal" type="textarea" :rows="3" /></el-form-item>
         <div class="two">
           <el-form-item label="负责人"
@@ -770,8 +786,10 @@ onMounted(load)
     <el-dialog v-model="requestDialog" title="提交任务申请" width="min(92vw,560px)"
       ><el-form ref="requestFormRef" :model="requestForm" :rules="requestRules" label-position="top"
         ><el-form-item label="申请标题" prop="title"><el-input v-model="requestForm.title" maxlength="200" /></el-form-item
-        ><el-form-item label="任务描述" prop="description"><el-input v-model="requestForm.description" type="textarea" :rows="4" /></el-form-item
-        ><el-form-item label="任务目标" prop="goal"><el-input v-model="requestForm.goal" type="textarea" :rows="3" /></el-form-item
+        ><el-form-item label="任务描述" prop="description"
+          ><el-input v-model="requestForm.description" type="textarea" :rows="4" /></el-form-item
+        ><el-form-item label="任务目标" prop="goal"
+          ><el-input v-model="requestForm.goal" type="textarea" :rows="3" /></el-form-item
         ><el-form-item label="建议截止时间"
           ><el-date-picker
             v-model="requestForm.suggestedDeadline"

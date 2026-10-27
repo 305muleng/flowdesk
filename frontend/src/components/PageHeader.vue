@@ -1,15 +1,14 @@
 <script setup lang="ts">
-defineProps<{ eyebrow?: string; title: string; description?: string }>()
+defineProps<{ title: string; description?: string }>()
 </script>
 
 <template>
   <header class="page-header">
     <div>
-      <p v-if="eyebrow" class="page-eyebrow">{{ eyebrow }}</p>
       <h1>{{ title }}</h1>
       <p v-if="description" class="page-description">{{ description }}</p>
     </div>
-    <div class="page-actions">
+    <div v-if="$slots.actions || $slots.default" class="page-actions">
       <slot name="actions"><slot /></slot>
     </div>
   </header>
@@ -19,16 +18,13 @@ defineProps<{ eyebrow?: string; title: string; description?: string }>()
 .page-header {
   display: flex;
   align-items: flex-end;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 24px;
 }
-.page-eyebrow {
-  margin: 0 0 8px;
-  color: var(--brand);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+.page-header > div:first-child {
+  min-width: 0;
 }
 .page-header h1 {
   margin: 0;
@@ -43,9 +39,14 @@ defineProps<{ eyebrow?: string; title: string; description?: string }>()
   line-height: 1.7;
 }
 .page-actions {
+  max-width: 100%;
+  align-items: center;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+.page-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 @media (max-width: 680px) {
   .page-header {

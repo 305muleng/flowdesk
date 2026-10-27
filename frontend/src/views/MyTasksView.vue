@@ -20,7 +20,9 @@ async function load() {
   const status = filter.value
   const title = keyword.value
   const scope = projectScope.value
-  await listing.load((page, size) => getMyTasksApi({ page, size, status, keyword: title, projectScope: scope }).then((r) => r.data.data))
+  await listing.load((page, size) =>
+    getMyTasksApi({ page, size, status, keyword: title, projectScope: scope }).then((r) => r.data.data),
+  )
 }
 function changePage(value: number) {
   if (page.value !== value) {
@@ -45,9 +47,14 @@ onMounted(load)
     <template #actions><el-button @click="load">刷新</el-button></template>
   </PageHeader>
   <section class="filters">
-    <el-segmented v-model="projectScope" :options="[
-      { label: '当前项目', value: 'CURRENT' }, { label: '历史项目', value: 'HISTORY' }, { label: '全部项目', value: 'ALL' },
-    ]" />
+    <el-segmented
+      v-model="projectScope"
+      :options="[
+        { label: '当前项目', value: 'CURRENT' },
+        { label: '历史项目', value: 'HISTORY' },
+        { label: '全部项目', value: 'ALL' },
+      ]"
+    />
     <el-input v-model="keyword" clearable placeholder="搜索任务名称" style="max-width: 280px" />
     <el-segmented
       v-model="filter"
@@ -76,7 +83,8 @@ onMounted(load)
         <p>{{ task.description || task.goal || '暂无任务说明' }}</p>
       </div>
       <div class="meta">
-        <span>所属项目</span><strong>{{ task.projectName }}</strong><StatusTag :value="task.projectStatus" />
+        <span>所属项目</span><strong>{{ task.projectName }}</strong
+        ><StatusTag :value="task.projectStatus" />
       </div>
       <div class="meta">
         <span>截止时间</span
@@ -151,12 +159,20 @@ onMounted(load)
 .priority.low {
   background: #78b6a0;
 }
+.task-main,
+.meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .task-title {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 10px;
 }
 .task-title h3 {
+  flex: 1 1 200px;
+  min-width: 0;
   margin: 0;
   color: var(--text-strong);
   font-size: 15px;
@@ -182,11 +198,26 @@ onMounted(load)
   color: #d64c55;
 }
 @media (max-width: 980px) {
+  .task-title h3 {
+    flex-basis: 100%;
+  }
   .task-row {
-    grid-template-columns: 4px 1fr auto;
+    grid-template-columns: 4px minmax(0, 1fr) auto;
+  }
+  .priority {
+    grid-column: 1;
+    grid-row: 1 / 4;
+  }
+  .task-main {
+    grid-column: 2;
+    grid-row: 1;
   }
   .meta {
-    display: none;
+    grid-column: 2;
+  }
+  .task-row > :last-child {
+    grid-column: 3;
+    grid-row: 1;
   }
 }
 @media (max-width: 700px) {

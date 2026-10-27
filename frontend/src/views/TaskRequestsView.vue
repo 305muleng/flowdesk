@@ -57,8 +57,8 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader eyebrow="TASK REQUESTS" title="我的任务申请" description="跟踪你向各项目提交的任务建议及审批结果。">
-    <el-button :icon="Refresh" circle @click="load" />
+  <PageHeader title="我的任务申请" description="跟踪你向各项目提交的任务建议及审批结果。">
+    <el-button :icon="Refresh" circle aria-label="刷新任务申请" title="刷新任务申请" @click="load" />
     <el-button type="primary" :icon="DocumentAdd" @click="$router.push('/projects')">前往项目提交申请</el-button>
   </PageHeader>
   <section class="toolbar">
@@ -150,6 +150,7 @@ onMounted(load)
 }
 .request-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   color: var(--muted);

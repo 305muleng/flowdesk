@@ -198,8 +198,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <PageHeader eyebrow="NOTIFICATIONS" title="通知中心" description="集中查看项目、任务与验收动态，并按需进入对应工作项。">
-    <el-button :icon="Refresh" circle :loading="loading" @click="load" />
+  <PageHeader title="通知中心" description="集中查看项目、任务与验收动态，并按需进入对应工作项。">
+    <el-button :icon="Refresh" circle aria-label="刷新通知列表" title="刷新通知列表" :loading="loading" @click="load" />
     <el-button :icon="Check" :loading="markingAll" :disabled="!hasUnread" @click="markAllRead"> 全部已读 </el-button>
   </PageHeader>
 
@@ -316,8 +316,13 @@ onMounted(() => {
   color: var(--brand);
   font-size: 18px;
 }
+.notification-main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .notification-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 9px;
 }
