@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("test")
 @IntegrationTest
 class TaskWorkIntegrationTest {
+    @Autowired org.springframework.context.ApplicationEventPublisher events;
     @Autowired JdbcTemplate jdbc;
     @Autowired TaskMapper tasks;
     @Autowired ProjectMapper projects;
@@ -50,7 +51,7 @@ class TaskWorkIntegrationTest {
     @BeforeEach
     void setup() {
         // 启用实际提醒事务服务，不启动后台调度，避免测试与扫描线程争用测试数据。
-        enabledReminders = proxy(new TaskReminderService(reminders, projects, tasks, notifications, true));
+        enabledReminders = proxy(new TaskReminderService(reminders, projects, tasks, notifications, events, true));
         service = proxy(new TaskService(tasks, projects, members, permissions, submissions, logs,
             notificationService, users, cache, enabledReminders));
     }

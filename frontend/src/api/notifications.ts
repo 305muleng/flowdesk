@@ -16,6 +16,9 @@ export interface NotificationItem {
 export const getNotificationsApi = (params: { page?: number; size?: number; readFilter?: string; category?: string } = {}) =>
   request.get<ApiResult<PageResult<NotificationItem>>>('/notifications', { params })
 
+export const getNotificationTicketApi = () =>
+  request.post<ApiResult<{ ticket: string; expiresAt: number }>>('/notifications/ws-ticket', undefined, { quiet: true })
+
 export const getUnreadNotificationCountApi = () => request.get<ApiResult<number>>('/notifications/unread-count')
 
 export const markNotificationReadApi = (notificationId: number) =>

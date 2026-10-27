@@ -1,0 +1,7 @@
+.git
+.idea
+.m2-cache
+target
+frontend/node_modules
+.env
+.env.*

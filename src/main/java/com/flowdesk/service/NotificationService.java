@@ -1,5 +1,8 @@
 package com.flowdesk.service;
 
+import com.flowdesk.event.NotificationCreatedEvent;
+import org.springframework.context.ApplicationEventPublisher;
+
 import com.flowdesk.enums.UserStatus;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -23,10 +26,12 @@ public class NotificationService {
 
     private final NotificationMapper notificationMapper;
     private final UserMapper userMapper;
+    private final ApplicationEventPublisher events;
 
-    public NotificationService(NotificationMapper notificationMapper, UserMapper userMapper) {
+    public NotificationService(NotificationMapper notificationMapper, UserMapper userMapper, ApplicationEventPublisher events) {
         this.notificationMapper = notificationMapper;
         this.userMapper = userMapper;
+        this.events = events;
     }
 
     public void createNotification(CreateNotificationDTO dto) {
@@ -52,7 +57,9 @@ public class NotificationService {
 
         notification.setCreatedAt(LocalDateTime.now());
 
-        notificationMapper.insert(notification);
+        if (notificationMapper.insert(notification) == 1) {
+            events.publishEvent(new NotificationCreatedEvent(notification.getId(), notification.getRecipientId(), notification.getTitle()));
+        }
     }
 
     public PageResult<NotificationVO> getMyNotifications(long page, long size, String readFilter, String category) {

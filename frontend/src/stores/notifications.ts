@@ -5,6 +5,8 @@ import { getUnreadNotificationCountApi, markAllNotificationsReadApi, markNotific
 export const useNotificationStore = defineStore('notifications', () => {
   const unreadCount = ref(0)
   const loading = ref(false)
+  const liveRevision = ref(0)
+  const liveIds = new Set<number>()
   const readNotificationIds = new Set<number>()
   const pendingReadRequests = new Map<number, Promise<void>>()
   let revision = 0
@@ -33,12 +35,18 @@ export const useNotificationStore = defineStore('notifications', () => {
     if (pendingRequest) return pendingRequest
 
     const startedAtGeneration = generation
+    const startedAtCountRequest = countRequest
+    const startedAtLiveRevision = liveRevision.value
     const request = markNotificationReadApi(notificationId)
-      .then(() => {
+      .then(async () => {
         if (startedAtGeneration !== generation) return
         readNotificationIds.add(notificationId)
         revision += 1
-        unreadCount.value = Math.max(0, unreadCount.value - 1)
+        if (countRequest === startedAtCountRequest && liveRevision.value === startedAtLiveRevision) {
+          unreadCount.value = Math.max(0, unreadCount.value - 1)
+        } else {
+          await loadUnreadCount().catch(() => undefined)
+        }
       })
       .finally(() => {
         if (pendingReadRequests.get(notificationId) === request) {
@@ -52,10 +60,31 @@ export const useNotificationStore = defineStore('notifications', () => {
 
   async function markAllAsRead() {
     const startedAtGeneration = generation
+    const startedAtCountRequest = countRequest
+    const startedAtLiveRevision = liveRevision.value
     await markAllNotificationsReadApi()
     if (startedAtGeneration !== generation) return
     revision += 1
-    unreadCount.value = 0
+    if (countRequest === startedAtCountRequest && liveRevision.value === startedAtLiveRevision) {
+      unreadCount.value = 0
+    } else {
+      await loadUnreadCount().catch(() => undefined)
+    }
+  }
+
+  function acceptLive(notificationId: number) {
+    if (liveIds.has(notificationId)) return false
+    liveIds.add(notificationId)
+    if (liveIds.size > 300) liveIds.delete(liveIds.values().next().value!)
+    revision += 1
+    liveRevision.value += 1
+    return true
+  }
+
+  async function syncLive() {
+    const startedAtGeneration = generation
+    await loadUnreadCount()
+    if (generation === startedAtGeneration) liveRevision.value += 1
   }
 
   function reset() {
@@ -64,9 +93,11 @@ export const useNotificationStore = defineStore('notifications', () => {
     generation += 1
     revision += 1
     unreadCount.value = 0
+    liveRevision.value = 0
+    liveIds.clear()
     readNotificationIds.clear()
     pendingReadRequests.clear()
   }
 
-  return { unreadCount, loading, loadUnreadCount, markAsRead, markAllAsRead, reset }
+  return { unreadCount, loading, liveRevision, acceptLive, syncLive, loadUnreadCount, markAsRead, markAllAsRead, reset }
 })

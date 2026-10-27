@@ -36,7 +36,7 @@ class ListPaginationServiceTest {
     ProjectTaskSummaryCache cache = mock(ProjectTaskSummaryCache.class);
     NotificationMapper notifications = mock(NotificationMapper.class);
     TaskQueryService taskService = new TaskQueryService(tasks, projects, permissions, mock(TaskSubmissionMapper.class), mock(TaskCommentMapper.class));
-    NotificationService notificationService = new NotificationService(notifications, mock(UserMapper.class));
+    NotificationService notificationService = new NotificationService(notifications, mock(UserMapper.class), mock(org.springframework.context.ApplicationEventPublisher.class));
 
     @BeforeEach
     void setup() {

@@ -59,6 +59,9 @@ public class NotificationServiceTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher events;
+
     @InjectMocks
     private NotificationService notificationService;
 

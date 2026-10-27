@@ -1,5 +1,8 @@
 package com.flowdesk.service;
 
+import com.flowdesk.event.NotificationCreatedEvent;
+import org.springframework.context.ApplicationEventPublisher;
+
 import com.flowdesk.enums.*;
 import com.flowdesk.mapper.*;
 import com.flowdesk.model.*;
@@ -17,14 +20,16 @@ public class TaskReminderService {
     private final TaskMapper tasks;
     private final NotificationMapper notifications;
     private final boolean enabled;
+    private final ApplicationEventPublisher events;
 
     public TaskReminderService(TaskReminderMapper reminders, ProjectMapper projects, TaskMapper tasks,
-                               NotificationMapper notifications,
+                               NotificationMapper notifications, ApplicationEventPublisher events,
                                @Value("${flowdesk.reminders.enabled:false}") boolean enabled) {
         this.reminders = reminders;
         this.projects = projects;
         this.tasks = tasks;
         this.notifications = notifications;
+        this.events = events;
         this.enabled = enabled;
     }
 
@@ -108,5 +113,6 @@ public class TaskReminderService {
         if (notifications.insert(notification) != 1 || reminders.finish(eventId, "DONE", now) != 1) {
             throw new IllegalStateException("提醒写入失败");
         }
+        events.publishEvent(new NotificationCreatedEvent(notification.getId(), recipient, notification.getTitle()));
     }
 }

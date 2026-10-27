@@ -15,6 +15,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
+import { useRealtimeNotifications } from '@/composables/useRealtimeNotifications'
 import { statusLabel } from '@/utils/format'
 
 const router = useRouter()
@@ -28,6 +29,7 @@ const activeMenu = computed(() => {
 })
 const auth = useAuthStore()
 const notifications = useNotificationStore()
+useRealtimeNotifications()
 function logout() {
   notifications.reset()
   auth.logout()
