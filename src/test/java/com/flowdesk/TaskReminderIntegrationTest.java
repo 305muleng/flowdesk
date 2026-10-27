@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("test")
 @IntegrationTest
 class TaskReminderIntegrationTest {
+    @Autowired org.springframework.context.ApplicationEventPublisher events;
     @Autowired JdbcTemplate jdbc;
     @Autowired TaskReminderMapper reminders;
     @Autowired ProjectMapper projects;
@@ -44,7 +45,7 @@ class TaskReminderIntegrationTest {
         key = "flowdesk:test:reminders:" + UUID.randomUUID();
         assertFalse(Boolean.TRUE.equals(redis.hasKey(key)));
         stream = new RedisReminderStream(redis, key);
-        var proxy = new ProxyFactory(new TaskReminderService(reminders, projects, tasks, notifications, true));
+        var proxy = new ProxyFactory(new TaskReminderService(reminders, projects, tasks, notifications, events, true));
         proxy.setProxyTargetClass(true);
         proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
         service = (TaskReminderService) proxy.getProxy();

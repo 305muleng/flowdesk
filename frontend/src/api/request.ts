@@ -2,6 +2,12 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import type { ApiResult } from '@/types/api'
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    quiet?: boolean
+  }
+}
+
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 10_000,
@@ -26,7 +32,7 @@ request.interceptors.response.use(
       localStorage.removeItem('flowdesk_user')
       if (location.pathname !== '/login') location.replace('/login')
     }
-    ElMessage.error(message)
+    if (!error.config?.quiet) ElMessage.error(message)
     return Promise.reject(error)
   },
 )

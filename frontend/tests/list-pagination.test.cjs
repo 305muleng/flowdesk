@@ -148,6 +148,7 @@ test('notification read and read-all reload filtered pages and global unread cou
     listing: list,
     readFilter: { value: 'UNREAD' },
     categoryFilter: { value: 'TASK' },
+    pendingLiveUpdate: { value: false },
     getNotificationsApi: async (params) => {
       calls.push(['list', params])
       return { data: { data: result(params.page, 0) } }

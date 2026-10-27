@@ -27,6 +27,7 @@ FlowDesk 是一个面向小型研发团队、具有交付验收要求的项目�
 | 数据访问 | MyBatis-Plus、MySQL |
 | 缓存 | Spring Data Redis、Redis |
 | 异步提醒 | Spring Scheduling、Redis Streams（需显式启用） |
+| 实时通知与部署 | Spring WebSocket、Nginx |
 | 认证 | JWT、BCrypt（Spring Security Crypto）、Interceptor、ThreadLocal |
 | 前端 | Vue 3、TypeScript、Element Plus、Pinia、Vue Router、Vite、ECharts |
 | 测试 | JUnit、Mockito、MockMvc、Node 测试 |
@@ -262,6 +263,16 @@ GET /tasks/my/summary
 维护者可查询 `task_reminder_event` 的 `state`、`attempts`、`last_error`、`next_publish_at` 定位积压；修复故障后等待自动重投，不提供公共重放接口。专用流 `flowdesk:reminders:stream:v1` 只有一个业务消费组 `task-reminders`，确认后删除正文，并限制保留长度；业务结果保留在数据库。长期事件归档和清理策略尚未实现，不应假定存储可无限增长。
 
 本模块保留规则及故障分支的替身测试，另有 TaskReminderIntegrationTest 使用专用 MySQL/Redis 验证事务回滚、重复消费、消费组待确认消息重领、流丢失后的数据库补发及计划变更。重建消费者实例不等于实际重启整台服务器；整套浏览器流程和真实进程重启另行验证。现有邀请、审批、禁用账号等通知保持原有同步或本地事件方式，没有整体迁移到 Stream。
+
+设计取舍、处理流程和对应测试见 [统计缓存与到期提醒设计](docs/cache-and-reminders.md)。
+
+### 通知实时推送与统一部署
+
+站内通知落库并提交后，通过 WebSocket 定向推送给在线接收人；普通通知及到期提醒使用同一推送入口。页面更新未读数并弹出提示，通知中心第一页自动刷新，历史页保留位置。断线重连后通过 HTTP 重新查询，数据库通知不依赖推送成功。
+
+连接使用最多 60 秒有效、一次性消费的 Redis 票据，不把 JWT 放入连接地址。握手检查来源及当前账号，服务端复查 JWT 有效期和账号状态，退出登录时前端关闭连接。目前只支持单应用实例的连接管理。
+
+Nginx 承载前端生产文件，并统一代理 /api/ 和 /ws/notifications。Compose 仅启动 Nginx，不操作现有数据库。部署步骤、配置与验证范围见 [通知实时推送与 Nginx 部署](docs/realtime-notifications.md)。
 
 ## 目录
 

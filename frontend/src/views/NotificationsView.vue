@@ -2,7 +2,7 @@
 import { Bell, Check, Refresh, Right } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import { usePagedList } from '@/composables/usePagedList'
 import { getNotificationsApi, type NotificationItem } from '@/api/notifications'
@@ -29,6 +29,8 @@ type CategoryFilter =
   | 'PROJECT_MEMBER_DISABLED'
 
 const router = useRouter()
+const route = useRoute()
+const pendingLiveUpdate = ref(false)
 const auth = useAuthStore()
 const notificationStore = useNotificationStore()
 const listing = usePagedList<NotificationItem>()
@@ -107,6 +109,7 @@ function actionFor(item: NotificationItem): NotificationAction | undefined {
 }
 
 async function load() {
+  pendingLiveUpdate.value = false
   const read = readFilter.value
   const category = categoryFilter.value
   await listing.load((page, size) => getNotificationsApi({ page, size, readFilter: read, category }).then((r) => r.data.data))
@@ -170,7 +173,28 @@ async function markAllRead() {
   }
 }
 
-onMounted(load)
+function handleLiveUpdate() {
+  if (!auth.token) return
+  if (page.value === 1) void load()
+  else pendingLiveUpdate.value = true
+}
+watch(() => notificationStore.liveRevision, handleLiveUpdate)
+function openLiveNotice() {
+  readFilter.value = 'UNREAD'
+  categoryFilter.value = 'ALL'
+  listing.reset()
+  void load()
+}
+watch(
+  () => route.query.notice,
+  (notice) => {
+    if (notice) openLiveNotice()
+  },
+)
+onMounted(() => {
+  if (route.query.notice) openLiveNotice()
+  else void load()
+})
 </script>
 
 <template>
@@ -179,6 +203,9 @@ onMounted(load)
     <el-button :icon="Check" :loading="markingAll" :disabled="!hasUnread" @click="markAllRead"> 全部已读 </el-button>
   </PageHeader>
 
+  <el-alert v-if="pendingLiveUpdate" title="通知列表可能有更新" type="info" :closable="false">
+    <template #default><el-button link type="primary" @click="load">刷新查看</el-button></template>
+  </el-alert>
   <el-alert v-if="error" class="load-error" :title="error" type="error" show-icon :closable="false">
     <template #default><el-button link type="primary" @click="load">重新加载</el-button></template>
   </el-alert>

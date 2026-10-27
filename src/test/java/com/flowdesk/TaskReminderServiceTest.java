@@ -21,7 +21,8 @@ class TaskReminderServiceTest {
     ProjectMapper projects = mock(ProjectMapper.class);
     TaskMapper tasks = mock(TaskMapper.class);
     NotificationMapper notifications = mock(NotificationMapper.class);
-    TaskReminderService service = new TaskReminderService(reminders, projects, tasks, notifications, true);
+    org.springframework.context.ApplicationEventPublisher events = mock(org.springframework.context.ApplicationEventPublisher.class);
+    TaskReminderService service = new TaskReminderService(reminders, projects, tasks, notifications, events, true);
     Project project;
     Task task;
     LocalDateTime now = LocalDateTime.of(2026, 10, 25, 10, 0);
@@ -66,7 +67,7 @@ class TaskReminderServiceTest {
 
     @Test
     void disabledModuleDoesNotAccessReminderOrTaskTables() {
-        new TaskReminderService(reminders, projects, tasks, notifications, false).syncTask(10L);
+        new TaskReminderService(reminders, projects, tasks, notifications, events, false).syncTask(10L);
         verifyNoInteractions(reminders, tasks, projects, notifications);
     }
 
