@@ -108,7 +108,7 @@ onMounted(load)
 }
 .invite-card {
   display: grid;
-  grid-template-columns: 52px 1fr auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
   padding: 22px 24px;
@@ -131,8 +131,13 @@ onMounted(load)
   font-weight: 800;
   font-size: 20px;
 }
+.invite-main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .invite-main > div {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }

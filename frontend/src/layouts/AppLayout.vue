@@ -31,7 +31,6 @@ const auth = useAuthStore()
 const notifications = useNotificationStore()
 useRealtimeNotifications()
 function logout() {
-  notifications.reset()
   auth.logout()
   router.replace('/login')
 }
@@ -40,7 +39,6 @@ function handleAccountCommand(command: string) {
   if (command === 'logout') logout()
 }
 onMounted(() => {
-  notifications.reset()
   notifications.loadUnreadCount().catch(() => undefined)
 })
 </script>
@@ -54,32 +52,32 @@ onMounted(() => {
       >
       <p v-if="!auth.isSystemAdmin" class="nav-label">工作空间</p>
       <el-menu v-if="!auth.isSystemAdmin" router :default-active="activeMenu" class="nav-menu">
-        <el-menu-item index="/dashboard"
+        <el-menu-item index="/dashboard" aria-label="工作台"
           ><el-icon><DataAnalysis /></el-icon><span>工作台</span></el-menu-item
         >
-        <el-menu-item index="/projects"
+        <el-menu-item index="/projects" aria-label="项目中心"
           ><el-icon><FolderOpened /></el-icon><span>项目中心</span></el-menu-item
         >
-        <el-menu-item index="/tasks"
+        <el-menu-item index="/tasks" aria-label="我的任务"
           ><el-icon><List /></el-icon><span>我的任务</span></el-menu-item
         >
-        <el-menu-item index="/task-requests"
+        <el-menu-item index="/task-requests" aria-label="任务申请"
           ><el-icon><Document /></el-icon><span>任务申请</span></el-menu-item
         >
-        <el-menu-item index="/invitations"
+        <el-menu-item index="/invitations" aria-label="项目邀请"
           ><el-icon><Bell /></el-icon><span>项目邀请</span></el-menu-item
         >
-        <el-menu-item index="/activity"
+        <el-menu-item index="/activity" aria-label="项目操作记录"
           ><el-icon><Timer /></el-icon><span>项目操作记录</span></el-menu-item
         >
       </el-menu>
       <template v-if="auth.isSystemAdmin">
         <p class="nav-label admin-label">系统管理</p>
         <el-menu router :default-active="activeMenu" class="nav-menu">
-          <el-menu-item index="/admin/acceptances"
+          <el-menu-item index="/admin/acceptances" aria-label="验收审核"
             ><el-icon><Check /></el-icon><span>验收审核</span></el-menu-item
           >
-          <el-menu-item index="/admin/users"
+          <el-menu-item index="/admin/users" aria-label="用户管理"
             ><el-icon><UserFilled /></el-icon><span>用户管理</span></el-menu-item
           >
         </el-menu>
@@ -95,10 +93,6 @@ onMounted(() => {
     </el-aside>
     <el-container class="content-shell">
       <el-header class="topbar">
-        <div>
-          <p>FLOWDESK WORKSPACE</p>
-          <h2>{{ ($route.meta.title as string) || '工作台' }}</h2>
-        </div>
         <div class="topbar-actions">
           <el-tooltip content="通知中心" placement="bottom">
             <el-badge :value="notifications.unreadCount" :hidden="notifications.unreadCount === 0" :max="99">
@@ -112,7 +106,7 @@ onMounted(() => {
             </el-badge>
           </el-tooltip>
           <el-dropdown trigger="click" placement="bottom-end" @command="handleAccountCommand">
-            <button class="account-trigger">
+            <button class="account-trigger" aria-label="账户菜单">
               <span class="session-dot" />
               <span class="account-copy"
                 ><strong>{{ auth.displayName }}</strong
@@ -240,41 +234,15 @@ onMounted(() => {
 }
 .topbar {
   height: auto;
-  padding: 27px 42px 20px;
+  padding: 20px 42px 12px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   background: var(--surface);
-}
-.topbar p {
-  margin: 0 0 5px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  color: #929db3;
-}
-.topbar h2 {
-  margin: 0;
-  font-size: 25px;
-  color: var(--ink);
-  letter-spacing: -0.035em;
-}
-.session {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #708077;
-  font-size: 12px;
-}
-.session span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #35a66f;
-  box-shadow: 0 0 0 4px #e3f6ed;
 }
 .main-content {
   padding: 0 42px 42px;
+  min-width: 0;
 }
 @media (max-width: 760px) {
   .sidebar {
@@ -283,7 +251,6 @@ onMounted(() => {
   }
   .logo {
     margin: 0 auto 30px;
-    font-size: 0;
   }
   .logo div,
   .nav-label,
@@ -300,9 +267,6 @@ onMounted(() => {
   .main-content {
     padding-left: 20px;
     padding-right: 20px;
-  }
-  .session {
-    display: none;
   }
 }
 .avatar {

@@ -67,6 +67,8 @@ public interface TaskSubmissionMapper extends BaseMapper<TaskSubmission> {
             ts.review_note AS reviewNote,
 
             ts.submitted_at AS submittedAt,
+            ts.deadline_at_submission AS deadlineAtSubmission,
+            (ts.submitted_at > ts.deadline_at_submission) AS lateSubmission,
             ts.reviewed_at AS reviewedAt
 
         FROM task_submission ts

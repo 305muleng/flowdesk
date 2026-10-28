@@ -13,42 +13,47 @@ import { formatDate, formatDateTime, statusLabel } from '@/utils/format'
 const router = useRouter()
 const profile = ref<UserProfile>()
 const projects = ref<Project[]>([])
-const tasks = ref<Task[]>([])
+const submittableTasks = ref<Task[]>([])
 const taskSummary = ref<MyTaskSummary | null>(null)
 let loadRevision = 0
 const projectRoles = ref(new Map<number, ProjectRole>())
 const loading = ref(false)
 const loadFailed = ref(false)
+const projectsLoadFailed = ref(false)
+const tasksLoadFailed = ref(false)
+const isSystemAdmin = computed(() => profile.value?.systemRole === 'SYSTEM_ADMIN')
 
 const displayName = computed(() => profile.value?.realName || profile.value?.username || 'FlowDesk 用户')
-const recentTasks = computed(() =>
-  tasks.value
-    .slice()
-    .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
-    .slice(0, 5),
-)
 const recentProjects = computed(() => projects.value.slice(0, 5))
 const projectNames = computed(() => new Map(projects.value.map((project) => [project.id, project.name])))
 
 async function load() {
   const revision = ++loadRevision
   loading.value = true
-  taskSummary.value = null
   loadFailed.value = false
+  projectsLoadFailed.value = false
+  tasksLoadFailed.value = false
+  taskSummary.value = null
   try {
-    const [profileResponse, projectResponse, taskResponse, summary] = await Promise.all([
-      getCurrentUserApi(),
+    const profileResponse = await getCurrentUserApi()
+    if (revision !== loadRevision) return
+    profile.value = profileResponse.data.data
+    projects.value = []
+    submittableTasks.value = []
+    projectRoles.value = new Map()
+    if (profile.value.systemRole === 'SYSTEM_ADMIN') return
+
+    const [projectResult, taskResult, summaryResult] = await Promise.allSettled([
       getMyProjectsApi(),
-      getMyTasksApi(),
-      getMyTaskSummaryApi()
-        .then((r) => r.data.data)
-        .catch(() => null),
+      getMyTasksApi({ page: 1, size: 5, projectScope: 'ACTIONABLE', status: 'IN_PROGRESS' }),
+      getMyTaskSummaryApi(),
     ])
     if (revision !== loadRevision) return
-    taskSummary.value = summary
-    profile.value = profileResponse.data.data
-    projects.value = projectResponse.data.data
-    tasks.value = taskResponse.data.data.records
+    projectsLoadFailed.value = projectResult.status === 'rejected'
+    tasksLoadFailed.value = taskResult.status === 'rejected'
+    projects.value = projectResult.status === 'fulfilled' ? projectResult.value.data.data : []
+    submittableTasks.value = taskResult.status === 'fulfilled' ? taskResult.value.data.data.records : []
+    taskSummary.value = summaryResult.status === 'fulfilled' ? summaryResult.value.data.data : null
 
     const membershipResults = await Promise.allSettled(
       projects.value
@@ -77,7 +82,7 @@ onMounted(load)
 
 <template>
   <section v-loading="loading" class="profile-page">
-    <el-result v-if="loadFailed && !profile" icon="error" title="个人资料加载失败" sub-title="请检查网络连接后重试">
+    <el-result v-if="loadFailed" icon="error" title="个人资料加载失败" sub-title="请检查网络连接后重试">
       <template #extra><el-button type="primary" :icon="Refresh" @click="load">重新加载</el-button></template>
     </el-result>
 
@@ -90,11 +95,20 @@ onMounted(load)
           <span>@{{ profile.username }}</span>
           <div class="identity-tags"><StatusTag :value="profile.systemRole" /><StatusTag :value="profile.status" /></div>
         </div>
-        <div class="account-note"><span />账号会话正常</div>
+        <div class="profile-actions">
+          <el-button :icon="Refresh" :loading="loading" aria-label="刷新个人资料" @click="load">刷新</el-button>
+          <div class="account-note"><span />账号会话正常</div>
+        </div>
       </header>
 
-      <section class="metrics">
-        <MetricCard label="参与项目" :value="projects.length" note="当前有效加入的项目" tone="blue"><FolderOpened /></MetricCard>
+      <section v-if="!isSystemAdmin" class="metrics">
+        <MetricCard
+          label="参与项目"
+          :value="projectsLoadFailed ? '—' : projects.length"
+          :note="projectsLoadFailed ? '项目数据加载失败' : '当前有效加入的项目'"
+          tone="blue"
+          ><FolderOpened
+        /></MetricCard>
         <MetricCard
           label="我的任务"
           :value="taskSummary?.totalTaskCount ?? '—'"
@@ -105,20 +119,20 @@ onMounted(load)
         <MetricCard
           label="进行中"
           :value="taskSummary?.inProgressTaskCount ?? '—'"
-          :note="taskSummary ? '正在执行的任务' : '统计暂不可用'"
+          :note="taskSummary ? '按任务状态统计，包含历史项目' : '统计暂不可用'"
           tone="green"
           ><Timer
         /></MetricCard>
         <MetricCard
           label="待我处理"
-          :value="taskSummary?.todoTaskCount ?? '—'"
-          :note="taskSummary ? '尚未开始的任务' : '统计暂不可用'"
+          :value="taskSummary?.actionableTaskCount ?? '—'"
+          :note="taskSummary ? '进行中项目的待开始和进行中任务' : '统计暂不可用'"
           tone="amber"
           ><UserFilled
         /></MetricCard>
       </section>
 
-      <section class="profile-grid">
+      <section class="profile-grid" :class="{ 'admin-profile': isSystemAdmin }">
         <article class="surface-card info-card">
           <div class="section-head">
             <div>
@@ -156,7 +170,7 @@ onMounted(load)
           <p class="security-copy">身份和账号状态由系统统一管理，普通用户无法自行修改。</p>
         </article>
 
-        <article class="surface-card list-card">
+        <article v-if="!isSystemAdmin" class="surface-card list-card">
           <div class="section-head">
             <div>
               <p>PROJECTS</p>
@@ -164,7 +178,10 @@ onMounted(load)
             </div>
             <el-button link type="primary" @click="router.push('/projects')">查看全部</el-button>
           </div>
-          <el-empty v-if="!recentProjects.length" description="暂未参与项目" :image-size="70" />
+          <el-alert v-if="projectsLoadFailed" title="项目列表加载失败，请重试" type="error" :closable="false">
+            <el-button link @click="load">重新加载</el-button>
+          </el-alert>
+          <el-empty v-else-if="!recentProjects.length" description="暂未参与项目" :image-size="70" />
           <button
             v-for="project in recentProjects"
             :key="project.id"
@@ -174,27 +191,34 @@ onMounted(load)
             <span class="project-mark">{{ project.name.slice(0, 1) }}</span>
             <span class="row-main"
               ><strong>{{ project.name }}</strong
-              ><small>{{ statusLabel(projectRoles.get(project.id)) }} · 更新于 {{ formatDate(project.updatedAt) }}</small></span
+              ><small
+                >{{ projectRoles.has(project.id) ? statusLabel(projectRoles.get(project.id)) : '角色暂不可用' }} · 更新于
+                {{ formatDate(project.updatedAt) }}</small
+              ></span
             >
             <StatusTag :value="project.status" />
           </button>
         </article>
       </section>
 
-      <article class="surface-card list-card tasks-card">
+      <article v-if="!isSystemAdmin" class="surface-card list-card tasks-card">
         <div class="section-head">
           <div>
-            <p>RECENT TASKS</p>
-            <h2>最近任务</h2>
+            <h2>待提交任务</h2>
+            <p class="task-scope">进行中项目里由你负责的进行中任务，按截止时间从早到晚展示前 5 项。</p>
           </div>
-          <el-button link type="primary" @click="router.push('/tasks')">查看全部</el-button>
+          <el-button link type="primary" @click="router.push('/tasks')">前往我的任务</el-button>
         </div>
-        <el-empty v-if="!recentTasks.length" description="当前没有分配给你的任务" :image-size="70" />
-        <button v-for="task in recentTasks" :key="task.id" class="task-row" @click="router.push('/tasks/' + task.id)">
+        <el-alert v-if="tasksLoadFailed" title="待提交任务加载失败，请重试" type="error" :closable="false">
+          <el-button link @click="load">重新加载</el-button>
+        </el-alert>
+        <el-empty v-else-if="!submittableTasks.length" description="当前没有可提交的进行中任务" :image-size="70" />
+        <button v-for="task in submittableTasks" :key="task.id" class="task-row" @click="router.push('/tasks/' + task.id)">
           <span class="row-main"
             ><strong>{{ task.title }}</strong
             ><small
-              >{{ projectNames.get(task.projectId) || '项目 #' + task.projectId }} · {{ formatDateTime(task.updatedAt) }}</small
+              >{{ task.projectName || projectNames.get(task.projectId) || '项目 #' + task.projectId }} · 截止
+              {{ formatDateTime(task.deadline) }}</small
             ></span
           >
           <span class="assignee">{{ task.assigneeName || '待分配' }}</span>
@@ -235,6 +259,7 @@ onMounted(load)
 }
 .identity {
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .identity > p,
 .section-head p {
@@ -261,6 +286,13 @@ onMounted(load)
   gap: 8px;
   margin-top: 13px;
 }
+.profile-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 .account-note {
   display: flex;
   align-items: center;
@@ -271,6 +303,17 @@ onMounted(load)
   background: #eff9f4;
   color: #267555;
   font-size: 12px;
+}
+.profile-grid.admin-profile {
+  grid-template-columns: 1fr;
+}
+.section-head .task-scope {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.6;
 }
 .account-note span {
   width: 7px;
@@ -316,7 +359,7 @@ dl {
 }
 dl > div {
   display: grid;
-  grid-template-columns: 105px 1fr;
+  grid-template-columns: 105px minmax(0, 1fr);
   gap: 15px;
   padding: 13px 0;
   border-bottom: 1px solid var(--line);
@@ -326,6 +369,7 @@ dt {
   font-size: 12px;
 }
 dd {
+  overflow-wrap: anywhere;
   margin: 0;
   color: var(--text);
   font-size: 13px;
@@ -384,6 +428,7 @@ dd {
   white-space: nowrap;
 }
 .row-main small {
+  overflow-wrap: anywhere;
   margin-top: 5px;
   color: var(--muted);
   font-size: 11px;
@@ -415,6 +460,10 @@ dd {
     flex-basis: 64px;
     border-radius: 18px;
     font-size: 25px;
+  }
+  .profile-actions {
+    width: 100%;
+    margin-left: 0;
   }
   .account-note {
     width: 100%;

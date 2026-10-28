@@ -22,7 +22,7 @@ const loading = ref(true)
 const projectLoadFailed = ref(false)
 const taskLoadFailed = ref(false)
 const projectProgress = ref<Record<number, number | null>>({})
-const greeting = computed(() => `${auth.displayName}，下午好`)
+const greeting = computed(() => `${auth.displayName}，你好`)
 const recentProjects = computed(() => projects.value.slice(0, 5))
 const activeProjects = computed(() =>
   projects.value.filter((item) => ['PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE'].includes(item.status)),
@@ -145,14 +145,18 @@ onMounted(load)
       <MetricCard
         label="活跃项目"
         :value="projectLoadFailed ? '—' : activeProjects.length"
-        :note="projectLoadFailed ? '项目数据加载失败' : '正在推进或等待验收'"
+        :note="projectLoadFailed ? '项目数据加载失败' : '准备中、进行中或等待验收'"
         tone="blue"
         ><FolderOpened
       /></MetricCard>
       <MetricCard
         label="我的待办"
         :value="myTaskSummary?.actionableTaskCount ?? '—'"
-        :note="myTaskSummary ? `${myTaskSummary.dueSoonTaskCount} 项三天内到期 · ${myTaskSummary.awaitingReviewTaskCount} 项等待审核` : '统计暂不可用'"
+        :note="
+          myTaskSummary
+            ? `${myTaskSummary.dueSoonTaskCount} 项三天内到期 · ${myTaskSummary.awaitingReviewTaskCount} 项等待审核`
+            : '统计暂不可用'
+        "
         tone="amber"
         ><List
       /></MetricCard>

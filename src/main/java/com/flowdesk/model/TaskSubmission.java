@@ -28,6 +28,7 @@ public class TaskSubmission {
     private String reviewNote;
 
     private LocalDateTime submittedAt;
+    private LocalDateTime deadlineAtSubmission;
     private LocalDateTime reviewedAt;
 
     public Long getId() {
@@ -117,6 +118,10 @@ public class TaskSubmission {
     public void setSubmittedAt(LocalDateTime submittedAt) {
         this.submittedAt = submittedAt;
     }
+
+    public LocalDateTime getDeadlineAtSubmission() { return deadlineAtSubmission; }
+
+    public void setDeadlineAtSubmission(LocalDateTime deadlineAtSubmission) { this.deadlineAtSubmission = deadlineAtSubmission; }
 
     public LocalDateTime getReviewedAt() {
         return reviewedAt;

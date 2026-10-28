@@ -23,6 +23,7 @@ public class TaskVO {
     private String priority;
 
     private LocalDateTime deadline;
+    private Boolean lateSubmission;
     private LocalDateTime completedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -122,6 +123,10 @@ public class TaskVO {
     public void setPriority(String priority) {
         this.priority = priority;
     }
+
+    public Boolean getLateSubmission() { return lateSubmission; }
+
+    public void setLateSubmission(Boolean lateSubmission) { this.lateSubmission = lateSubmission; }
 
     public LocalDateTime getDeadline() {
         return deadline;

@@ -127,6 +127,7 @@ export interface Task {
   priority?: Priority
   deadline: string
   completedAt?: string
+  lateSubmission?: boolean | null
   createdAt: string
   updatedAt: string
 }
@@ -175,6 +176,8 @@ export interface TaskSubmission {
   reviewerName?: string
   reviewNote?: string
   submittedAt: string
+  deadlineAtSubmission?: string | null
+  lateSubmission?: boolean | null
   reviewedAt?: string
 }
 

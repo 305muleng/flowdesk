@@ -163,9 +163,62 @@ class TaskReminderIntegrationTest {
         long current = plan();
         assertEquals("OVERDUE", jdbc.queryForObject("SELECT kind FROM task_reminder_event WHERE id = ?", String.class, current));
         service.deliver(current);
-        assertEquals(1, fixture.count("notification"));
+        assertEquals(2, fixture.count("notification"));
         assertEquals("TASK_OVERDUE", jdbc.queryForObject(
-            "SELECT type FROM notification WHERE project_id = ?", String.class, fixture.projectId));
+            "SELECT DISTINCT type FROM notification WHERE project_id = ?", String.class, fixture.projectId));
+    }
+
+    @Test
+    void overdueNotifiesAssigneeAndCurrentManagerOnlyOnce() {
+        jdbc.update("UPDATE task SET deadline=? WHERE id=?",LocalDateTime.now().minusHours(1).withNano(0),taskId);
+        long event=plan();
+        jdbc.update("UPDATE project_member SET role='DEVELOPER' WHERE project_id=? AND user_id=?",fixture.projectId,fixture.manager);
+        jdbc.update("UPDATE project_member SET role='PROJECT_MANAGER' WHERE project_id=? AND user_id=?",fixture.projectId,fixture.target);
+        service.deliver(event);service.deliver(event);
+        var recipients=jdbc.queryForList("SELECT recipient_id FROM notification WHERE project_id=?",Long.class,fixture.projectId);
+        assertEquals(2,recipients.size());assertEquals(java.util.Set.of(fixture.developer,fixture.target),java.util.Set.copyOf(recipients));
+        assertEquals("DONE",state(event));
+    }
+
+    @Test
+    void overdueAssigneeWhoIsManagerGetsOnlyOneNotification() {
+        jdbc.update("UPDATE task SET deadline=?,assignee_id=? WHERE id=?",LocalDateTime.now().minusHours(1).withNano(0),fixture.manager,taskId);
+        service.deliver(plan());assertEquals(1,fixture.count("notification"));
+        assertEquals(fixture.manager,jdbc.queryForObject("SELECT recipient_id FROM notification WHERE project_id=?",Long.class,fixture.projectId));
+    }
+
+    @Test
+    void secondRecipientFailureRollsBackBothNotificationAndEvent() {
+        jdbc.update("UPDATE task SET deadline=? WHERE id=?",LocalDateTime.now().minusHours(1).withNano(0),taskId);
+        long event=plan();var calls=new java.util.concurrent.atomic.AtomicInteger();
+        var failing=org.mockito.Mockito.mock(NotificationMapper.class);
+        org.mockito.Mockito.when(failing.insert(org.mockito.Mockito.any(com.flowdesk.model.Notification.class))).thenAnswer(call->{
+            if(calls.incrementAndGet()==2)throw new IllegalStateException("第二位接收人写入失败");
+            return notifications.insert(call.<com.flowdesk.model.Notification>getArgument(0));
+        });
+        var factory=new ProxyFactory(new TaskReminderService(reminders,projects,tasks,failing,events,true));
+        factory.setProxyTargetClass(true);factory.addAdvice(new TransactionInterceptor(transactions,new AnnotationTransactionAttributeSource()));
+        var failingService=(TaskReminderService)factory.getProxy();
+        assertThrows(IllegalStateException.class,()->failingService.deliver(event));
+        assertEquals(0,fixture.count("notification"));assertEquals("PENDING",state(event));
+        service.deliver(event);assertEquals(2,fixture.count("notification"));assertEquals("DONE",state(event));
+    }
+
+    @Test
+    void extendingAnOverdueTaskKeepsOldNotificationsAndAssignee() {
+        var old=LocalDateTime.now().minusHours(1).withNano(0);
+        jdbc.update("UPDATE task SET deadline=? WHERE id=?",old,taskId);
+        long event=plan();service.deliver(event);assertEquals(2,fixture.count("notification"));
+        var next=LocalDateTime.now().plusDays(2).withNano(0);
+        new TransactionTemplate(transactions).executeWithoutResult(tx->{
+            projects.selectByIdForUpdate(fixture.projectId);
+            jdbc.update("UPDATE task SET deadline=? WHERE id=?",next,taskId);service.syncTask(taskId);
+        });
+        service.planTask(taskId,LocalDateTime.now());service.deliver(event);
+        assertEquals(2,fixture.count("notification"));assertEquals("DONE",state(event));
+        assertEquals(2L,jdbc.queryForObject("SELECT revision FROM task_reminder_plan WHERE task_id=?",Long.class,taskId));
+        assertEquals(fixture.developer,jdbc.queryForObject("SELECT assignee_id FROM task WHERE id=?",Long.class,taskId));
+        assertTrue(jdbc.queryForObject("SELECT content FROM notification WHERE project_id=? LIMIT 1",String.class,fixture.projectId).contains(old.toString()));
     }
 
     private static byte[] bytes(String value) { return value.getBytes(StandardCharsets.UTF_8); }

@@ -356,6 +356,15 @@ public class TaskService {
             throw new BusinessException(409, "项目未处于进行中，不能提交任务");
         }
 
+        projectPermissionService.requireProjectMemberForUpdate(project.getId());
+        task = taskMapper.selectByIdForUpdate(taskId);
+        if (task == null || task.getDeletedAt() != null || !project.getId().equals(task.getProjectId())) {
+            throw new BusinessException(404, "任务不存在");
+        }
+        if (!currentUser.getUserId().equals(task.getAssigneeId())) {
+            throw new BusinessException(403, "只有任务负责人可以提交该任务");
+        }
+
         // 5. 只有进行中的任务才能提交审核
         if (!TaskStatus.IN_PROGRESS.equals(task.getStatus())) {
             throw new BusinessException(409, "只有进行中的任务可以提交审核");
@@ -406,6 +415,8 @@ public class TaskService {
 
         submission.setReviewStatus(TaskSubmissionStatus.PENDING);
         submission.setSubmittedAt(now);
+        // 截止时间取锁定后的任务值，后续调期不改写本次提交记录。
+        submission.setDeadlineAtSubmission(task.getDeadline());
 
         taskSubmissionMapper.insert(submission);
 
