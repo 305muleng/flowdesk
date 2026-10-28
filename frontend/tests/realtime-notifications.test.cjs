@@ -132,3 +132,116 @@ test('已读请求的晚响应不会重复扣减实时查询的新计数，也�
     assert.equal(store.unreadCount, expected)
   }
 })
+
+function realtimeSession() {
+  const { reactive, watch } = require('vue')
+  const connections = [], popups = [], pushes = [], replacements = [], listeners = new Map()
+  let unmount, logoutCount = 0
+  const auth = reactive({ token: 'account-a', logout() { logoutCount++; this.token = '' } })
+  const seen = new Set()
+  const notifications = {
+    unreadCount: 0, ready: 0,
+    reset() { this.unreadCount = 0; seen.clear() },
+    acceptLive(id) { if (seen.has(id)) return false; seen.add(id); return true },
+    async loadUnreadCount() { this.unreadCount++ },
+    async syncLive() { this.ready++ },
+  }
+  const context = { exports: {}, window: {
+    addEventListener(name, fn) { listeners.set(name, fn) },
+    removeEventListener(name, fn) { if (listeners.get(name) === fn) listeners.delete(name) },
+  }, require(id) {
+    if (id === 'vue') return { watch, onUnmounted: (fn) => { unmount = fn } }
+    if (id === 'vue-router') return { useRouter: () => ({ push: (value) => pushes.push(value), replace: (value) => replacements.push(value) }) }
+    if (id === 'element-plus') return { ElNotification: (options) => {
+      const popup = { options, closed: false, close() { this.closed = true; options.onClose?.() } }
+      popups.push(popup); return popup
+    } }
+    if (id === '@/api/notifications') return { getNotificationTicketApi: async () => ({ data: { data: { ticket: 'test' } } }) }
+    if (id === '@/stores/auth') return { useAuthStore: () => auth }
+    if (id === '@/stores/notifications') return { useNotificationStore: () => notifications }
+    if (id === '@/utils/notificationConnection') return { connectNotifications: (callbacks) => {
+      const connection = { callbacks, closed: false }; connections.push(connection)
+      return () => { connection.closed = true }
+    } }
+    return require(id)
+  } }
+  vm.runInNewContext(compile(read('composables/useRealtimeNotifications.ts')), context)
+  context.exports.useRealtimeNotifications()
+  return { auth, notifications, connections, popups, pushes, replacements, listeners, unmount: () => unmount(),
+    get logoutCount() { return logoutCount } }
+}
+
+test('退出立即清除旧弹窗和计数，晚消息与旧弹窗点击不再进入业务页', () => {
+  const s = realtimeSession(), first = s.connections[0]
+  first.callbacks.onNotification({ notificationId: 1, title: '旧账号任务' })
+  first.callbacks.onNotification({ notificationId: 2, title: '另一条任务' })
+  assert.equal(s.popups.length, 2); assert.equal(s.notifications.unreadCount, 2)
+  s.auth.logout()
+  assert.equal(first.closed, true); assert.equal(s.notifications.unreadCount, 0)
+  assert.ok(s.popups.every((popup) => popup.closed))
+  first.callbacks.onNotification({ notificationId: 3, title: '晚到的旧消息' })
+  s.popups[0].options.onClick()
+  assert.equal(s.popups.length, 2); assert.equal(s.pushes.length, 0)
+  s.unmount()
+})
+
+test('切换账号后旧连接失效回调不能登出新账号，新账号仍可正常收通知', async () => {
+  const s = realtimeSession(), old = s.connections[0]
+  old.callbacks.onNotification({ notificationId: 1, title: '账号 A' })
+  s.auth.token = 'account-b'
+  assert.equal(old.closed, true); assert.equal(s.popups[0].closed, true)
+  assert.equal(s.notifications.unreadCount, 0); assert.equal(s.connections.length, 2)
+  old.callbacks.onExpired(); await old.callbacks.onReady()
+  assert.equal(s.auth.token, 'account-b'); assert.equal(s.logoutCount, 0)
+  assert.equal(s.replacements.length, 0); assert.equal(s.notifications.ready, 0)
+  const fresh = s.connections[1]
+  await fresh.callbacks.onReady()
+  fresh.callbacks.onNotification({ notificationId: 1, title: '账号 B' })
+  assert.equal(s.notifications.ready, 1); assert.equal(s.popups.length, 2)
+  s.popups[1].options.onClick()
+  assert.equal(s.popups[1].closed, true); assert.equal(s.pushes[0].path, '/notifications')
+  s.unmount()
+})
+
+test('离开布局会清理弹窗、计数和监听，之后令牌变化不会重新连接', () => {
+  const s = realtimeSession()
+  s.connections[0].callbacks.onNotification({ notificationId: 1, title: '任务' })
+  s.unmount()
+  assert.equal(s.connections[0].closed, true); assert.equal(s.popups[0].closed, true)
+  assert.equal(s.notifications.unreadCount, 0); assert.equal(s.listeners.size, 0)
+  s.auth.token = 'account-b'
+  assert.equal(s.connections.length, 1)
+  s.connections[0].callbacks.onNotification({ notificationId: 2, title: '晚到消息' })
+  assert.equal(s.popups.length, 1)
+})
+
+test('登录过期和其他标签页退出均清理当前提示并回到登录页', () => {
+  for (const trigger of ['expired', 'storage']) {
+    const s = realtimeSession()
+    s.connections[0].callbacks.onNotification({ notificationId: 1, title: '任务' })
+    if (trigger === 'expired') s.connections[0].callbacks.onExpired()
+    else s.listeners.get('storage')({ key: 'flowdesk_token', newValue: null })
+    assert.equal(s.auth.token, ''); assert.equal(s.popups[0].closed, true)
+    assert.equal(s.notifications.unreadCount, 0); assert.equal(s.replacements[0], '/login')
+    s.unmount()
+  }
+})
+
+test('退出前发出的未读数和已读请求不能污染新会话', async () => {
+  const { createPinia, setActivePinia } = require('pinia'); setActivePinia(createPinia())
+  const counts = []; let finishRead
+  const context = { exports: {}, require: (id) => id === '@/api/notifications' ? {
+    getUnreadNotificationCountApi: () => new Promise((resolve) => counts.push(resolve)),
+    markNotificationReadApi: () => new Promise((resolve) => { finishRead = resolve }),
+    markAllNotificationsReadApi: async () => {},
+  } : require(id) }
+  vm.runInNewContext(compile(read('stores/notifications.ts')), context)
+  const store = context.exports.useNotificationStore()
+  const oldCount = store.loadUnreadCount(), oldRead = store.markAsRead(1)
+  store.reset()
+  const freshCount = store.loadUnreadCount()
+  counts[1]({ data: { data: 3 } }); await freshCount
+  counts[0]({ data: { data: 99 } }); await oldCount
+  finishRead(); await oldRead
+  assert.equal(store.unreadCount, 3); assert.equal(store.loading, false)
+})

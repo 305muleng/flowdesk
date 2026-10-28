@@ -17,6 +17,7 @@ import {
   type LeaveRequest,
 } from '@/api/membership'
 import StatusTag from '@/components/StatusTag.vue'
+import SubmissionTimingTag from '@/components/SubmissionTimingTag.vue'
 import AcceptanceSubmissionDialog from '@/components/AcceptanceSubmissionDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -577,7 +578,8 @@ onMounted(load)
                 ><small class="cell-note">{{ row.description || row.goal || '暂无描述' }}</small></template
               ></el-table-column
             ><el-table-column label="状态" width="110"
-              ><template #default="{ row }"><StatusTag :value="row.status" /></template></el-table-column
+              ><template #default="{ row }"
+                ><StatusTag :value="row.status" /><SubmissionTimingTag :late="row.lateSubmission" /></template></el-table-column
             ><el-table-column label="优先级" width="90"
               ><template #default="{ row }">{{ statusLabel(row.priority) }}</template></el-table-column
             ><el-table-column label="任务负责人" width="120"

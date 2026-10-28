@@ -10,34 +10,52 @@ export function useRealtimeNotifications() {
   const auth = useAuthStore()
   const notifications = useNotificationStore()
   const router = useRouter()
+  const popups = new Set<ReturnType<typeof ElNotification>>()
   let disconnect: (() => void) | undefined
+  let connectionRevision = 0
+
+  function clearSession() {
+    connectionRevision += 1
+    disconnect?.()
+    disconnect = undefined
+    for (const popup of popups) popup.close()
+    popups.clear()
+    notifications.reset()
+  }
+
   const stopWatching = watch(
     () => auth.token,
     (token) => {
-      disconnect?.()
-      disconnect = undefined
+      clearSession()
       if (!token) return
+      const revision = connectionRevision
+      const isCurrentSession = () => revision === connectionRevision && auth.token === token
       disconnect = connectNotifications({
         requestTicket: async () => (await getNotificationTicketApi()).data.data.ticket,
-        onReady: () => notifications.syncLive(),
+        onReady: () => {
+          if (isCurrentSession()) return notifications.syncLive()
+        },
         onExpired: () => {
-          notifications.reset()
+          if (!isCurrentSession()) return
           auth.logout()
           void router.replace('/login')
         },
         onNotification: (notification) => {
-          if (!notifications.acceptLive(notification.notificationId)) return
+          if (!isCurrentSession() || !notifications.acceptLive(notification.notificationId)) return
           void notifications.loadUnreadCount().catch(() => undefined)
           const popup = ElNotification({
             title: notification.title,
             message: '点击查看通知',
             type: 'info',
             duration: 5000,
+            onClose: () => popups.delete(popup),
             onClick: () => {
               popup.close()
+              if (!isCurrentSession()) return
               void router.push({ path: '/notifications', query: { notice: notification.notificationId } })
             },
           })
+          popups.add(popup)
         },
       })
     },
@@ -46,7 +64,6 @@ export function useRealtimeNotifications() {
 
   function onStorage(event: StorageEvent) {
     if (event.key === 'flowdesk_token' && !event.newValue) {
-      notifications.reset()
       auth.logout()
       void router.replace('/login')
     }
@@ -54,7 +71,7 @@ export function useRealtimeNotifications() {
   window.addEventListener('storage', onStorage)
   onUnmounted(() => {
     stopWatching()
-    disconnect?.()
+    clearSession()
     window.removeEventListener('storage', onStorage)
   })
 }

@@ -21,6 +21,19 @@ import java.util.List;
 @Mapper
 public interface TaskMapper extends BaseMapper<Task> {
 
+    // 取当前待审核或已通过的提交，审核耗时不参与逾期判断。
+    String SUBMISSION_TIMING_COLUMN = """
+        CASE WHEN t.status IN ('REVIEW', 'DONE') THEN (
+            SELECT ts.submitted_at > ts.deadline_at_submission
+            FROM task_submission ts
+            WHERE ts.task_id = t.id
+              AND ((t.status = 'REVIEW' AND ts.review_status = 'PENDING')
+                OR (t.status = 'DONE' AND ts.review_status = 'APPROVED'))
+            ORDER BY ts.submission_no DESC LIMIT 1
+        ) ELSE NULL END AS lateSubmission
+        """;
+
+
     @Select("""
         SELECT id FROM task
         WHERE project_id = #{projectId} AND assignee_id = #{assigneeId}
@@ -155,8 +168,8 @@ public interface TaskMapper extends BaseMapper<Task> {
             t.deadline AS deadline,
             t.completed_at AS completedAt,
             t.created_at AS createdAt,
-            t.updated_at AS updatedAt
-
+            t.updated_at AS updatedAt,
+        """ + SUBMISSION_TIMING_COLUMN + """
         FROM task t
         JOIN project p ON p.id = t.project_id AND p.deleted_at IS NULL
 
@@ -216,8 +229,8 @@ public interface TaskMapper extends BaseMapper<Task> {
             t.deadline AS deadline,
             t.completed_at AS completedAt,
             t.created_at AS createdAt,
-            t.updated_at AS updatedAt
-
+            t.updated_at AS updatedAt,
+        """ + SUBMISSION_TIMING_COLUMN + """
         FROM task t
         JOIN project p ON p.id = t.project_id AND p.deleted_at IS NULL
 
@@ -239,8 +252,8 @@ public interface TaskMapper extends BaseMapper<Task> {
            creator.real_name AS creatorName, t.assignee_id AS assigneeId,
            assignee.real_name AS assigneeName, t.title, t.description, t.goal,
            t.status, t.priority, t.deadline, t.completed_at AS completedAt,
-           t.created_at AS createdAt, t.updated_at AS updatedAt
-    """ + MY_TASK_SCOPE + """
+           t.created_at AS createdAt, t.updated_at AS updatedAt,
+    """ + SUBMISSION_TIMING_COLUMN + MY_TASK_SCOPE + """
     AND ((#{projectScope} = 'CURRENT' AND p.status IN ('PREPARING', 'IN_PROGRESS', 'PENDING_ACCEPTANCE'))
       OR (#{projectScope} = 'HISTORY' AND p.status IN ('COMPLETED', 'ARCHIVED', 'CANCELLED'))
       OR (#{projectScope} = 'ACTIONABLE' AND p.status = 'IN_PROGRESS' AND t.status IN ('TODO', 'IN_PROGRESS'))

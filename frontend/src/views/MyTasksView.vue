@@ -5,6 +5,7 @@ import { getMyTasksApi } from '@/api/tasks'
 import PageHeader from '@/components/PageHeader.vue'
 import { usePagedList } from '@/composables/usePagedList'
 import StatusTag from '@/components/StatusTag.vue'
+import SubmissionTimingTag from '@/components/SubmissionTimingTag.vue'
 import type { Task, TaskStatus } from '@/types/api'
 import { isActionableTask, taskWorkLabel } from '@/utils/taskWork'
 import { formatDateTime, isOverdue } from '@/utils/format'
@@ -78,7 +79,9 @@ onMounted(load)
       <div class="task-main">
         <div class="task-title">
           <h3>{{ task.title }}</h3>
-          <StatusTag :value="task.status" /><el-tag type="info">{{ taskWorkLabel(task) }}</el-tag>
+          <StatusTag :value="task.status" /><SubmissionTimingTag :late="task.lateSubmission" /><el-tag type="info">{{
+            taskWorkLabel(task)
+          }}</el-tag>
         </div>
         <p>{{ task.description || task.goal || '暂无任务说明' }}</p>
       </div>

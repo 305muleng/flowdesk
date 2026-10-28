@@ -39,6 +39,7 @@ class TaskReminderServiceTest {
         when(reminders.findEvent(20L)).thenReturn(event("DUE_SOON", "PENDING", 1));
         when(reminders.lockEvent(20L)).thenReturn(event("DUE_SOON", "PENDING", 1));
         when(reminders.effectiveAssignee(4L, 2L)).thenReturn(2L);
+        when(reminders.effectiveManager(4L)).thenReturn(3L);
         when(notifications.insert(any(Notification.class))).thenReturn(1);
         when(reminders.finish(eq(20L), anyString(), any())).thenReturn(1);
     }
@@ -166,7 +167,7 @@ class TaskReminderServiceTest {
         when(reminders.lockEvent(20L)).thenReturn(event("OVERDUE", "PENDING", 1));
         service.deliver(20L);
         var notification = ArgumentCaptor.forClass(Notification.class);
-        verify(notifications).insert(notification.capture());
+        verify(notifications, times(2)).insert(notification.capture());
         assertEquals("TASK_OVERDUE", notification.getValue().getType());
     }
 
@@ -197,7 +198,7 @@ class TaskReminderServiceTest {
         service.planTask(10L, LocalDateTime.now());
         service.deliver(20L);
         assertEquals("DONE", state.get());
-        verify(notifications, times(1)).insert(any(Notification.class));
+        verify(notifications, times(2)).insert(any(Notification.class));
     }
 
     @Test
@@ -217,5 +218,24 @@ class TaskReminderServiceTest {
         assertThrows(IllegalStateException.class, () -> ((TaskReminderService) factory.getProxy()).deliver(20L));
         assertEquals(1, tx.rollbacks);
         assertEquals(0, tx.commits);
+    }
+
+    @Test void overdueRemindsBothRolesAndDeduplicatesTheSamePerson() {
+        task.setDeadline(LocalDateTime.now().minusHours(1));
+        when(reminders.lockEvent(20L)).thenReturn(event("OVERDUE", "PENDING", 1));
+        service.deliver(20L);
+        var captured=ArgumentCaptor.forClass(Notification.class);
+        verify(notifications,times(2)).insert(captured.capture());
+        assertEquals(java.util.Set.of(2L,3L),captured.getAllValues().stream().map(Notification::getRecipientId).collect(java.util.stream.Collectors.toSet()));
+        reset(notifications);when(notifications.insert(any(Notification.class))).thenReturn(1);
+        when(reminders.effectiveManager(4L)).thenReturn(2L);
+        service.deliver(20L);verify(notifications).insert(any(Notification.class));
+    }
+
+    @Test void overdueCanStillReachTheAssigneeIfNoManagerIsEffective() {
+        task.setDeadline(LocalDateTime.now().minusHours(1));
+        when(reminders.lockEvent(20L)).thenReturn(event("OVERDUE", "PENDING", 1));
+        when(reminders.effectiveManager(4L)).thenReturn(null);
+        service.deliver(20L);verify(notifications).insert(any(Notification.class));
     }
 }

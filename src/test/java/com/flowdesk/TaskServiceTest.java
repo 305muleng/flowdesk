@@ -91,6 +91,7 @@ public class TaskServiceTest {
 
     @BeforeEach
     void setUpActiveUsers() {
+        lenient().when(taskMapper.selectByIdForUpdate(anyLong())).thenAnswer(call -> taskMapper.selectById(call.getArgument(0)));
         UserContext.set(new CurrentUser(1L, "USER"));
         lenient()
             .when(projectMemberMapper.selectMemberForUpdate(4L, 1L))

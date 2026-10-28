@@ -19,9 +19,10 @@ import {
   adjustTaskDeadlineApi,
 } from '@/api/tasks'
 import StatusTag from '@/components/StatusTag.vue'
+import SubmissionTimingTag from '@/components/SubmissionTimingTag.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { Project, ProjectMember, Task, TaskComment, TaskSubmission, UpdateTaskPayload } from '@/types/api'
-import { formatDateTime, statusLabel, projectRestrictionMessage } from '@/utils/format'
+import { formatDateTime, statusLabel, projectRestrictionMessage, isOverdue } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,7 +91,12 @@ function openDeadlineEdit() {
 async function saveDeadline() {
   if (deadlineSaving.value || actionBusy.value || !canAdjustDeadline.value) return
   const form = deadlineForm.value
-  if (!form.reason.trim() || !form.deadline || !Number.isFinite(Date.parse(form.deadline)) || Date.parse(form.deadline) <= Date.now()) {
+  if (
+    !form.reason.trim() ||
+    !form.deadline ||
+    !Number.isFinite(Date.parse(form.deadline)) ||
+    Date.parse(form.deadline) <= Date.now()
+  ) {
     ElMessage.warning('请填写调整原因，并选择晚于当前时间的新截止时间')
     return
   }
@@ -349,12 +355,24 @@ onMounted(load)
       />
       <article class="task-hero">
         <div class="hero-main">
-          <div class="eyebrow"><StatusTag :value="task.status" /><StatusTag :value="task.priority || 'MEDIUM'" /></div>
+          <div class="eyebrow">
+            <StatusTag :value="task.status" /><StatusTag :value="task.priority || 'MEDIUM'" />
+            <el-tag
+              v-if="
+                project?.status === 'IN_PROGRESS' && ['TODO', 'IN_PROGRESS'].includes(task.status) && isOverdue(task.deadline)
+              "
+              type="danger"
+              >已逾期</el-tag
+            >
+            <SubmissionTimingTag :late="task.lateSubmission" />
+          </div>
           <h1>{{ task.title }}</h1>
           <p>{{ task.description || '暂无任务描述' }}</p>
         </div>
         <div class="actions">
-          <el-button v-if="canAdjustDeadline" :disabled="actionBusy || deadlineSaving" @click="openDeadlineEdit">调整截止时间</el-button>
+          <el-button v-if="canAdjustDeadline" :disabled="actionBusy || deadlineSaving" @click="openDeadlineEdit"
+            >调整截止时间</el-button
+          >
           <el-button v-if="canEditTask" :disabled="editTaskSaving || actionBusy" @click="openTaskEdit">编辑资料</el-button>
           <el-button
             v-if="isManager && projectAllowsPlanning && task.status === 'IN_PROGRESS' && disabledAssignee"
@@ -437,12 +455,18 @@ onMounted(load)
               <div class="submission-card">
                 <div class="submission-head">
                   <strong>第 {{ submission.submissionNo }} 次提交</strong><StatusTag :value="submission.reviewStatus" />
+                  <SubmissionTimingTag :late="submission.lateSubmission" detailed />
                 </div>
                 <p>{{ submission.completionNote }}</p>
                 <p class="muted">测试说明：{{ submission.testNote }}</p>
                 <a v-if="submission.resultUrl" :href="submission.resultUrl" target="_blank" rel="noreferrer">查看交付结果 ↗</a>
                 <p v-if="submission.reviewNote" class="review-note">&#32;审核意见：{{ submission.reviewNote }}</p>
-                <small>{{ submission.submitterName }} · {{ formatDateTime(submission.submittedAt) }}</small>
+                <small>{{ submission.submitterName }} · 提交于 {{ formatDateTime(submission.submittedAt) }}</small>
+                <p class="muted">
+                  提交时截止时间：{{
+                    submission.deadlineAtSubmission ? formatDateTime(submission.deadlineAtSubmission) : '未记录'
+                  }}
+                </p>
               </div>
             </article>
           </div>
@@ -486,30 +510,62 @@ onMounted(load)
       </div>
     </template>
 
-    <el-dialog v-model="deadlineVisible" title="调整截止时间" width="min(92vw,520px)" :close-on-click-modal="!deadlineSaving" :close-on-press-escape="!deadlineSaving" :show-close="!deadlineSaving">
+    <el-dialog
+      v-model="deadlineVisible"
+      title="调整截止时间"
+      width="min(92vw,520px)"
+      :close-on-click-modal="!deadlineSaving"
+      :close-on-press-escape="!deadlineSaving"
+      :show-close="!deadlineSaving"
+    >
       <el-form label-position="top">
-        <el-form-item label="原截止时间"><span>{{ formatDateTime(deadlineForm.expectedDeadline) }}</span></el-form-item>
-        <el-form-item label="新截止时间" required><el-date-picker v-model="deadlineForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" /></el-form-item>
-        <el-form-item label="调整原因" required><el-input v-model="deadlineForm.reason" type="textarea" :rows="3" :maxlength="500" show-word-limit /></el-form-item>
+        <el-form-item label="原截止时间"
+          ><span>{{ formatDateTime(deadlineForm.expectedDeadline) }}</span></el-form-item
+        >
+        <el-form-item label="新截止时间" required
+          ><el-date-picker v-model="deadlineForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss"
+        /></el-form-item>
+        <el-form-item label="调整原因" required
+          ><el-input v-model="deadlineForm.reason" type="textarea" :rows="3" :maxlength="500" show-word-limit
+        /></el-form-item>
       </el-form>
-      <template #footer><el-button :disabled="deadlineSaving" @click="deadlineVisible = false">取消</el-button><el-button type="primary" :loading="deadlineSaving" @click="saveDeadline">保存调整</el-button></template>
+      <template #footer
+        ><el-button :disabled="deadlineSaving" @click="deadlineVisible = false">取消</el-button
+        ><el-button type="primary" :loading="deadlineSaving" @click="saveDeadline">保存调整</el-button></template
+      >
     </el-dialog>
     <el-dialog v-model="editTaskVisible" title="编辑任务资料" width="min(92vw,600px)" :close-on-click-modal="!editTaskSaving">
       <el-form label-position="top">
-        <el-form-item label="任务标题" required><el-input v-model="editTaskForm.title" :maxlength="200" show-word-limit /></el-form-item>
-        <el-form-item label="任务描述" required><el-input v-model="editTaskForm.description" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="任务标题" required
+          ><el-input v-model="editTaskForm.title" :maxlength="200" show-word-limit
+        /></el-form-item>
+        <el-form-item label="任务描述" required
+          ><el-input v-model="editTaskForm.description" type="textarea" :rows="3"
+        /></el-form-item>
         <el-form-item label="任务目标" required><el-input v-model="editTaskForm.goal" type="textarea" :rows="3" /></el-form-item>
-        <el-form-item label="优先级"><el-select v-model="editTaskForm.priority"><el-option label="低" value="LOW" /><el-option label="中" value="MEDIUM" /><el-option label="高" value="HIGH" /></el-select></el-form-item>
-        <el-form-item label="截止时间" required><el-date-picker v-model="editTaskForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" /></el-form-item>
+        <el-form-item label="优先级"
+          ><el-select v-model="editTaskForm.priority"
+            ><el-option label="低" value="LOW" /><el-option label="中" value="MEDIUM" /><el-option
+              label="高"
+              value="HIGH" /></el-select
+        ></el-form-item>
+        <el-form-item label="截止时间" required
+          ><el-date-picker v-model="editTaskForm.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss"
+        /></el-form-item>
       </el-form>
-      <template #footer><el-button :disabled="editTaskSaving" @click="editTaskVisible = false">取消</el-button><el-button type="primary" :loading="editTaskSaving" @click="saveTaskEdit">保存修改</el-button></template>
+      <template #footer
+        ><el-button :disabled="editTaskSaving" @click="editTaskVisible = false">取消</el-button
+        ><el-button type="primary" :loading="editTaskSaving" @click="saveTaskEdit">保存修改</el-button></template
+      >
     </el-dialog>
     <el-dialog v-model="submitVisible" title="提交任务成果" width="520px">
       <el-form label-position="top">
         <el-form-item label="完成说明" required
           ><el-input v-model="submitForm.completionNote" type="textarea" :rows="3"
         /></el-form-item>
-        <el-form-item label="成果链接"><el-input v-model="submitForm.resultUrl" :maxlength="500" show-word-limit placeholder="https://…" /></el-form-item>
+        <el-form-item label="成果链接"
+          ><el-input v-model="submitForm.resultUrl" :maxlength="500" show-word-limit placeholder="https://…"
+        /></el-form-item>
         <el-form-item label="测试说明" required
           ><el-input v-model="submitForm.testNote" type="textarea" :rows="3"
         /></el-form-item>
@@ -746,5 +802,8 @@ small {
   .panel {
     padding: 18px;
   }
+}
+.submission-head {
+  flex-wrap: wrap;
 }
 </style>

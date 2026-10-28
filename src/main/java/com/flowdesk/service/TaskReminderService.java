@@ -96,23 +96,33 @@ public class TaskReminderService {
             reminders.finish(eventId, "CANCELLED", now);
             return;
         }
-        Long recipient = task.getAssigneeId() == null ? null : reminders.effectiveAssignee(task.getProjectId(), task.getAssigneeId());
-        if (recipient == null) recipient = reminders.effectiveManager(task.getProjectId());
-        if (recipient == null) throw new IllegalStateException("没有有效的提醒接收人，保留事件等待重试");
-        Notification notification = new Notification();
-        notification.setRecipientId(recipient);
-        notification.setActorId(null);
-        notification.setType(kind.notificationType());
-        notification.setTitle(kind.title());
-        notification.setContent("任务“" + task.getTitle() + "”" + (kind == TaskReminderKind.DUE_SOON ? "将在24小时内到期" : "已超过截止时间")
-            + "，截止时间：" + task.getDeadline());
-        notification.setProjectId(task.getProjectId());
-        notification.setTargetType("TASK");
-        notification.setTargetId(task.getId());
-        notification.setCreatedAt(now);
-        if (notifications.insert(notification) != 1 || reminders.finish(eventId, "DONE", now) != 1) {
-            throw new IllegalStateException("提醒写入失败");
+        var recipients = new java.util.LinkedHashSet<Long>();
+        Long assignee = task.getAssigneeId() == null ? null : reminders.effectiveAssignee(task.getProjectId(), task.getAssigneeId());
+        if (assignee != null) recipients.add(assignee);
+        if (kind == TaskReminderKind.OVERDUE || recipients.isEmpty()) {
+            Long manager = reminders.effectiveManager(task.getProjectId());
+            if (manager != null) recipients.add(manager);
         }
-        events.publishEvent(new NotificationCreatedEvent(notification.getId(), recipient, notification.getTitle()));
+        if (recipients.isEmpty()) throw new IllegalStateException("没有有效的提醒接收人，保留事件等待重试");
+        var created = new java.util.ArrayList<Notification>();
+        for (Long recipient : recipients) {
+            Notification notification = new Notification();
+            notification.setRecipientId(recipient);
+            notification.setActorId(null);
+            notification.setType(kind.notificationType());
+            notification.setTitle(kind.title());
+            notification.setContent("任务“" + task.getTitle() + "”" + (kind == TaskReminderKind.DUE_SOON ? "将在24小时内到期" : "已超过截止时间")
+                + "，截止时间：" + task.getDeadline());
+            notification.setProjectId(task.getProjectId());
+            notification.setTargetType("TASK");
+            notification.setTargetId(task.getId());
+            notification.setCreatedAt(now);
+            if (notifications.insert(notification) != 1) throw new IllegalStateException("提醒写入失败");
+            created.add(notification);
+        }
+        if (reminders.finish(eventId, "DONE", now) != 1) throw new IllegalStateException("提醒状态更新失败");
+        for (var notification : created) {
+            events.publishEvent(new NotificationCreatedEvent(notification.getId(), notification.getRecipientId(), notification.getTitle()));
+        }
     }
 }

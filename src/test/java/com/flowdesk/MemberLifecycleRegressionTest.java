@@ -81,6 +81,7 @@ class MemberLifecycleRegressionTest {
 
     @BeforeEach
     void setup() {
+        lenient().when(tasks.selectByIdForUpdate(anyLong())).thenAnswer(call -> tasks.selectById(call.getArgument(0)));
         com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
             new org.apache.ibatis.builder.MapperBuilderAssistant(
                 new com.baomidou.mybatisplus.core.MybatisConfiguration(),

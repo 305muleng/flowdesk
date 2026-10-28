@@ -21,7 +21,9 @@ public class TaskSubmissionVO {
     private String reviewNote;
 
     private LocalDateTime submittedAt;
+    private LocalDateTime deadlineAtSubmission;
     private LocalDateTime reviewedAt;
+    private Boolean lateSubmission;
 
     public Long getId() {
         return id;
@@ -118,6 +120,14 @@ public class TaskSubmissionVO {
     public void setSubmittedAt(LocalDateTime submittedAt) {
         this.submittedAt = submittedAt;
     }
+
+    public LocalDateTime getDeadlineAtSubmission() { return deadlineAtSubmission; }
+
+    public void setDeadlineAtSubmission(LocalDateTime deadlineAtSubmission) { this.deadlineAtSubmission = deadlineAtSubmission; }
+
+    public Boolean getLateSubmission() { return lateSubmission; }
+
+    public void setLateSubmission(Boolean lateSubmission) { this.lateSubmission = lateSubmission; }
 
     public LocalDateTime getReviewedAt() {
         return reviewedAt;

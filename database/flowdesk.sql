@@ -216,6 +216,7 @@ CREATE TABLE `task_submission` (
   `reviewer_id` bigint DEFAULT NULL,
   `review_note` text,
   `submitted_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `deadline_at_submission` datetime DEFAULT NULL COMMENT '本次提交时生效的截止时间',
   `reviewed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_submission_task_no` (`task_id`,`submission_no`),

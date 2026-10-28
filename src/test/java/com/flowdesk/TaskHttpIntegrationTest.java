@@ -86,6 +86,42 @@ class TaskHttpIntegrationTest {
         }
     }
 
+    @Test
+    void submittableTasksAreFilteredBeforeTakingTheEarliestFive() throws Exception {
+        try (var f = ProjectFixture.create(jdbc)) {
+            LocalDateTime earliest = LocalDateTime.now().minusHours(2).withNano(0);
+            var expected = new java.util.ArrayList<Long>();
+            for (int i = 6; i >= 0; i--) {
+                long task = f.task(f.developer, earliest.plusHours(i));
+                jdbc.update("UPDATE task SET status='IN_PROGRESS' WHERE id=?", task);
+                expected.add(0, task);
+            }
+            for (String status : java.util.List.of("TODO", "REVIEW", "DONE", "CANCELLED")) {
+                long task = f.task(f.developer, earliest.minusDays(1));
+                jdbc.update("UPDATE task SET status=? WHERE id=?", status, task);
+            }
+            String token = login(f.developer);
+            String path = "/tasks/my?page=1&size=5&projectScope=ACTIONABLE&status=IN_PROGRESS";
+            var response = send("GET", path, token, null);
+            assertEquals(200, response.statusCode());
+            var data = mapper.readTree(response.body()).get("data");
+            assertEquals(7, data.get("total").asInt());
+            assertEquals(5, data.get("records").size());
+            for (int i = 0; i < 5; i++) {
+                assertEquals(expected.get(i).longValue(), data.get("records").get(i).get("id").asLong());
+                assertEquals("IN_PROGRESS", data.get("records").get(i).get("status").asString());
+            }
+            for (String status : java.util.List.of("PREPARING", "PENDING_ACCEPTANCE", "COMPLETED", "ARCHIVED", "CANCELLED")) {
+                jdbc.update("UPDATE project SET status=? WHERE id=?", status, f.projectId);
+                var unavailable = mapper.readTree(send("GET", path, token, null).body()).get("data");
+                assertEquals(0, unavailable.get("total").asInt(), status);
+            }
+            jdbc.update("UPDATE project SET status='IN_PROGRESS' WHERE id=?", f.projectId);
+            jdbc.update("UPDATE project_member SET status='INACTIVE' WHERE project_id=? AND user_id=?", f.projectId, f.developer);
+            assertEquals(0, mapper.readTree(send("GET", path, token, null).body()).get("data").get("total").asInt());
+        }
+    }
+
     private String login(long userId) throws Exception {
         String username = jdbc.queryForObject("SELECT username FROM user WHERE id=?", String.class, userId);
         var result = send("POST", "/users/login", null, mapper.writeValueAsString(Map.of("username", username, "password", "test-only")));

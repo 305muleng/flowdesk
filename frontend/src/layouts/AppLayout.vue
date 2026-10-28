@@ -31,7 +31,6 @@ const auth = useAuthStore()
 const notifications = useNotificationStore()
 useRealtimeNotifications()
 function logout() {
-  notifications.reset()
   auth.logout()
   router.replace('/login')
 }
@@ -40,7 +39,6 @@ function handleAccountCommand(command: string) {
   if (command === 'logout') logout()
 }
 onMounted(() => {
-  notifications.reset()
   notifications.loadUnreadCount().catch(() => undefined)
 })
 </script>

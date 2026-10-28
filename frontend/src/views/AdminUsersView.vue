@@ -14,6 +14,7 @@ const loading = ref(false)
 const error = ref('')
 const total = ref(0)
 const pages = ref(0)
+let loadRevision = 0
 const processingIds = ref(new Set<number>())
 const query = reactive<{
   page: number
@@ -40,23 +41,31 @@ function requestParams(): AdminUserQuery {
 }
 
 async function load() {
+  const revision = ++loadRevision
+  const params = requestParams()
   loading.value = true
   error.value = ''
   try {
-    let result = (await getAdminUsersApi(requestParams())).data.data
-    if (!result.records.length && result.total > 0 && query.page > result.pages) {
-      query.page = Math.max(1, result.pages)
-      result = (await getAdminUsersApi(requestParams())).data.data
+    let result = (await getAdminUsersApi(params)).data.data
+    if (revision !== loadRevision) return
+    if (!result.records.length && result.total > 0 && (params.page ?? 1) > result.pages) {
+      result = (await getAdminUsersApi({ ...params, page: Math.max(1, result.pages) })).data.data
+      if (revision !== loadRevision) return
     }
     users.value = result.records
     total.value = result.total
-    query.page = result.page
+    query.page = result.total === 0 ? 1 : result.page
     query.size = result.size
     pages.value = result.pages
   } catch {
-    error.value = '用户列表加载失败，请稍后重试。'
+    if (revision === loadRevision) {
+      users.value = []
+      total.value = 0
+      pages.value = 0
+      error.value = '用户列表加载失败，请稍后重试。'
+    }
   } finally {
-    loading.value = false
+    if (revision === loadRevision) loading.value = false
   }
 }
 
@@ -78,13 +87,20 @@ function isCurrentUser(user: AdminUser) {
 }
 
 async function changeStatus(user: AdminUser) {
+  if (processingIds.value.has(user.id)) return
   const disabling = user.status === 'ACTIVE'
   const action = disabling ? '禁用' : '恢复'
-  await ElMessageBox.confirm(`确定${action}用户 ${user.username} 吗？`, `${action}用户`, {
-    type: disabling ? 'warning' : 'info',
-    confirmButtonText: `确认${action}`,
-    cancelButtonText: '取消',
-  })
+  try {
+    await ElMessageBox.confirm(`确定${action}用户 ${user.username} 吗？`, `${action}用户`, {
+      type: disabling ? 'warning' : 'info',
+      confirmButtonText: `确认${action}`,
+      cancelButtonText: '取消',
+    })
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    throw error
+  }
+  if (processingIds.value.has(user.id)) return
 
   processingIds.value = new Set(processingIds.value).add(user.id)
   try {
