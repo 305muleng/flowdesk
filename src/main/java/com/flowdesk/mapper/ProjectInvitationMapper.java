@@ -15,6 +15,18 @@ import java.util.List;
 
 @Mapper
 public interface ProjectInvitationMapper extends BaseMapper<ProjectInvitation> {
+    @Select("""
+        SELECT id FROM project_invitation
+        WHERE project_id = #{projectId} AND invitee_id = #{inviteeId}
+          AND status = 'PENDING' AND expires_at > #{now}
+        LIMIT 1 FOR UPDATE
+        """)
+    Long selectPendingForInviteeForUpdate(@Param("projectId") Long projectId,
+        @Param("inviteeId") Long inviteeId, @Param("now") LocalDateTime now);
+
+    @Select("SELECT * FROM project_invitation WHERE id = #{invitationId} FOR UPDATE")
+    ProjectInvitation selectByIdForUpdate(@Param("invitationId") Long invitationId);
+
     @Update("""
         UPDATE project_invitation
         SET status = 'CLOSED', closed_at = #{closedAt}, close_reason = #{closeReason}

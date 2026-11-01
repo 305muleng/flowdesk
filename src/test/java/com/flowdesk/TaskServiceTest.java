@@ -91,6 +91,8 @@ public class TaskServiceTest {
 
     @BeforeEach
     void setUpActiveUsers() {
+        lenient().when(userMapper.selectByIdForShare(anyLong()))
+            .thenAnswer(call -> userMapper.selectById(call.getArgument(0)));
         lenient().when(taskMapper.selectByIdForUpdate(anyLong())).thenAnswer(call -> taskMapper.selectById(call.getArgument(0)));
         UserContext.set(new CurrentUser(1L, "USER"));
         lenient()
@@ -470,7 +472,7 @@ public class TaskServiceTest {
 
         // 7. 模拟第一次提交
         // SQL 中 COALESCE(MAX(submission_no), 0) 应该返回 0
-        when(taskSubmissionMapper.selectMaxSubmissionNo(10L)).thenReturn(0);
+        when(taskSubmissionMapper.selectLatestSubmissionNoForUpdate(10L)).thenReturn(0);
 
         // 8. 模拟数据库插入后生成 id
         doAnswer(invocation -> {
@@ -658,7 +660,7 @@ public class TaskServiceTest {
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        when(taskSubmissionMapper.selectMaxSubmissionNo(10L)).thenReturn(0);
+        when(taskSubmissionMapper.selectLatestSubmissionNoForUpdate(10L)).thenReturn(0);
 
         when(projectMemberMapper.selectList(any())).thenReturn(List.of(manager));
 
@@ -723,7 +725,7 @@ public class TaskServiceTest {
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+        when(taskSubmissionMapper.selectPendingSubmissionForUpdate(10L)).thenReturn(submission);
 
         taskService.reviewTask(10L, dto);
         verify(taskReminderService).syncTask(10L);
@@ -781,7 +783,7 @@ public class TaskServiceTest {
 
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
 
-        when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+        when(taskSubmissionMapper.selectPendingSubmissionForUpdate(10L)).thenReturn(submission);
 
         taskService.reviewTask(10L, dto);
 
@@ -850,7 +852,7 @@ public class TaskServiceTest {
         UserContext.set(new CurrentUser(1L, "USER"));
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+        when(taskSubmissionMapper.selectPendingSubmissionForUpdate(10L)).thenReturn(submission);
         when(taskMapper.transitionStatusIfCurrent(eq(10L), eq(TaskStatus.REVIEW), eq(TaskStatus.DONE), any(), any())).thenReturn(
             0
         );
@@ -887,7 +889,7 @@ public class TaskServiceTest {
         dto.setReviewNote("  ");
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(project);
-        when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+        when(taskSubmissionMapper.selectPendingSubmissionForUpdate(10L)).thenReturn(submission);
 
         BusinessException exception = assertThrows(BusinessException.class, () -> taskService.reviewTask(10L, dto));
 
@@ -975,14 +977,14 @@ public class TaskServiceTest {
     void activeProjectLocksBeforeTaskWrite(String operation, String taskStatus, String projectStatus) {
         Task task = mockTaskWriteContext(taskStatus, projectStatus);
         if ("SUBMIT".equals(operation)) {
-            when(taskSubmissionMapper.selectMaxSubmissionNo(10L)).thenReturn(0);
+            when(taskSubmissionMapper.selectLatestSubmissionNoForUpdate(10L)).thenReturn(0);
         }
         if ("APPROVE".equals(operation) || "REJECT".equals(operation)) {
             TaskSubmission submission = new TaskSubmission();
             submission.setId(100L);
             submission.setTaskId(10L);
             submission.setReviewStatus(TaskSubmissionStatus.PENDING);
-            when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+            when(taskSubmissionMapper.selectPendingSubmissionForUpdate(10L)).thenReturn(submission);
         }
 
         performTaskWrite(operation);
@@ -1204,7 +1206,7 @@ public class TaskServiceTest {
     void submittingTaskRegistersCacheEviction() {
         mockTaskWriteContext("IN_PROGRESS", "IN_PROGRESS");
 
-        when(taskSubmissionMapper.selectMaxSubmissionNo(10L)).thenReturn(0);
+        when(taskSubmissionMapper.selectLatestSubmissionNoForUpdate(10L)).thenReturn(0);
 
         when(projectMemberMapper.selectList(any())).thenReturn(List.of());
 
@@ -1232,7 +1234,7 @@ public class TaskServiceTest {
         submission.setSubmissionNo(1);
         submission.setReviewStatus(TaskSubmissionStatus.PENDING);
 
-        when(taskSubmissionMapper.selectPendingSubmission(10L)).thenReturn(submission);
+        when(taskSubmissionMapper.selectPendingSubmissionForUpdate(10L)).thenReturn(submission);
 
         performTaskWrite(action);
 

@@ -81,6 +81,8 @@ class MemberLifecycleRegressionTest {
 
     @BeforeEach
     void setup() {
+        lenient().when(users.selectByIdForShare(anyLong()))
+            .thenAnswer(call -> users.selectById(call.getArgument(0)));
         lenient().when(tasks.selectByIdForUpdate(anyLong())).thenAnswer(call -> tasks.selectById(call.getArgument(0)));
         com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
             new org.apache.ibatis.builder.MapperBuilderAssistant(
@@ -381,7 +383,7 @@ class MemberLifecycleRegressionTest {
         submission.setId(30L);
         submission.setSubmitterId(2L);
         submission.setReviewStatus(TaskSubmissionStatus.PENDING);
-        when(submissions.selectPendingSubmission(10L)).thenReturn(submission);
+        when(submissions.selectPendingSubmissionForUpdate(10L)).thenReturn(submission);
         User u = user();
         u.setStatus(UserStatus.DISABLED);
         when(users.selectById(2L)).thenReturn(u);
@@ -528,7 +530,7 @@ class MemberLifecycleRegressionTest {
         when(
             tasks.transitionAssigneeTaskIfCurrent(eq(10L), eq(1L), eq(TaskStatus.IN_PROGRESS), eq(TaskStatus.REVIEW), any())
         ).thenReturn(1);
-        when(submissions.selectMaxSubmissionNo(10L)).thenReturn(0);
+        when(submissions.selectLatestSubmissionNoForUpdate(10L)).thenReturn(0);
         SubmitTaskDTO dto = new SubmitTaskDTO();
         dto.setCompletionNote("完成");
         dto.setTestNote("测试通过");

@@ -60,7 +60,7 @@ class StatusCodeMappingTest {
                 TaskSubmissionMapper.class,
                 "reviewStatus",
                 "review_status",
-                "selectPendingSubmission"
+                "selectPendingSubmissionForUpdate"
             ),
             new Mapping(
                 ProjectInvitation.class,

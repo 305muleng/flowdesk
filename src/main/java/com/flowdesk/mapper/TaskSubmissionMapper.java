@@ -17,11 +17,13 @@ import java.util.List;
 @Mapper
 public interface TaskSubmissionMapper extends BaseMapper<TaskSubmission> {
     @Select("""
-            SELECT COALESCE(MAX(submission_no), 0)
+            SELECT submission_no
             FROM task_submission
             WHERE task_id = #{taskId}
+            ORDER BY submission_no DESC
+            LIMIT 1 FOR UPDATE
             """)
-    Integer selectMaxSubmissionNo(@Param("taskId") Long taskId);
+    Integer selectLatestSubmissionNoForUpdate(@Param("taskId") Long taskId);
 
     @Select("""
         SELECT *
@@ -29,9 +31,9 @@ public interface TaskSubmissionMapper extends BaseMapper<TaskSubmission> {
         WHERE task_id = #{taskId}
           AND review_status = 'PENDING'
         ORDER BY submission_no DESC
-        LIMIT 1
+        LIMIT 1 FOR UPDATE
         """)
-    TaskSubmission selectPendingSubmission(@Param("taskId") Long taskId);
+    TaskSubmission selectPendingSubmissionForUpdate(@Param("taskId") Long taskId);
 
     @Update("""
             UPDATE task_submission

@@ -275,6 +275,13 @@ public class TaskService {
             throw new BusinessException(409, "项目未处于进行中，不能开始任务");
         }
 
+        projectPermissionService.requireProjectMemberForUpdate(project.getId());
+        // 等待项目锁后，使用当前任务数据进行判断。
+        task = taskMapper.selectByIdForUpdate(taskId);
+        if (task == null || task.getDeletedAt() != null || !project.getId().equals(task.getProjectId())) {
+            throw new BusinessException(404, "任务不存在");
+        }
+
         // 4. 任务必须已经分配负责人
         if (task.getAssigneeId() == null) {
             throw new BusinessException(409, "任务尚未分配负责人");
@@ -398,9 +405,9 @@ public class TaskService {
         }
 
         // 6. 计算这是第几次提交
-        Integer maxSubmissionNo = taskSubmissionMapper.selectMaxSubmissionNo(taskId);
+        Integer latestSubmissionNo = taskSubmissionMapper.selectLatestSubmissionNoForUpdate(taskId);
 
-        int submissionNo = maxSubmissionNo + 1;
+        int submissionNo = latestSubmissionNo == null ? 1 : latestSubmissionNo + 1;
 
         // 7. 保存提交记录
         TaskSubmission submission = new TaskSubmission();
@@ -509,13 +516,19 @@ public class TaskService {
             throw new BusinessException(409, "项目未处于进行中，不能审核任务");
         }
 
+        // 等待项目锁后，使用当前任务数据进行判断。
+        task = taskMapper.selectByIdForUpdate(taskId);
+        if (task == null || task.getDeletedAt() != null || !project.getId().equals(task.getProjectId())) {
+            throw new BusinessException(404, "任务不存在");
+        }
+
         // 4. 任务必须正在等待审核
         if (!TaskStatus.REVIEW.equals(task.getStatus())) {
             throw new BusinessException(409, "当前任务不处于待审核状态");
         }
 
         // 5. 找到当前待审核的提交记录
-        TaskSubmission submission = taskSubmissionMapper.selectPendingSubmission(taskId);
+        TaskSubmission submission = taskSubmissionMapper.selectPendingSubmissionForUpdate(taskId);
 
         if (submission == null) {
             throw new BusinessException(409, "没有找到待审核的任务提交记录");
@@ -718,6 +731,12 @@ public class TaskService {
             throw new BusinessException(403, "你不是该项目的有效负责人");
         }
 
+        // 等待项目锁后，使用当前任务数据进行判断。
+        task = taskMapper.selectByIdForUpdate(taskId);
+        if (task == null || task.getDeletedAt() != null || !project.getId().equals(task.getProjectId())) {
+            throw new BusinessException(404, "任务不存在");
+        }
+
         // 3. 只有 TODO 状态允许分配 / 重新分配
         if (!TaskStatus.TODO.equals(task.getStatus())) {
             throw new BusinessException(409, "只有待处理任务可以分配负责人");
@@ -908,7 +927,7 @@ public class TaskService {
     }
 
     private boolean isActiveOrdinaryUser(Long userId) {
-        User user = userMapper.selectById(userId);
+        User user = userMapper.selectByIdForShare(userId);
         return user != null && user.isActiveOrdinaryUser();
     }
 
@@ -939,6 +958,12 @@ public class TaskService {
         // PREPARING 和 IN_PROGRESS 阶段允许处理任务
         if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
             throw new BusinessException(409, "当前项目状态不允许取消任务");
+        }
+
+        // 等待项目锁后，使用当前任务数据进行判断。
+        task = taskMapper.selectByIdForUpdate(taskId);
+        if (task == null || task.getDeletedAt() != null || !project.getId().equals(task.getProjectId())) {
+            throw new BusinessException(404, "任务不存在");
         }
 
         // 4. 只允许 TODO / IN_PROGRESS 取消

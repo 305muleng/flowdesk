@@ -85,7 +85,7 @@ public class ProjectInvitationService {
         String username = dto.getUsername().trim();
 
         // 2. 根据用户名查询被邀请人
-        User invitee = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
+        User invitee = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username).last("FOR SHARE"));
 
         if (invitee == null) {
             throw new BusinessException(404, "被邀请用户不存在");
@@ -106,11 +106,7 @@ public class ProjectInvitationService {
         }
 
         // 5. 已经是有效成员，不能重复邀请
-        ProjectMember existingMember = projectMemberMapper.selectOne(
-            new LambdaQueryWrapper<ProjectMember>()
-                .eq(ProjectMember::getProjectId, projectId)
-                .eq(ProjectMember::getUserId, invitee.getId())
-        );
+        ProjectMember existingMember = projectMemberMapper.selectMemberForUpdate(projectId, invitee.getId());
 
         if (existingMember != null && ProjectMemberStatus.ACTIVE.equals(existingMember.getStatus())) {
             throw new BusinessException(409, "该用户已经是项目成员");
@@ -119,15 +115,9 @@ public class ProjectInvitationService {
         LocalDateTime now = LocalDateTime.now();
 
         // 6. 已经存在仍然有效的 PENDING 邀请，不能重复发送
-        Long pendingCount = projectInvitationMapper.selectCount(
-            new LambdaQueryWrapper<ProjectInvitation>()
-                .eq(ProjectInvitation::getProjectId, projectId)
-                .eq(ProjectInvitation::getInviteeId, invitee.getId())
-                .eq(ProjectInvitation::getStatus, ProjectInvitationStatus.PENDING)
-                .gt(ProjectInvitation::getExpiresAt, now)
-        );
+        Long pendingInvitation = projectInvitationMapper.selectPendingForInviteeForUpdate(projectId, invitee.getId(), now);
 
-        if (pendingCount > 0) {
+        if (pendingInvitation != null) {
             throw new BusinessException(409, "该用户已有待处理的有效邀请");
         }
 
@@ -198,7 +188,26 @@ public class ProjectInvitationService {
             throw new BusinessException(409, "该邀请已经过期");
         }
 
-        User invitee = userMapper.selectById(invitation.getInviteeId());
+        Project project = projectMapper.selectByIdForUpdate(invitation.getProjectId());
+
+        if (project == null || project.getDeletedAt() != null) {
+            throw new BusinessException(404, "项目不存在");
+        }
+
+        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
+            throw new BusinessException(409, "当前项目状态不允许接受邀请");
+        }
+
+        invitation = projectInvitationMapper.selectByIdForUpdate(invitationId);
+        now = LocalDateTime.now();
+        if (invitation == null || !project.getId().equals(invitation.getProjectId())
+            || !currentUser.getUserId().equals(invitation.getInviteeId())
+            || invitation.getStatus() != ProjectInvitationStatus.PENDING
+            || !invitation.getExpiresAt().isAfter(now)) {
+            throw new BusinessException(409, "该邀请已失效，请刷新后重试");
+        }
+
+        User invitee = userMapper.selectByIdForShare(invitation.getInviteeId());
 
         if (invitee == null) {
             throw new BusinessException(401, "登录用户不存在");
@@ -212,20 +221,8 @@ public class ProjectInvitationService {
             throw new BusinessException(403, "系统管理员不能加入项目");
         }
 
-        Project project = projectMapper.selectByIdForUpdate(invitation.getProjectId());
-
-        if (project == null || project.getDeletedAt() != null) {
-            throw new BusinessException(404, "项目不存在");
-        }
-
-        if (!ProjectStatus.PREPARING.equals(project.getStatus()) && !ProjectStatus.IN_PROGRESS.equals(project.getStatus())) {
-            throw new BusinessException(409, "当前项目状态不允许接受邀请");
-        }
-
-        ProjectMember currentMember = projectMemberMapper.selectOne(
-            new LambdaQueryWrapper<ProjectMember>()
-                .eq(ProjectMember::getProjectId, invitation.getProjectId())
-                .eq(ProjectMember::getUserId, currentUser.getUserId())
+        ProjectMember currentMember = projectMemberMapper.selectMemberForUpdate(
+            project.getId(), currentUser.getUserId()
         );
 
         if (currentMember != null && ProjectMemberStatus.ACTIVE.equals(currentMember.getStatus())) {
@@ -251,12 +248,7 @@ public class ProjectInvitationService {
         invitation.setStatus(ProjectInvitationStatus.ACCEPTED);
         invitation.setRespondedAt(now);
 
-        // 5. 查询是否曾经是这个项目的成员
-        ProjectMember member = projectMemberMapper.selectOne(
-            new LambdaQueryWrapper<ProjectMember>()
-                .eq(ProjectMember::getProjectId, invitation.getProjectId())
-                .eq(ProjectMember::getUserId, currentUser.getUserId())
-        );
+        ProjectMember member = currentMember;
 
         // 6. 第一次加入项目
         if (member == null) {

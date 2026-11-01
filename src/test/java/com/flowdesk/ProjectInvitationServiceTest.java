@@ -91,6 +91,8 @@ public class ProjectInvitationServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(projectInvitationMapper.selectByIdForUpdate(anyLong()))
+            .thenAnswer(call -> projectInvitationMapper.selectById(call.getArgument(0)));
         projectInvitationService = new ProjectInvitationService(
             projectInvitationMapper,
             projectMemberMapper,
@@ -165,7 +167,8 @@ public class ProjectInvitationServiceTest {
         UserContext.set(new CurrentUser(2L, "USER"));
 
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
-        when(userMapper.selectById(2L)).thenReturn(admin);
+        when(userMapper.selectByIdForShare(2L)).thenReturn(admin);
+        when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
 
         BusinessException exception = assertThrows(BusinessException.class, () -> projectInvitationService.acceptInvitation(50L));
 
@@ -208,10 +211,10 @@ public class ProjectInvitationServiceTest {
         when(userMapper.selectOne(any())).thenReturn(jack);
 
         // Jack 目前还不是项目成员
-        when(projectMemberMapper.selectOne(any())).thenReturn(null);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 2L)).thenReturn(null);
 
         // 没有重复的有效邀请
-        when(projectInvitationMapper.selectCount(any())).thenReturn(0L);
+        when(projectInvitationMapper.selectPendingForInviteeForUpdate(eq(4L), eq(2L), any())).thenReturn(null);
 
         // 模拟数据库插入后生成 invitationId = 50
         doAnswer(invocation -> {
@@ -297,10 +300,10 @@ public class ProjectInvitationServiceTest {
         jack.setId(2L);
         jack.setSystemRole("USER");
         jack.setStatus(UserStatus.ACTIVE);
-        when(userMapper.selectById(2L)).thenReturn(jack);
+        when(userMapper.selectByIdForShare(2L)).thenReturn(jack);
 
         // Jack 之前不是项目成员
-        when(projectMemberMapper.selectOne(any())).thenReturn(null);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 2L)).thenReturn(null);
 
         projectInvitationService.acceptInvitation(50L);
 
@@ -413,7 +416,7 @@ public class ProjectInvitationServiceTest {
         when(userMapper.selectOne(any())).thenReturn(activeUser(2L, "USER"));
         ProjectMember member = new ProjectMember();
         member.setStatus(ProjectMemberStatus.ACTIVE);
-        when(projectMemberMapper.selectOne(any())).thenReturn(member);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 2L)).thenReturn(member);
 
         BusinessException exception = assertThrows(BusinessException.class, () ->
             projectInvitationService.sendInvitation(4L, dto)
@@ -429,8 +432,8 @@ public class ProjectInvitationServiceTest {
         dto.setUsername("jack");
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
         when(userMapper.selectOne(any())).thenReturn(activeUser(2L, "USER"));
-        when(projectMemberMapper.selectOne(any())).thenReturn(null);
-        when(projectInvitationMapper.selectCount(any())).thenReturn(1L);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 2L)).thenReturn(null);
+        when(projectInvitationMapper.selectPendingForInviteeForUpdate(eq(4L), eq(2L), any())).thenReturn(60L);
 
         BusinessException exception = assertThrows(BusinessException.class, () ->
             projectInvitationService.sendInvitation(4L, dto)
@@ -478,7 +481,7 @@ public class ProjectInvitationServiceTest {
         ProjectInvitation invitation = pendingInvitation();
         UserContext.set(new CurrentUser(2L, "USER"));
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
-        when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
+        when(userMapper.selectByIdForShare(2L)).thenReturn(activeUser(2L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
         when(
             projectInvitationMapper.transitionPending(anyLong(), any(ProjectInvitationStatus.class), any(LocalDateTime.class))
@@ -502,9 +505,9 @@ public class ProjectInvitationServiceTest {
         member.setStatus(ProjectMemberStatus.INACTIVE);
         UserContext.set(new CurrentUser(2L, "USER"));
         when(projectInvitationMapper.selectById(50L)).thenReturn(invitation);
-        when(userMapper.selectById(2L)).thenReturn(activeUser(2L, "USER"));
+        when(userMapper.selectByIdForShare(2L)).thenReturn(activeUser(2L, "USER"));
         when(projectMapper.selectByIdForUpdate(4L)).thenReturn(activeProject());
-        when(projectMemberMapper.selectOne(any())).thenReturn(member);
+        when(projectMemberMapper.selectMemberForUpdate(4L, 2L)).thenReturn(member);
 
         projectInvitationService.acceptInvitation(50L);
 
